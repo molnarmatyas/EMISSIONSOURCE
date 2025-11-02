@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<job nProcesses="20" simulateSubmission="false">
+
+  <command>
+    # mkdir -p /gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/tmp/$JOBID
+    # mkdir -p epos4drive/tmp/$JOBID
+    mkdir -p /star/u/momatyas/work/epos/simulation_runs/tmp/$JOBID
+    # cd /gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/tmp/$JOBID
+    # cd epos4drive/tmp/$JOBID
+    cd /star/u/momatyas/work/epos/simulation_runs/tmp/$JOBID
+
+    # Copy the original configuration file
+    # cp /gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/prueba_EOS2.optns .
+    cp /star/u/momatyas/work/epos/simulation_runs/prueba_EOS2.optns .
+    echo " --- Copying successful ---  "
+
+    # Extract job number (after underscore)
+    set JOBNUM = `echo $JOBID | awk -F'_' '{print $NF}'`
+    echo " --- Extracted job number: --- "
+    echo $JOBNUM
+
+    # Define unique filename
+    set OPTNS_FILE = prueba_EOS2_${JOBNUM}
+
+    # Rename template optns file to unique filename
+    mv prueba_EOS2.optns ${OPTNS_FILE}.optns
+
+    # Generate unique seed values (tcsh syntax)
+    @ SEEDJ = ( $JOBNUM * 123 + 45 )
+    @ SEEDI = ( $JOBNUM * 67 + 890 )
+    echo " --- Generated SEEDJ and SEEDI: --- "
+    echo $SEEDJ
+    echo $SEEDI
+
+    # Replace the seed values in the copied file (tcsh-compatible approach)
+    sed -E "s/set seedj [0-9]+/set seedj $SEEDJ/" ${OPTNS_FILE}.optns > temp.optns
+    sed -E "s/set seedi [0-9]+/set seedi $SEEDI/" temp.optns > temp2.optns
+    # Rename final file (overwrite safely)
+    mv temp2.optns ${OPTNS_FILE}.optns
+    rm temp.optns
+
+    # Run the containerized simulation
+    /gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/epos4-mod.img $OPTNS_FILE
+    # epos4drive/epos4-mod.img $OPTNS_FILE
+
+    # Rename and move the ROOT output file
+    #if ( -f z-${OPTNS_FILE}.root ) then
+    #  echo "Simulation output .root file found, ready"
+    #  mv z-${OPTNS_FILE}.root /gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/submissionouts/rootfiles/z-${OPTNS_FILE}.root
+    #endif
+
+    # Move logs
+    #mv *.log /gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/submissionouts/log/
+
+    # Clean up temporary directory
+    # rm -rf /gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/tmp/$JOBID
+    # rm -rf /star/u/momatyas/work/epos/simulation_runs/tmp/$JOBID
+  </command>
+
+  <stdout URL="file:/gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/submissionouts/$JOBID.out"/>
+  <stderr URL="file:/gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/submissionouts/$JOBID.err"/>
+  <!-- <stdlog URL="file:/gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/submissionouts/$JOBID.log"/> -->
+
+  <output fromScratch="*.log" toURL="file:/gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/submissionouts/log/"/>
+  <output fromScratch="*.root" toURL="file:/gpfs/mnt/gpfs01/star/pwg_tasks/cf01/EPOS4/submissionouts/rootfiles/"/>
+
+</job>
+ 
