@@ -131,95 +131,23 @@ void plot_alphaNR_allcent() {
     for (int iparam = 0; iparam < 2; ++iparam) {
         const char* param = (iparam == 0) ? "alpha" : "R";
         TCanvas* c = new TCanvas(Form("c_%s_final", param), Form("Final %s vs sqrt(sNN)", param), 800, 600);
+        c->SetLogx(1);  // Set logarithmic X axis
         TLegend* leg = new TLegend(0.6, 0.18, 0.88, 0.38);//(0.6, 0.6, 0.88, 0.88);
         leg->SetBorderSize(0);
         leg->SetFillStyle(0);
 
         bool first = true;
-
-        for (int icent = 11; icent < NCENT+2; ++icent) { // !!! icent=10 : only "all" and "0-10%"
+        
+        // Change this line - we only want to plot icent=11 (0-10%) for UrQMD
+        for (int icent = 11; icent <= 11; ++icent) {  // Changed condition
             c->cd();
-            // For "statistical error"
-            // TODO? rename to another variable, plot with error bars (+small horiz. lines at the end) instead of filled uncertainty area
-            /*
-            TString fname = Form("alphaNR_vs_kt/kt_averaged_%s_vs_energy_cent%s.root", param, centleg[icent]);
-            TFile* f = TFile::Open(fname);
-            if (!f || f->IsZombie()) {
-                std::cerr << "Could not open file: " << fname << std::endl;
-                continue;
-            }
-
-            TGraphAsymmErrors* graph = (TGraphAsymmErrors*)f->Get("Graph");
-            if (!graph) {
-                std::cerr << "Graph not found in file: " << fname << std::endl;
-                f->Close();
-                continue;
-            }
-            // If uncommenting, do not forget to uncomment f->Close below
-            */
-            /**/
-            // For "systematic error"
-            TGraphAsymmErrors* graph = new TGraphAsymmErrors(NENERGIES);
-            int sysavg_status = calculate_syst_avg(iparam, icent, graph);
-            if(sysavg_status != 0) {
-                std::cerr << "Error calculating systematic average for parameter " << param << " and centrality " << centleg[icent] << std::endl;
-                continue;
-            }
-            /**/
-
-            /*
-            // Not needed since 200 GeV simulation is already available with EPOS4
-            if(iparam==0 && icent==11)
-            {
-                int n=graph->GetN();
-                graph->SetPoint(n, 200, 1.595);
-                graph->SetPointError(n, 0, 0, 0.085, 0.085);
-            }
-            */
-
-
-            graph->SetMarkerStyle(20);// + icent); // Different marker style for each centrality
-            graph->SetMarkerColor(colors[icent]);
-            graph->SetLineColor(colors[icent]);
-            graph->SetFillColorAlpha(colors[icent], 0.3);
-
-            // Make it similar to STAR Preliminary alpha(sNN) plots
-            graph->GetXaxis()->SetLimits(1,400);//RangeUser 9999
-            //graph->GetYaxis()->SetLimits(0.1,2.1);
-            c->SetLogx(1);
-            graph->SetTitle("EPOS4 & UrQMD 0-10% #pi^{#pm}#pi^{#pm}");
-            if(iparam==0) graph->GetYaxis()->SetRangeUser(0.1, 2.1);//(1.3,1.8);
-            else if(iparam==1) graph->GetYaxis()->SetRangeUser(1.5, 14.5);//(4.5, 6.5);
-
-
-            if (first) {
-                //graph->Draw("AP");
-                graph->Draw("A3");
-                graph->Draw("PX SAME");
-                graph->GetXaxis()->SetTitle("#sqrt{s_{NN}} [GeV]");
-                graph->GetYaxis()->SetTitle((std::string(param) == "alpha") ? "#alpha" : "R [fm]");
-                graph->GetYaxis()->SetTitleOffset(1.2);
-                first = false;
-            } else {
-                //graph->Draw("P SAME");
-                graph->Draw("3 SAME");
-                graph->Draw("PX SAME");
-            }
-
-            leg->AddEntry(graph, Form("%s%% cent, EPOS4", centleg[icent]), "lp");
             
-            /*
-            f->Close();
-            //delete graph;
-            */
-
-
-            // UrQMD
-            // -----
+            // UrQMD part
             TGraphAsymmErrors* graph_urqmd = new TGraphAsymmErrors(NENERGIES_urqmd);
-            sysavg_status = calculate_syst_avg_urqmd(iparam, icent, graph_urqmd);
+            int sysavg_status = calculate_syst_avg_urqmd(iparam, icent, graph_urqmd);
             if(sysavg_status != 0) {
-                std::cerr << "Error calculating systematic average for parameter " << param << " and centrality " << centleg[icent] << std::endl;
+                std::cerr << "Error calculating systematic average for parameter " << param 
+                         << " and centrality " << centleg[icent] << std::endl;
                 continue;
             }
             
@@ -227,26 +155,31 @@ void plot_alphaNR_allcent() {
             graph_urqmd->SetMarkerColor(kTeal);
             graph_urqmd->SetLineColor(kTeal);
             graph_urqmd->SetFillColorAlpha(kTeal, 0.3);
-            graph_urqmd->SetTitle("EPOS4 & UrQMD 0-10% #pi^{#pm}#pi^{#pm}");
-            graph_urqmd->GetXaxis()->SetLimits(1,400);//RangeUser 9999
-            if(iparam==0) graph_urqmd->GetYaxis()->SetRangeUser(0.1,2.1);//(1.3,1.8);
-            else if(iparam==1) graph_urqmd->GetYaxis()->SetRangeUser(1.5, 14.5);//(4.5, 6.5)
-
+            graph_urqmd->SetTitle("UrQMD 0-10% #pi^{#pm}#pi^{#pm}");  // Updated title
+            
+            // Set axis properties before drawing
+            graph_urqmd->GetXaxis()->SetLimits(1,400);
+         
+            if(iparam==0) {
+                graph_urqmd->GetYaxis()->SetRangeUser(0.1,2.1);
+            } else if(iparam==1) {
+                //graph_urqmd->GetYaxis()->SetRangeUser(1.5, 14.5); // FIXME revert back to this
+                graph_urqmd->GetYaxis()->SetRangeUser(1.5, 8.5);
+            }
 
             if (first) {
+                graph_urqmd->Draw("APX");  // Changed to "APX" for first draw
                 graph_urqmd->Draw("3 SAME");
-                graph_urqmd->Draw("PX SAME");
-                //graph_urqmd->GetXaxis()->SetTitle("#sqrt{s_{NN}} [GeV]");
-                //graph_urqmd->GetYaxis()->SetTitle((std::string(param) == "alpha") ? "#alpha" : "R [fm]");
-                //graph_urqmd->GetYaxis()->SetTitleOffset(1.2);
-                //first = false;
+                graph_urqmd->GetXaxis()->SetTitle("#sqrt{s_{NN}} [GeV]");
+                graph_urqmd->GetYaxis()->SetTitle((std::string(param) == "alpha") ? "#alpha" : "R [fm]");
+                graph_urqmd->GetYaxis()->SetTitleOffset(1.2);
+                first = false;
             } else {
-                //graph->Draw("P SAME");
                 graph_urqmd->Draw("3 SAME");
                 graph_urqmd->Draw("PX SAME");
             }
 
-            leg->AddEntry(graph_urqmd, Form("%s%% cent, UrQMD", centleg[icent]), "lp");
+            leg->AddEntry(graph_urqmd, "0-10% cent., UrQMD", "lp");
         }
 
         leg->Draw();
@@ -258,7 +191,7 @@ void plot_alphaNR_allcent() {
         title.DrawLatex(0.15, 0.93, Form("Averaged %s vs #sqrt{s_{NN}}", param));
         */
 
-        c->SaveAs(Form("figs/final_%s_vs_energy.pdf", param));
+        c->SaveAs(Form("figs/final_%s_vs_energy.png", param));
         //c->SaveAs(Form("figs/final_%s_vs_energy.pdf", param));
         delete c;
     }
