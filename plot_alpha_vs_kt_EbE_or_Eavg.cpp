@@ -1,4 +1,4 @@
-// root.exe -b -q plot_alpha_vs_kt_EbE.cpp\(\"7.7GeV\"\)
+// root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"7.7GeV\"\)
 // !!! note: not K_T but m_T
 
 #include <TCanvas.h>

@@ -22,7 +22,7 @@ const char* energies_urqmd[] = {"3p0","3p2","3p5","3p9","4p5","7p7","9p2","11p5"
 const int NENERGIES_urqmd = sizeof(energies_urqmd) / sizeof(energies_urqmd[0]);
 const double energydouble_urqmd[NENERGIES_urqmd] = {3.0, 3.2, 3.5, 3.9, 4.5, 7.7, 9.2, 11.5, 14.5, 19.6, 27.0};
 
-// !!! set these to correct values before running !!!
+// !!! set these to correct values before running as command line argument(s) !!!
 int NEVT_AVG = 1000;
 
 int calculate_syst_avg(int iparam, int icent, TGraphAsymmErrors* graph) {
@@ -122,7 +122,9 @@ int calculate_syst_avg_urqmd(int iparam, int icent, TGraphAsymmErrors* graph) {
 }
 
 // ----------------------  MAIN  ----------------------------------------
-void plot_alphaNR_allcent() {
+void plot_alphaNR_allcent(int _NEVT_AVG = 1000) {
+    NEVT_AVG = _NEVT_AVG;
+    std::cout << "Using NEVT_AVG = " << NEVT_AVG << std::endl;
     gStyle->SetOptStat(0);
     //gStyle->SetTitleAlign(13);
     //gStyle->SetTitleX(0.2);
@@ -152,9 +154,9 @@ void plot_alphaNR_allcent() {
             }
             
             graph_urqmd->SetMarkerStyle(21);
-            graph_urqmd->SetMarkerColor(kTeal);
-            graph_urqmd->SetLineColor(kTeal);
-            graph_urqmd->SetFillColorAlpha(kTeal, 0.3);
+            graph_urqmd->SetMarkerColor(kTeal+3);
+            graph_urqmd->SetLineColor(kTeal+3);
+            graph_urqmd->SetFillColorAlpha(kTeal+3, 0.3);
             graph_urqmd->SetTitle("UrQMD 0-10% #pi^{#pm}#pi^{#pm}");  // Updated title
             
             // Set axis properties before drawing

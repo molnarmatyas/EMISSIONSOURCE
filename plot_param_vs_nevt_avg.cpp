@@ -9,14 +9,14 @@
 void plot_param_vs_nevt_avg() {
     // Define the NEVT_AVG values to process
     std::vector<int> nevt_avg = {1, 50, 100, 200, 500, 1000, 5000, 10000};
-    std::vector<std::string> energies = {"27"}; //"3p0", 
+    std::vector<std::string> energies = {"3p0","7p7","27"};
     
     // Create vectors to store parameters for different energies
     std::vector<TGraphErrors*> alpha_graphs;
     std::vector<TGraphErrors*> R_graphs;
     
     // Colors for different energies
-    int colors[] = {kRed, kBlue};
+    int colors[] = {kRed, kBlue, kTeal+3};
     
     for(size_t e = 0; e < energies.size(); e++) {
         std::vector<double> alphas, alphaErrs;
@@ -37,7 +37,13 @@ void plot_param_vs_nevt_avg() {
             // Get the histogram (using alpha_vs_R_all for all kT bins combined)
             TH2F* h2 = (TH2F*)file->Get("alpha_vs_R_all");
             if(!h2) {
-                printf("Could not find histogram in file: %s\n", filename.Data());
+                printf("Could not find alpha_vs_R_all histogram in file: %s\n", filename.Data());
+                file->Close();
+                continue;
+            }
+            // Check if histogram has entries
+            if(h2->GetEntries() == 0) {
+                printf("Histogram alpha_vs_R_all has no entries in file: %s\n", filename.Data());
                 file->Close();
                 continue;
             }
