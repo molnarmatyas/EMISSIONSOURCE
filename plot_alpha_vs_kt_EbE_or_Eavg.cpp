@@ -8,22 +8,24 @@
 #include <TString.h>
 #include <iostream>
 
+#include "header_for_all_emissionsource.h"
 const int NCENT = 10; // number of centrality classes
-const int NKT = 10;
+//const int NKT = 10;
+//double ktbins[NKT + 1] = {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
 const char* centleg[NCENT+2] = {"0-5", "5-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80-100","all","0-10"};
 //const double ktbins[NKT + 1] = {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
-double ktbins[NKT + 1] = {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
 
-const double Mass2_pi = 0.019479835;
-const double Mass2_ka = 0.24371698032;
+//const double Mass2_pi = 0.019479835;
+//const double Mass2_ka = 0.24371698032;
 
 // ---------  MAIN  -----------------------------------------
 void plot_alpha_vs_kt_EbE_or_Eavg(const char* energy="9.2GeV", bool urqmd=false, int NEVT_AVG=1) 
 {
+  double mtbins[NKT+1] = {0};
   // Convert from k_T bin limits to m_T values
   for(int ii=0; ii<NKT; ii++)
   {
-    ktbins[ii] = sqrt(ktbins[ii]*ktbins[ii] + Mass2_pi);
+    mtbins[ii] = sqrt(ktbins[ii]*ktbins[ii] + Mass2_pi);
   }
   
   for(int icent=0; icent<NCENT+2; icent++)
@@ -60,13 +62,13 @@ void plot_alpha_vs_kt_EbE_or_Eavg(const char* energy="9.2GeV", bool urqmd=false,
     for(int ii=0; ii<NKT; ii++)
     {
       // K_T bin centers
-      ktbin_centers[ii] = (ktbins[ii+1]+ktbins[ii])/2;
+      ktbin_centers[ii] = (mtbins[ii+1]+mtbins[ii])/2;
     }
     double binWidths[NKT];
     for(int ii=0; ii<NKT; ii++)
     {
       // K_T bin centers
-      binWidths[ii] = ktbins[ii+1]-ktbins[ii];
+      binWidths[ii] = mtbins[ii+1]-mtbins[ii];
     }
  
     // ....
