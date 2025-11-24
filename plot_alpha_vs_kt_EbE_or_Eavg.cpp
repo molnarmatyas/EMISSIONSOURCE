@@ -23,9 +23,10 @@ void plot_alpha_vs_kt_EbE_or_Eavg(const char* energy="9.2GeV", bool urqmd=false,
 {
   double mtbins[NKT+1] = {0};
   // Convert from k_T bin limits to m_T values
-  for(int ii=0; ii<NKT; ii++)
+  for(int ii=0; ii<NKT+1; ii++)
   {
     mtbins[ii] = sqrt(ktbins[ii]*ktbins[ii] + Mass2_pi);
+    cerr << "mtbin[" << ii << "] = " << mtbins[ii] << endl;
   }
   
   for(int icent=0; icent<NCENT+2; icent++)
@@ -123,7 +124,7 @@ void plot_alpha_vs_kt_EbE_or_Eavg(const char* energy="9.2GeV", bool urqmd=false,
     //graph->GetYaxis()->SetRangeUser(0,2);
     // Customize the axes
     graphR->GetXaxis()->SetLimits(0.0, 0.7); // Set X-axis range
-    graphR->GetYaxis()->SetRangeUser(3.0, 10.0); // Set Y-axis range
+    graphR->GetYaxis()->SetRangeUser(0.0, 10.0); // Set Y-axis range FIXME from 3.0 to 10.0?
     graphR->Draw("AP");
 
     // Save the plot to a file

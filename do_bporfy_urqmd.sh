@@ -16,4 +16,4 @@ make exe/onedim_EbE_or_Eavg_fit.exe
 exe/onedim_EbE_or_Eavg_fit.exe 11 "30A" 1 10000 10000 1 &> fit_log_30A.log # avg. by 1000 events: set second 10k to 1000
 # Plotting param vs mT
 cd ..
-root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"30A\",true,10000\)
+root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"30A\",true,10000\) # do not forget to set to same NEVT_AVG
