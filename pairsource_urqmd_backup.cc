@@ -15,13 +15,13 @@
 #include <map>
 #include <fstream>
 
-#include "../../header_for_all_emissionsource.h"
-//const int NKT = 10;
-//const double ktbins[NKT+1]= {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
+//#include "../../header_for_all_emissionsource.h"
+const int NKT = 10;
+const double ktbins[NKT+1]= {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
 int barWidth = 70;
 
 #define NCH 2
-//const double Mass2_pi = 0.019479835;
+const double Mass2_pi = 0.019479835;
 
 //const double ktbins[NKT+1]= {0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50};
 //const double qmax[NKT] =       {0.05, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26}; // deprecated I guess
@@ -56,6 +56,9 @@ void progressbar(Int_t event, Int_t nEvents)
   
 }
 
+const char* _qLCMS_cut[3] = {"default", "strict", "loose"};
+const double _qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // in GeV/c
+
 
 int main(int argc, char** argv)
 {
@@ -64,11 +67,20 @@ int main(int argc, char** argv)
   std::map<int, std::map<int, std::map<int, TH1D *> > > D_side_lcms;
   std::map<int, std::map<int, std::map<int, TH1D *> > > D_long_lcms;
   std::map<int, std::map<int, std::map<int, TH1D *> > > D_outlong_lcms;
-  if(argc < 2)
+  if(argc < 3)
   {
-    std::cerr << "usage: pairsource_urqmd <energy_string> " << std::endl;
+    std::cerr << "usage: pairsource_urqmd <energy_string> <qLCMS_cut>" << std::endl;
     return 0;
   }
+
+  int qLCMS_cuttype = (int)atoi(argv[2]);
+  if(qLCMS_cuttype < 0 || qLCMS_cuttype > 2)
+  {
+    std::cerr << "qLCMS_cuttype must be 0 (default), 1 (strict) or 2 (loose)" << std::endl;
+    qLCMS_cuttype = 0;
+    return 0;
+  }
+  std::cout << "Using qLCMS cut type: " << _qLCMS_cut[qLCMS_cuttype] << std::endl;
 
   TFile *treefile = new TFile(Form("AuAu_%s_tree.root",argv[1]),"read");
   //TString inputFile = treefile->GetName(); 
@@ -191,7 +203,7 @@ int main(int argc, char** argv)
               double etak = 0.5 * TMath::Log(TMath::Abs((pk + pzk) / (pk - pzk)));
               if(fabs(etaj) > 1.) continue;
               if(fabs(etak) > 1.) continue;
-              if(qLCMS < TMath::Sqrt(0.15 * TMath::Sqrt(KT*KT + Mass2_pi))) // 150 Mev * mT baseline; strict 50 MeV, loose 250 MeV
+              if(qLCMS < TMath::Sqrt(_qLCMS_cut_values[qLCMS_cuttype] * TMath::Sqrt(KT*KT + Mass2_pi))) // 150 Mev * mT baseline; strict 50 MeV, loose 250 MeV
               //if(qLCMS < qmax[iKT]) 
               //if(qLCMS < ktbins[iKT+1]) 
               {

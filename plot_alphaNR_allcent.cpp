@@ -193,8 +193,8 @@ void plot_alphaNR_allcent(int _NEVT_AVG = 1000) {
         title.DrawLatex(0.15, 0.93, Form("Averaged %s vs #sqrt{s_{NN}}", param));
         */
 
-        c->SaveAs(Form("figs/final_%s_vs_energy.png", param));
-        //c->SaveAs(Form("figs/final_%s_vs_energy.pdf", param));
+        //c->SaveAs(Form("figs/final_%s_vs_energy.png", param));
+        c->SaveAs(Form("figs/final_%s_vs_energy.pdf", param));
         delete c;
     }
 }
