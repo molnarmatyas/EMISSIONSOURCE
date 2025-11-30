@@ -37,7 +37,7 @@ done
 
 # for ienergy in "${energies[@]}"; do
 #   echo "Fitting for energy: ${ienergy}"
-#   exe/onedim_EbE_or_Eavg_fit.exe 11 ${ienergy} 1 10000 ${nevt_avg_default} 1 &> logfiles/fit_log_${ienergy}.log # avg. by 100--10000 events
+#   exe/onedim_EbE_or_Eavg_fit.exe 11 ${ienergy} 1 10000 ${nevt_avg_default} 0 0 1 &> logfiles/fit_log_${ienergy}.log # avg. by 100--10000 events
 #   mv ../figs/fitting/lcms/*AVG1000*.png ../figs/fitting/lcms/AVG1000/
 # done
 
@@ -49,7 +49,7 @@ for energy in "${energies[@]}"; do
   echo "Fitting for energy ${energy}"
   for avg in "${nevt_avgs[@]}"; do
     echo "Fitting for nevt_avg: ${avg}"
-    exe/onedim_EbE_or_Eavg_fit.exe 11 "${energy}" 1 10000 ${avg} 1 &> logfiles/fit_log_${energy}_nevtavg${avg}.log # avg. by nevt events
+    exe/onedim_EbE_or_Eavg_fit.exe 11 "${energy}" 1 10000 ${avg} 0 0 1 &> logfiles/fit_log_${energy}_nevtavg${avg}.log # avg. by nevt events
     mv ../figs/fitting/lcms/*AVG${avg}*.png ../figs/fitting/lcms/AVG${avg}/
   done
 done

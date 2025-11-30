@@ -86,6 +86,7 @@ const char* covstatuses[4] = {"not_calculated",
                               "approximated",
                               "forced_pos.def.",
                               "accurate"};
+const double B[3] = {2500, 1600, 3600}; // for rho_fitmax limits: default, strict, loose
 
 // Define the fit function
 double fitFunction(const double *x, const double *par)
@@ -194,12 +195,15 @@ int main(int argc, char *argv[])
   int NEVT = 25;//1000;
   int NEVT_AVG = 100; // number of events to be averaged over for each fit
   bool IsUrQMD = false;
+  int qlcms_syst = 0; // 0: default, 1: strict, 2: loose
+  int rho_fitmax_syst = 0; // 0: default, 1: strict, 2: loose
   // Args overridden
-  if(argc < 2 || argc > 7)
+  if(argc < 2 || argc > 9)
   {
     cerr << "Correct usage: " << endl;
-    cerr << "exe/programname.exe ICENT energy NFILEMAX NEVT NEVT_AVG IsUrQMD[bool:true/false]" << endl;
+    cerr << "exe/programname.exe ICENT energy NFILEMAX NEVT NEVT_AVG qlcms rho_fitmax IsUrQMD[bool:true/false]" << endl;
     cerr << "(NEVT is number of events per 'file', NEVT_AVG is number of events over to be averaged)" << endl;
+    cerr << "qlcms and rho_fitmax of systematics, default: 0, strict: 1, loose: 2" << endl;
     return 1;
   }
   if(argc > 1)
@@ -226,10 +230,12 @@ int main(int argc, char *argv[])
       cerr << "NEVT_AVG must be at least 1!" << endl;
       return 1;
     }
+    qlcms_syst = (int)atoi(argv[6]);
+    rho_fitmax_syst = (int)atoi(argv[7]);
   }
-  if(argc == 7)
+  if(argc == 9)
   {
-    IsUrQMD = static_cast<bool>(atoi(argv[6]));
+    IsUrQMD = static_cast<bool>(atoi(argv[8]));
   }
 
   // Correct indexing of centrality classes' array - implemented from lcmsonly_epos_pair_source.C macro 
@@ -284,7 +290,9 @@ int main(int argc, char *argv[])
   }
   // Open the file and get the histograms
   const char* isPathUrqmd = IsUrQMD ? "UrQMD" : "EPOS";
-  TFile *file = TFile::Open(Form("%s/analysed/%s_3d_source_%scent_all_%s.root", path,isPathUrqmd,centleg[ICENT],energy));
+  const char* qlcms_syst_label = (qlcms_syst == 0) ? "" : (qlcms_syst == 1) ? "_strictqLCMS" : "_looseqLCMS";
+  TFile *file = TFile::Open(Form("%s/analysed/%s_3d_source_%scent_all_%s%s.root", 
+                                  path,isPathUrqmd,centleg[ICENT],energy,qlcms_syst_label));
   if (!file)
   {
     std::cerr << "Error opening file" << std::endl;
@@ -403,6 +411,22 @@ int main(int argc, char *argv[])
           //sourcehist->Scale(1.0 / sourcehist->Integral(1,sourcehist->GetNbinsX()));
           cout << "Integral w overflow after normalization: " << histograms[ikt][iframe]->Integral(0,histograms[ikt][iframe]->GetNbinsX()+1) << endl;
     
+          // FITTING PROCEDURE STARTING HERE
+          /* TODO FIXME!!!
+          // k_T- (or m_T-) dependent fit rannge
+          //rfitmax = sqrt(ktbin_centers[ikt]*ktbin_centers[ikt] + Mass2_pi) * B[qlcms_syst];
+          if(rho_fitmax_syst == 0) // default
+          {
+            rfitmax = 100.;
+          }else if(rho_fitmax_syst == 1) // strict
+          {
+            rfitmax = 50.;
+          }else if(rho_fitmax_syst == 2) // loose
+          {
+            rfitmax = 150.;
+          }
+          */
+
           // Create the minimizer
           ROOT::Math::Minimizer* minimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
         
@@ -515,7 +539,7 @@ int main(int argc, char *argv[])
           Tl.DrawLatexNDC(0.58, 0.63, Form("C.L. = %.2f%%", 100 * conflev));
           
           // Add a title using TLatex for better customization
-          const char* isPathUrqmdTitle = IsUrQMD ? "UrQMD" : "EPOS4"; // FIXME prbly isPathUrQMD would do as well ("EPOS" instead of "EPOS4", who cares)
+          const char* isPathUrqmdTitle = IsUrQMD ? "UrQMD" : "EPOS4";
           TLatex title;
           title.SetTextAlign(12);  //centered
           title.SetTextSize(0.03);
@@ -548,7 +572,7 @@ int main(int argc, char *argv[])
           }
           
           // SAVING results
-          //Ngoodfits++; // FIXME uncomment this if needed
+          //Ngoodfits++; // FIXME uncomment this if needed for custom histogram root-naming
           alphahist[ikt]->Fill(alpha);
           Rhist[ikt]->Fill(R);
           Nhist[ikt]->Fill(N);

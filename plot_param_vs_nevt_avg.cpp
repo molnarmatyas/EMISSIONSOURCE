@@ -169,6 +169,7 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             alpha_graphs[i]->SetTitle("Levy #alpha vs NEVT_AVG");
             alpha_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             alpha_graphs[i]->GetYaxis()->SetTitle("#alpha");
+            // alpha_graphs[i]->GetYaxis()->SetRangeUser(1.2, 1.9);
             alpha_graphs[i]->Draw("APE");
             // overlay a connecting line so points remain visible with error bars
             alpha_graphs[i]->Draw("L same");
@@ -191,6 +192,7 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             R_graphs[i]->SetTitle("Levy R vs NEVT_AVG");
             R_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             R_graphs[i]->GetYaxis()->SetTitle("R [fm]");
+            // R_graphs[i]->GetYaxis()->SetRangeUser(3, 7); // R between 0 and 10 fm
             R_graphs[i]->Draw("APE");
             R_graphs[i]->Draw("L same");
         } else {
