@@ -48,6 +48,9 @@ void plot_alpha_vs_kt_EbE_or_Eavg(const char* energy="9.2GeV", bool urqmd=false,
     Double_t R_vs_kt[NKT] = {0};
     Double_t R_errdn_vs_kt[NKT] = {0};
     Double_t R_errup_vs_kt[NKT] = {0};
+    Double_t N_vs_kt[NKT] = {0}; 
+    Double_t N_errdn_vs_kt[NKT] = {0};
+    Double_t N_errup_vs_kt[NKT] = {0};
     for(int ikt=0; ikt<NKT; ikt++)
     {
       TH2F* alphaR = (TH2F*)f->Get(Form("alpha_vs_R_ikt%i", ikt));
@@ -57,6 +60,10 @@ void plot_alpha_vs_kt_EbE_or_Eavg(const char* energy="9.2GeV", bool urqmd=false,
       R_vs_kt[ikt] = alphaR->GetMean(2);
       R_errdn_vs_kt[ikt] = alphaR->GetStdDev(2);//GetMeanError(2);
       R_errup_vs_kt[ikt] = alphaR->GetStdDev(2);//GetMeanError(2);
+      TH1F* Nhist = (TH1F*)f->Get(Form("Nhist_ikt%i", ikt));
+      N_vs_kt[ikt] = Nhist->GetMean();
+      N_errdn_vs_kt[ikt] = Nhist->GetStdDev();
+      N_errup_vs_kt[ikt] = Nhist->GetStdDev();
     }
     
     double ktbin_centers[NKT];
@@ -84,8 +91,8 @@ void plot_alpha_vs_kt_EbE_or_Eavg(const char* energy="9.2GeV", bool urqmd=false,
 
     // Create the TGraphAsymmErrors object
     TGraphAsymmErrors *graphalpha = new TGraphAsymmErrors(NKT, ktbin_centers, alpha_vs_kt, xLow, xHigh, alpha_errdn_vs_kt, alpha_errdn_vs_kt);
-    //TGraphAsymmErrors *graphN     = new TGraphAsymmErrors(NKT, ktbin_centers, NValues, xLow, xHigh, NErrLow, NErrHigh);
     TGraphAsymmErrors *graphR     = new TGraphAsymmErrors(NKT, ktbin_centers, R_vs_kt, xLow, xHigh, R_errdn_vs_kt, R_errup_vs_kt);
+    TGraphAsymmErrors *graphN     = new TGraphAsymmErrors(NKT, ktbin_centers, N_vs_kt, xLow, xHigh, N_errdn_vs_kt, N_errup_vs_kt);
 
     // --- alpha ---
     // Style settings
@@ -130,33 +137,33 @@ void plot_alpha_vs_kt_EbE_or_Eavg(const char* energy="9.2GeV", bool urqmd=false,
     // Save the plot to a file
     c->SaveAs(Form("figs/%sR_vs_kt_%s_cent%s.png", isurqmd, energy, centleg[icent]));
 
-    /*
+    
     // --- N ---
 
     // Style settings
-    graphN->SetTitle(Form("#N(K_{T}), #sqrt{s_{NN}}=%s;K_{T} (GeV/c);#N",energy));
+    graphN->SetTitle(Form("N(K_{T}), #sqrt{s_{NN}}=%s, %s%%;m_{T} (GeV/c);N",energy, centleg[icent]));
     graphN->SetMarkerStyle(20);
     graphN->SetMarkerSize(1.2);
     graphN->SetLineWidth(2);
 
     // Draw the graph
-    //TCanvas *c = new TCanvas("c", Form("#N(K_{T}), #sqrt{s_{NN}}=%s",energy), 800, 600);
+    //TCanvas *c = new TCanvas("c", Form("N(K_{T}), #sqrt{s_{NN}}=%s",energy), 800, 600);
     c->SetGrid();
     gStyle->SetOptStat(0);
     //graph->GetYaxis()->SetNangeUser(0,2);
     // Customize the axes
-    graphN->GetXaxis()->SetLimits(0.0, 0.6); // Set X-axis range
+    graphN->GetXaxis()->SetLimits(0.0, 0.7); // Set X-axis range
     //graphN->GetYaxis()->SetRangeUser(0.0, 2.0); // Set Y-axis range
     graphN->Draw("AP");
 
     // Save the plot to a file
-    c->SaveAs(Form("figs/N_vs_kt_%s.png",energy));
-    */
+    c->SaveAs(Form("figs/%sN_vs_kt_%s_cent%s.png", isurqmd, energy, centleg[icent]));
+    
 
     // Save graphs to a .root file
     TFile* outFile = new TFile(Form("alphaNR_vs_kt/%salphaNR_graphs_%s_cent%s.root", isurqmd, energy, centleg[icent]), "RECREATE");
     graphalpha->Write(Form("graphalpha%s",centleg[icent]));
-    //graphN->Write("graphN");
+    graphN->Write(Form("graphN%s",centleg[icent]));
     graphR->Write(Form("graphR%s",centleg[icent]));
     outFile->Close();
 
@@ -165,7 +172,7 @@ void plot_alpha_vs_kt_EbE_or_Eavg(const char* energy="9.2GeV", bool urqmd=false,
     // Clean up
     delete c;
     delete graphalpha;
-    //delete graphN;
+    delete graphN;
     delete graphR;
   }
 }

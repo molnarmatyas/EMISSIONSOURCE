@@ -28,9 +28,11 @@ cd levyfit
 make clean
 make exe/onedim_EbE_or_Eavg_fit.exe
 
+nevt_avg_default=1000
+
 for ienergy in "${energies[@]}"; do
   echo "Fitting for energy: ${ienergy}"
-  exe/onedim_EbE_or_Eavg_fit.exe 11 ${ienergy} 1 10000 1000 1 &> logfiles/fit_log_${ienergy}.log # avg. by 100--10000 events
+  exe/onedim_EbE_or_Eavg_fit.exe 11 ${ienergy} 1 10000 ${nevt_avg_default} 1 &> logfiles/fit_log_${ienergy}.log # avg. by 100--10000 events
   rm -rf ../figs/fitting/lcms/AVG1000/
   mkdir -p ../figs/fitting/lcms/AVG1000/
   mv ../figs/fitting/lcms/*AVG1000*.png ../figs/fitting/lcms/AVG1000/
@@ -54,9 +56,17 @@ done
 cd ..
 
 
-# for ienergy in "${energies[@]}"; do
-#   echo "Plotting individual graphs for energy: ${ienergy}"
-#   root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,1000\)
-# done
+for ienergy in "${energies[@]}"; do
+  echo "Plotting individual graphs for energy: ${ienergy}"
+  root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,${nevt_avg_default}\)
+done
 
-# root.exe -b -q plot_alphaNR_allcent.cpp
+
+# TODO: after finding out the best value for nevt_avg_default, do qLCMS systematics too with that nevt_avg
+root.exe -b -q plot_param_vs_nevt_avg.cpp\(-1\) # -1 means all KT bins averaged, otherwise give the KT bin index (0..9)
+
+# TODO: calculate & collect all systematics
+
+# Final summary plots
+echo "Plotting param vs sqrt(sNN)"
+root.exe -b -q plot_alphaNR_allcent.cpp\(${nevt_avg_default}\)

@@ -6,21 +6,25 @@
 #include <vector>
 #include <string>
 
-void plot_param_vs_nevt_avg() {
+void plot_param_vs_nevt_avg(int ikt =-1) {
     // Define the NEVT_AVG values to process
-    std::vector<int> nevt_avg = {1, 50, 100, 200, 500, 1000, 5000, 10000};
-    std::vector<std::string> energies = {"3p0","7p7","27"};
+    std::vector<int> nevt_avg = {10, 25, 50, 100, 200, 500, 1000, 5000, 10000}; // removed 1, not meaningful for low energies, runs too long
+    std::vector<std::string> energies = {"3p0","3p2","3p5","3p9","4p5","7p7","9p2","11p5","14p5","19p6","27"};
     
     // Create vectors to store parameters for different energies
     std::vector<TGraphErrors*> alpha_graphs;
     std::vector<TGraphErrors*> R_graphs;
+    std::vector<TGraphErrors*> N_graphs;
+    std::vector<TGraphErrors*> conflev_graphs;
     
     // Colors for different energies
-    int colors[] = {kRed, kBlue, kTeal+3};
+    int colors[] = {kRed, kBlue, kTeal+3, kMagenta, kOrange+7, kGreen+2, kCyan+2, kViolet+2, kPink+7, kGray+2, kAzure+7};
     
     for(size_t e = 0; e < energies.size(); e++) {
         std::vector<double> alphas, alphaErrs;
         std::vector<double> Rs, RErrs;
+        std::vector<double> Ns, NErrs;
+        std::vector<double> conflevs, conflevErrs;
         std::vector<double> nevt_points, nevt_errs;
         
         for(int nevt : nevt_avg) {
@@ -35,15 +39,20 @@ void plot_param_vs_nevt_avg() {
             }
             
             // Get the histogram (using alpha_vs_R_all for all kT bins combined)
-            TH2F* h2 = (TH2F*)file->Get("alpha_vs_R_all");
+            const char* histname = "alpha_vs_R_all";
+            if(ikt>=0)
+            {
+                histname = Form("alpha_vs_R_ikt%i", ikt);
+            }
+            TH2F* h2 = (TH2F*)file->Get(histname);
             if(!h2) {
-                printf("Could not find alpha_vs_R_all histogram in file: %s\n", filename.Data());
+                printf("Could not find alpha_vs_R_all/alpha_vs_R_ikt# histogram in file: %s\n", filename.Data());
                 file->Close();
                 continue;
             }
             // Check if histogram has entries
             if(h2->GetEntries() == 0) {
-                printf("Histogram alpha_vs_R_all has no entries in file: %s\n", filename.Data());
+                printf("Histogram alpha_vs_R_all/alpha_vs_R_ikt# has no entries in file: %s\n", filename.Data());
                 file->Close();
                 continue;
             }
@@ -60,6 +69,41 @@ void plot_param_vs_nevt_avg() {
             RErrs.push_back(RErr);
             nevt_points.push_back(nevt);
             nevt_errs.push_back(0);
+
+            // Same for lambda (in other convention, displayed here as N) and confidence level
+            // N is for diff. ikt only
+            int ikt_N = ikt;
+            if(ikt_N < 0) ikt_N = 0; // just to get the first histogram, later will be added together
+            TH1F* hN = (TH1F*)file->Get(Form("Nhist_ikt%i", ikt_N));
+            if(!hN) {
+                printf("Could not find Nhist_ikt# histogram in file: %s\n", filename.Data());
+                file->Close();
+                continue;
+            }
+            if(ikt_N < 0) {
+                // Add all kT bins together
+                for(int ikt_add = 1; ikt_add < NKT; ikt_add++) {
+                    TH1F* hN_add = (TH1F*)file->Get(Form("Nhist_ikt%i", ikt_add));
+                    if(hN_add) {
+                        hN->Add(hN_add);
+                    }
+                }
+                // Rename to avoid confusion
+                hN->SetName("Nhist_allkt");
+                hN->SetTitle("N, all kT bins combined");
+            }
+            
+            double N = hN->GetMean();
+            double NErr = hN->GetRMS() / sqrt(hN->GetEntries());
+            Ns.push_back(N);
+            NErrs.push_back(NErr);
+            // Confidence level is stored together and for all kT bins separately as well
+            const char* conflev_histname = (ikt>=0) ? Form("confidencehist_ikt%i", ikt) : "confidencehist_all";
+            TH1F* hConfLev = (TH1F*)file->Get(conflev_histname);
+            double conflev = hConfLev->GetMean();
+            double conflevErr = hConfLev->GetRMS() / sqrt(hConfLev->GetEntries());
+            conflevs.push_back(conflev);
+            conflevErrs.push_back(conflevErr);
             
             file->Close();
         }
@@ -69,6 +113,10 @@ void plot_param_vs_nevt_avg() {
             &nevt_points[0], &alphas[0], &nevt_errs[0], &alphaErrs[0]);
         TGraphErrors* g_R = new TGraphErrors(nevt_points.size(),
             &nevt_points[0], &Rs[0], &nevt_errs[0], &RErrs[0]);
+        TGraphErrors* g_N = new TGraphErrors(nevt_points.size(),
+            &nevt_points[0], &Ns[0], &nevt_errs[0], &NErrs[0]);
+        TGraphErrors* g_conflev = new TGraphErrors(nevt_points.size(),
+            &nevt_points[0], &conflevs[0], &nevt_errs[0], &conflevErrs[0]);
             
         g_alpha->SetMarkerStyle(20);
         g_alpha->SetMarkerColor(colors[e]);
@@ -76,14 +124,22 @@ void plot_param_vs_nevt_avg() {
         g_R->SetMarkerStyle(20);
         g_R->SetMarkerColor(colors[e]);
         g_R->SetLineColor(colors[e]);
+        g_N->SetMarkerStyle(20);
+        g_N->SetMarkerColor(colors[e]);
+        g_N->SetLineColor(colors[e]);
+        g_conflev->SetMarkerStyle(20);
+        g_conflev->SetMarkerColor(colors[e]);
+        g_conflev->SetLineColor(colors[e]);
         
         alpha_graphs.push_back(g_alpha);
         R_graphs.push_back(g_R);
+        N_graphs.push_back(g_N);
+        conflev_graphs.push_back(g_conflev);
     }
     
     // Create and divide canvas
-    TCanvas* c1 = new TCanvas("c1", "Parameter vs NEVT_AVG", 1200, 600);
-    c1->Divide(2,1);
+    TCanvas* c1 = new TCanvas("c1", "Parameter vs NEVT_AVG", 1200, 1200);
+    c1->Divide(2,2);
     
     // Plot alpha
     c1->cd(1);
@@ -122,6 +178,43 @@ void plot_param_vs_nevt_avg() {
         leg2->AddEntry(R_graphs[i], Form("%s GeV", energies[i].c_str()), "PE");
     }
     leg2->Draw();
-    
+
+    // Plot N
+    c1->cd(3);
+    gPad->SetLogx();
+    TLegend* leg3 = new TLegend(0.2, 0.2, 0.4, 0.3);
+
+    for(size_t i = 0; i < N_graphs.size(); i++) {
+        if(i == 0) {
+            N_graphs[i]->SetTitle("Levy N vs NEVT_AVG");
+            N_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
+            N_graphs[i]->GetYaxis()->SetTitle("N");
+            N_graphs[i]->Draw("APE");
+        } else {
+            N_graphs[i]->Draw("PE same");
+        }
+        leg3->AddEntry(N_graphs[i], Form("%s GeV", energies[i].c_str()), "PE");
+    }
+    leg3->Draw();
+
+    // Plot confidence level
+    c1->cd(4);
+    gPad->SetLogx();
+    TLegend* leg4 = new TLegend(0.2, 0.2, 0.4, 0.3);
+
+    for(size_t i = 0; i < conflev_graphs.size(); i++) {
+        if(i == 0) {
+            conflev_graphs[i]->SetTitle("Fit Confidence Level vs NEVT_AVG");
+            conflev_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
+            conflev_graphs[i]->GetYaxis()->SetTitle("Confidence Level");
+            conflev_graphs[i]->Draw("APE");
+        } else {
+            conflev_graphs[i]->Draw("PE same");
+        }
+        leg4->AddEntry(conflev_graphs[i], Form("%s GeV", energies[i].c_str()), "PE");
+    }
+    leg4->Draw();
+
+    // Final, save
     c1->SaveAs("figs/levy_params_vs_nevt_avg.png");
 }

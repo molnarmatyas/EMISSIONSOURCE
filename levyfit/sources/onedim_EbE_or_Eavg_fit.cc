@@ -254,7 +254,9 @@ int main(int argc, char *argv[])
   TH1* Nhist[NKT];
   TH2* alpha_vs_R[NKT];
   TH2F* alpha_vs_R_all = new TH2F("alpha_vs_R_all","",100,0.6,1.8,100,2.5,11.);
-  TH1* confidencehist = new TH1F("confidencehist","",100,0.,1.);
+  // Per-ikt confidence histograms and one collecting all kT bins
+  TH1* confidencehist[NKT];
+  TH1* confidencehist_all = new TH1F("confidencehist_all","",100,0.,1.);
   // Temporary storages
   // For writing the vectors into TGraphAsymmErrors
   Double_t ktbin_centers[NKT], xLow[NKT], xHigh[NKT];//, binWidths[NKT];
@@ -278,6 +280,7 @@ int main(int argc, char *argv[])
     Rhist[ikt] = new TH1F(Form("Rhist_ikt%i",ikt),"",100,2.5,15.);
     Nhist[ikt] = new TH1F(Form("Nhist_ikt%i",ikt),"",100,0.85,1.15);
     alpha_vs_R[ikt] = new TH2F(Form("alpha_vs_R_ikt%i",ikt),"",100,0.,2.,100,2.5,11.);
+    confidencehist[ikt] = new TH1F(Form("confidencehist_ikt%i",ikt),"",100,0.,1.);
   }
   // Open the file and get the histograms
   const char* isPathUrqmd = IsUrQMD ? "UrQMD" : "EPOS";
@@ -566,7 +569,9 @@ int main(int argc, char *argv[])
           N_errup_vec[ikt] = dN;
           N_errdn_vec[ikt] = dN;
           //minimizer->GetMinosError(2, N_errdn_vec[ikt], N_errup_vec[ikt]);
-          confidencehist->Fill(conflev);
+          // Fill per-ikt and the global confidence histograms
+          confidencehist[ikt]->Fill(conflev);
+          confidencehist_all->Fill(conflev);
           
           delete minimizer;
           delete f_levyfunc;
@@ -615,8 +620,10 @@ int main(int argc, char *argv[])
     //Rhist[ikt]->Write();
     alpha_vs_R[ikt]->Write();
     Nhist[ikt]->Write(); // I could put this with alpha and R together in TH3, but stick with this for now
+    confidencehist[ikt]->Write();
   }
   alpha_vs_R_all->Write();
+  confidencehist_all->Write();
   cout << "histograms written." << endl;
 
   for(size_t i=0; i<alpha_vs_KT_all.size(); i++)
