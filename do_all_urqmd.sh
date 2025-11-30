@@ -29,26 +29,27 @@ make clean
 make exe/onedim_EbE_or_Eavg_fit.exe
 
 nevt_avg_default=1000
-
-for ienergy in "${energies[@]}"; do
-  echo "Fitting for energy: ${ienergy}"
-  exe/onedim_EbE_or_Eavg_fit.exe 11 ${ienergy} 1 10000 ${nevt_avg_default} 1 &> logfiles/fit_log_${ienergy}.log # avg. by 100--10000 events
-  rm -rf ../figs/fitting/lcms/AVG1000/
-  mkdir -p ../figs/fitting/lcms/AVG1000/
-  mv ../figs/fitting/lcms/*AVG1000*.png ../figs/fitting/lcms/AVG1000/
+for avg in "${nevt_avgs[@]}"; do
+  echo "Preparing folders for nevt_avg: ${avg}"
+  rm -rf ../figs/fitting/lcms/AVG${avg}/
+  mkdir -p ../figs/fitting/lcms/AVG${avg}/
 done
 
+# for ienergy in "${energies[@]}"; do
+#   echo "Fitting for energy: ${ienergy}"
+#   exe/onedim_EbE_or_Eavg_fit.exe 11 ${ienergy} 1 10000 ${nevt_avg_default} 1 &> logfiles/fit_log_${ienergy}.log # avg. by 100--10000 events
+#   mv ../figs/fitting/lcms/*AVG1000*.png ../figs/fitting/lcms/AVG1000/
+# done
+
 # Fitting for different nevt_avg for systematics
-nevt_avgs=(10 25 50 100 200 500 5000 10000) # removed 1000 as that is the default, 
-                                            # also 1 as that does not work and lasts too long
+nevt_avgs=(10 25 50 100 200 500 1000 5000 10000) # default to be removed
+                                                 # also 1 as that does not work and lasts too long
 
 for energy in "${energies[@]}"; do
   echo "Fitting for energy ${energy}"
   for avg in "${nevt_avgs[@]}"; do
     echo "Fitting for nevt_avg: ${avg}"
     exe/onedim_EbE_or_Eavg_fit.exe 11 "${energy}" 1 10000 ${avg} 1 &> logfiles/fit_log_${energy}_nevtavg${avg}.log # avg. by nevt events
-    rm -rf ../figs/fitting/lcms/AVG${avg}/
-    mkdir -p ../figs/fitting/lcms/AVG${avg}/
     mv ../figs/fitting/lcms/*AVG${avg}*.png ../figs/fitting/lcms/AVG${avg}/
   done
 done

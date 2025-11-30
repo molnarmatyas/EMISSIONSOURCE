@@ -3,8 +3,10 @@
 #include <TGraphErrors.h>
 #include <TCanvas.h>
 #include <TLegend.h>
+#include <TColor.h>
 #include <vector>
 #include <string>
+#include "header_for_all_emissionsource.h"
 
 void plot_param_vs_nevt_avg(int ikt =-1) {
     // Define the NEVT_AVG values to process
@@ -118,18 +120,33 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
         TGraphErrors* g_conflev = new TGraphErrors(nevt_points.size(),
             &nevt_points[0], &conflevs[0], &nevt_errs[0], &conflevErrs[0]);
             
+        // Use solid markers and slightly transparent, thicker lines to connect points
+        int baseCol = colors[e];
+        int transCol = TColor::GetColorTransparent(baseCol, 0.4); // 40% opacity
+
         g_alpha->SetMarkerStyle(20);
-        g_alpha->SetMarkerColor(colors[e]);
-        g_alpha->SetLineColor(colors[e]);
+        g_alpha->SetMarkerColor(baseCol);
+        g_alpha->SetMarkerSize(1.0);
+        g_alpha->SetLineColor(transCol);
+        g_alpha->SetLineWidth(3);
+
         g_R->SetMarkerStyle(20);
-        g_R->SetMarkerColor(colors[e]);
-        g_R->SetLineColor(colors[e]);
+        g_R->SetMarkerColor(baseCol);
+        g_R->SetMarkerSize(1.0);
+        g_R->SetLineColor(transCol);
+        g_R->SetLineWidth(3);
+
         g_N->SetMarkerStyle(20);
-        g_N->SetMarkerColor(colors[e]);
-        g_N->SetLineColor(colors[e]);
+        g_N->SetMarkerColor(baseCol);
+        g_N->SetMarkerSize(1.0);
+        g_N->SetLineColor(transCol);
+        g_N->SetLineWidth(3);
+
         g_conflev->SetMarkerStyle(20);
-        g_conflev->SetMarkerColor(colors[e]);
-        g_conflev->SetLineColor(colors[e]);
+        g_conflev->SetMarkerColor(baseCol);
+        g_conflev->SetMarkerSize(1.0);
+        g_conflev->SetLineColor(transCol);
+        g_conflev->SetLineWidth(3);
         
         alpha_graphs.push_back(g_alpha);
         R_graphs.push_back(g_R);
@@ -138,14 +155,14 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     }
     
     // Create and divide canvas
-    TCanvas* c1 = new TCanvas("c1", "Parameter vs NEVT_AVG", 1200, 1200);
+    TCanvas* c1 = new TCanvas("c1", "Parameter vs NEVT_AVG", 2400, 2400);
     c1->Divide(2,2);
     
     // Plot alpha
     c1->cd(1);
     gPad->SetLogx();
     // Change legend position from (0.65, 0.75, 0.85, 0.85) to bottom left
-    TLegend* leg1 = new TLegend(0.2, 0.2, 0.4, 0.3);
+    TLegend* leg1 = new TLegend(0.2, 0.2, 0.4, 0.5);
     
     for(size_t i = 0; i < alpha_graphs.size(); i++) {
         if(i == 0) {
@@ -153,10 +170,13 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             alpha_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             alpha_graphs[i]->GetYaxis()->SetTitle("#alpha");
             alpha_graphs[i]->Draw("APE");
+            // overlay a connecting line so points remain visible with error bars
+            alpha_graphs[i]->Draw("L same");
         } else {
             alpha_graphs[i]->Draw("PE same");
+            alpha_graphs[i]->Draw("L same");
         }
-        leg1->AddEntry(alpha_graphs[i], Form("%s GeV", energies[i].c_str()), "PE");
+        leg1->AddEntry(alpha_graphs[i], Form("%s GeV", energies[i].c_str()), "LP");
     }
     leg1->Draw();
     
@@ -164,7 +184,7 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     c1->cd(2);
     gPad->SetLogx();
     // Change legend position from (0.65, 0.75, 0.85, 0.85) to bottom left
-    TLegend* leg2 = new TLegend(0.2, 0.2, 0.4, 0.3);
+    TLegend* leg2 = new TLegend(0.2, 0.2, 0.4, 0.5);
     
     for(size_t i = 0; i < R_graphs.size(); i++) {
         if(i == 0) {
@@ -172,46 +192,56 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             R_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             R_graphs[i]->GetYaxis()->SetTitle("R [fm]");
             R_graphs[i]->Draw("APE");
+            R_graphs[i]->Draw("L same");
         } else {
             R_graphs[i]->Draw("PE same");
+            R_graphs[i]->Draw("L same");
         }
-        leg2->AddEntry(R_graphs[i], Form("%s GeV", energies[i].c_str()), "PE");
+        leg2->AddEntry(R_graphs[i], Form("%s GeV", energies[i].c_str()), "LP");
     }
     leg2->Draw();
 
     // Plot N
     c1->cd(3);
     gPad->SetLogx();
-    TLegend* leg3 = new TLegend(0.2, 0.2, 0.4, 0.3);
+    // Place N legend in the upper-right with same size as alpha/R legend (width=0.2, height=0.3)
+    TLegend* leg3 = new TLegend(0.6, 0.6, 0.8, 0.9);
 
     for(size_t i = 0; i < N_graphs.size(); i++) {
         if(i == 0) {
             N_graphs[i]->SetTitle("Levy N vs NEVT_AVG");
             N_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             N_graphs[i]->GetYaxis()->SetTitle("N");
+            N_graphs[i]->GetYaxis()->SetRangeUser(0.95, 1.12); // N between 0 and 1
             N_graphs[i]->Draw("APE");
+            N_graphs[i]->Draw("L same");
         } else {
             N_graphs[i]->Draw("PE same");
+            N_graphs[i]->Draw("L same");
         }
-        leg3->AddEntry(N_graphs[i], Form("%s GeV", energies[i].c_str()), "PE");
+        leg3->AddEntry(N_graphs[i], Form("%s GeV", energies[i].c_str()), "LP");
     }
     leg3->Draw();
 
     // Plot confidence level
     c1->cd(4);
     gPad->SetLogx();
-    TLegend* leg4 = new TLegend(0.2, 0.2, 0.4, 0.3);
+    // Place confidence legend in the upper-right with same size as alpha/R legend
+    TLegend* leg4 = new TLegend(0.6, 0.6, 0.8, 0.9);
 
     for(size_t i = 0; i < conflev_graphs.size(); i++) {
         if(i == 0) {
             conflev_graphs[i]->SetTitle("Fit Confidence Level vs NEVT_AVG");
             conflev_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             conflev_graphs[i]->GetYaxis()->SetTitle("Confidence Level");
+            conflev_graphs[i]->GetYaxis()->SetRangeUser(0, 1.05); // Confidence level between 0 and 1
             conflev_graphs[i]->Draw("APE");
+            conflev_graphs[i]->Draw("L same");
         } else {
             conflev_graphs[i]->Draw("PE same");
+            conflev_graphs[i]->Draw("L same");
         }
-        leg4->AddEntry(conflev_graphs[i], Form("%s GeV", energies[i].c_str()), "PE");
+        leg4->AddEntry(conflev_graphs[i], Form("%s GeV", energies[i].c_str()), "LP");
     }
     leg4->Draw();
 
