@@ -28,7 +28,7 @@ cd levyfit
 make clean
 make exe/onedim_EbE_or_Eavg_fit.exe
 
-nevt_avg_default=1000
+nevt_avg_default=500
 for avg in "${nevt_avgs[@]}"; do
   echo "Preparing folders for nevt_avg: ${avg}"
   rm -rf ../figs/fitting/lcms/AVG${avg}/
@@ -65,6 +65,40 @@ done
 
 # TODO: after finding out the best value for nevt_avg_default, do qLCMS systematics too with that nevt_avg
 root.exe -b -q plot_param_vs_nevt_avg.cpp\(-1\) # -1 means all KT bins averaged, otherwise give the KT bin index (0..9)
+
+# qLCMS systematics
+for energy in "${energies[@]}"; do
+  echo "Fitting for qLCMS systematics, energy ${energy}"
+  # Parallel execution
+  exe/onedim_EbE_or_Eavg_fit.exe 11 "${energy}" 1 10000 ${nevt_avg_default} 0 0 1 &> logfiles/fit_log_${energy}_defaultqLCMS.log & # default qLCMS cut
+  pid1=$!
+  exe/onedim_EbE_or_Eavg_fit.exe 11 "${energy}" 1 10000 ${nevt_avg_default} 1 0 1 &> logfiles/fit_log_${energy}_strictqLCMS.log & # strict qLCMS cut
+  pid2=$!
+  exe/onedim_EbE_or_Eavg_fit.exe 11 "${energy}" 1 10000 ${nevt_avg_default} 2 0 1 &> logfiles/fit_log_${energy}_looseqLCMS.log & # loose qLCMS cut
+  pid3=$!
+  # Wait for all 3 to finish
+  wait $pid1
+  wait $pid2
+  wait $pid3
+  echo "Fitting for qLCMS systematics, energy ${energy} done."
+done
+
+# rhofitmax systematics
+for energy in "${energies[@]}"; do
+  echo "Fitting for rhofitmax systematics, energy ${energy}"
+  # Parallel execution
+  exe/onedim_EbE_or_Eavg_fit.exe 11 "${energy}" 1 10000 ${nevt_avg_default} 0 0 1 &> logfiles/fit_log_${energy}_defaultrhoFitMax.log & # default rhofitmax
+  pid1=$!
+  exe/onedim_EbE_or_Eavg_fit.exe 11 "${energy}" 1 10000 ${nevt_avg_default} 0 1 1 &> logfiles/fit_log_${energy}_strictrhoFitMax.log & # strict rhofitmax
+  pid2=$!
+  exe/onedim_EbE_or_Eavg_fit.exe 11 "${energy}" 1 10000 ${nevt_avg_default} 0 2 1 &> logfiles/fit_log_${energy}_looserhoFitMax.log & # loose rhofitmax
+  pid3=$!
+  # Wait for all 3 to finish
+  wait $pid1
+  wait $pid2
+  wait $pid3
+  echo "Fitting for rhofitmax systematics, energy ${energy} done."
+done
 
 # TODO: calculate & collect all systematics
 

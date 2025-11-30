@@ -71,6 +71,8 @@ Levy_reader* myLevy_reader;
 
 double rfitmax = 100.; // TODO make adjustable for kT/cent/... & incr/decr if fit does not converge
 double rfitmin = 3.;//5.;
+const double B[3] = {2500, 1600, 3600}; // for rho_fitmax limits: default, strict, loose
+const double rfitmax_systlimits[3] = {100., 50., 150.}; // for simpler rho_fitmax limits: default, strict, loose
 
 int thiskt = 0;
 int thisframe = 0;
@@ -86,7 +88,6 @@ const char* covstatuses[4] = {"not_calculated",
                               "approximated",
                               "forced_pos.def.",
                               "accurate"};
-const double B[3] = {2500, 1600, 3600}; // for rho_fitmax limits: default, strict, loose
 
 // Define the fit function
 double fitFunction(const double *x, const double *par)
@@ -412,21 +413,10 @@ int main(int argc, char *argv[])
           cout << "Integral w overflow after normalization: " << histograms[ikt][iframe]->Integral(0,histograms[ikt][iframe]->GetNbinsX()+1) << endl;
     
           // FITTING PROCEDURE STARTING HERE
-          /* TODO FIXME!!!
           // k_T- (or m_T-) dependent fit rannge
           //rfitmax = sqrt(ktbin_centers[ikt]*ktbin_centers[ikt] + Mass2_pi) * B[qlcms_syst];
-          if(rho_fitmax_syst == 0) // default
-          {
-            rfitmax = 100.;
-          }else if(rho_fitmax_syst == 1) // strict
-          {
-            rfitmax = 50.;
-          }else if(rho_fitmax_syst == 2) // loose
-          {
-            rfitmax = 150.;
-          }
-          */
-
+          rfitmax = rfitmax_systlimits[rho_fitmax_syst]; // simpler limits, "by-look" better
+          
           // Create the minimizer
           ROOT::Math::Minimizer* minimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
         
@@ -630,8 +620,11 @@ int main(int argc, char *argv[])
   delete file;
   cout << "input file closed, delete done." << endl;
 
-  TFile* file_output = new TFile(Form("./results/%s_onedfitresults_%s_cent%s_%s_AVG%d.root", 
-                                      isPathUrqmd, frames[thisframe],centleg[ICENT],energy,NEVT_AVG), "RECREATE"); // Compare with Yan, add:  _Yan
+  const char* rhofitmax_syst_label = (rho_fitmax_syst == 0) ? "" : (rho_fitmax_syst == 1) ? "_strictrhoFitMax" : "_looserhoFitMax";
+  // Create output file
+  TFile* file_output = new TFile(Form("./results/%s_onedfitresults_%s_cent%s_%s_AVG%d%s%s.root", 
+                                      isPathUrqmd, frames[thisframe], centleg[ICENT], energy, NEVT_AVG,
+                                      qlcms_syst_label, rhofitmax_syst_label), "RECREATE"); // Compare with Yan, add:  _Yan
   cout << "output file created." << endl;
   file_output->cd();
   cout << "output file cd() done." << endl;
@@ -640,7 +633,7 @@ int main(int argc, char *argv[])
   for(int ikt = 0; ikt < NKT; ikt++)
   {
     cout << "ikt: " << ikt << endl;
-    //alphahist[ikt]->Write(); // these two will not be used is alpha_vs_R_all and the TGraphAsymmErrors vectors are written out
+    //alphahist[ikt]->Write(); // these two will not be used as alpha_vs_R_all and the TGraphAsymmErrors vectors are written out
     //Rhist[ikt]->Write();
     alpha_vs_R[ikt]->Write();
     Nhist[ikt]->Write(); // I could put this with alpha and R together in TH3, but stick with this for now
