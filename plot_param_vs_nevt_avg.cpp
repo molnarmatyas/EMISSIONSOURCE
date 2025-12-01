@@ -82,7 +82,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
                 file->Close();
                 continue;
             }
-            if(ikt_N < 0) {
+            // Check if combining all kT bins (original ikt was < 0)
+            if(ikt < 0) {
                 // Add all kT bins together
                 for(int ikt_add = 1; ikt_add < NKT; ikt_add++) {
                     TH1F* hN_add = (TH1F*)file->Get(Form("Nhist_ikt%i", ikt_add));
@@ -95,6 +96,13 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
                 hN->SetTitle("N, all kT bins combined");
             }
             
+            // Check if hN has entries before computing mean/RMS
+            if(hN->GetEntries() == 0) {
+                printf("Nhist_ikt# is empty in file: %s\n", filename.Data());
+                file->Close();
+                continue;
+            }
+            
             double N = hN->GetMean();
             double NErr = hN->GetRMS() / sqrt(hN->GetEntries());
             Ns.push_back(N);
@@ -102,6 +110,16 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             // Confidence level is stored together and for all kT bins separately as well
             const char* conflev_histname = (ikt>=0) ? Form("confidencehist_ikt%i", ikt) : "confidencehist_all";
             TH1F* hConfLev = (TH1F*)file->Get(conflev_histname);
+            if(!hConfLev) {
+                printf("Could not find confidence histogram in file: %s\n", filename.Data());
+                file->Close();
+                continue;
+            }
+            if(hConfLev->GetEntries() == 0) {
+                printf("Confidence histogram is empty in file: %s\n", filename.Data());
+                file->Close();
+                continue;
+            }
             double conflev = hConfLev->GetMean();
             double conflevErr = hConfLev->GetRMS() / sqrt(hConfLev->GetEntries());
             conflevs.push_back(conflev);
@@ -162,14 +180,14 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     c1->cd(1);
     gPad->SetLogx();
     // Change legend position from (0.65, 0.75, 0.85, 0.85) to bottom left
-    TLegend* leg1 = new TLegend(0.2, 0.2, 0.4, 0.5);
+    TLegend* leg1 = new TLegend(0.7, 0.1, 0.9, 0.4);
     
     for(size_t i = 0; i < alpha_graphs.size(); i++) {
         if(i == 0) {
             alpha_graphs[i]->SetTitle("Levy #alpha vs NEVT_AVG");
             alpha_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             alpha_graphs[i]->GetYaxis()->SetTitle("#alpha");
-            // alpha_graphs[i]->GetYaxis()->SetRangeUser(1.2, 1.9);
+            alpha_graphs[i]->GetYaxis()->SetRangeUser(1.3, 1.9);
             alpha_graphs[i]->Draw("APE");
             // overlay a connecting line so points remain visible with error bars
             alpha_graphs[i]->Draw("L same");
@@ -185,14 +203,14 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     c1->cd(2);
     gPad->SetLogx();
     // Change legend position from (0.65, 0.75, 0.85, 0.85) to bottom left
-    TLegend* leg2 = new TLegend(0.2, 0.2, 0.4, 0.5);
+    TLegend* leg2 = new TLegend(0.1, 0.1, 0.3, 0.4);
     
     for(size_t i = 0; i < R_graphs.size(); i++) {
         if(i == 0) {
             R_graphs[i]->SetTitle("Levy R vs NEVT_AVG");
             R_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             R_graphs[i]->GetYaxis()->SetTitle("R [fm]");
-            // R_graphs[i]->GetYaxis()->SetRangeUser(3, 7); // R between 0 and 10 fm
+            R_graphs[i]->GetYaxis()->SetRangeUser(3, 7); // R between 0 and 10 fm
             R_graphs[i]->Draw("APE");
             R_graphs[i]->Draw("L same");
         } else {
@@ -207,14 +225,14 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     c1->cd(3);
     gPad->SetLogx();
     // Place N legend in the upper-right with same size as alpha/R legend (width=0.2, height=0.3)
-    TLegend* leg3 = new TLegend(0.6, 0.6, 0.8, 0.9);
+    TLegend* leg3 = new TLegend(0.7, 0.6, 0.9, 0.9);
 
     for(size_t i = 0; i < N_graphs.size(); i++) {
         if(i == 0) {
             N_graphs[i]->SetTitle("Levy N vs NEVT_AVG");
             N_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             N_graphs[i]->GetYaxis()->SetTitle("N");
-            N_graphs[i]->GetYaxis()->SetRangeUser(0.95, 1.12); // N between 0 and 1
+            N_graphs[i]->GetYaxis()->SetRangeUser(0.98, 1.12); // N between 0.95 and 1.12
             N_graphs[i]->Draw("APE");
             N_graphs[i]->Draw("L same");
         } else {
@@ -229,7 +247,7 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     c1->cd(4);
     gPad->SetLogx();
     // Place confidence legend in the upper-right with same size as alpha/R legend
-    TLegend* leg4 = new TLegend(0.6, 0.6, 0.8, 0.9);
+    TLegend* leg4 = new TLegend(0.7, 0.6, 0.9, 0.9);
 
     for(size_t i = 0; i < conflev_graphs.size(); i++) {
         if(i == 0) {
@@ -248,5 +266,6 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     leg4->Draw();
 
     // Final, save
-    c1->SaveAs("figs/levy_params_vs_nevt_avg.png");
+    const char* ikt_suffix = (ikt>=0) ? Form("_ikt%i", ikt) : "_allkt";
+    c1->SaveAs(Form("figs/levy_params_vs_nevt_avg%s.png", ikt_suffix));
 }

@@ -260,7 +260,8 @@ int main(int argc, char *argv[])
   TH1* Rhist[NKT];
   TH1* Nhist[NKT];
   TH2* alpha_vs_R[NKT];
-  TH2F* alpha_vs_R_all = new TH2F("alpha_vs_R_all","",100,0.6,1.8,100,2.5,11.);
+  // widened ranges to avoid under/overflow for low-energy fits
+  TH2F* alpha_vs_R_all = new TH2F("alpha_vs_R_all","",100,0.0,2.0,100,2.5,15.);
   // Per-ikt confidence histograms and one collecting all kT bins
   TH1* confidencehist[NKT];
   TH1* confidencehist_all = new TH1F("confidencehist_all","",100,0.,1.);
@@ -286,8 +287,15 @@ int main(int argc, char *argv[])
     alphahist[ikt] = new TH1F(Form("alphahist_ikt%i",ikt),"",100,0.,2.);
     Rhist[ikt] = new TH1F(Form("Rhist_ikt%i",ikt),"",100,2.5,15.);
     Nhist[ikt] = new TH1F(Form("Nhist_ikt%i",ikt),"",100,0.85,1.15);
-    alpha_vs_R[ikt] = new TH2F(Form("alpha_vs_R_ikt%i",ikt),"",100,0.,2.,100,2.5,11.);
+    // per-ikt src range: increase Y max to cover larger R at low energies
+    alpha_vs_R[ikt] = new TH2F(Form("alpha_vs_R_ikt%i",ikt),"",100,0.,2.,100,2.5,15.);
     confidencehist[ikt] = new TH1F(Form("confidencehist_ikt%i",ikt),"",100,0.,1.);
+  }
+  // Initialize histogram pointers to nullptr to avoid accidental dereference
+  for (int ikt = 0; ikt < NKT; ++ikt) {
+    for (int iframe = 0; iframe < NFRAME; ++iframe) {
+      histograms[ikt][iframe] = nullptr;
+    }
   }
   // Open the file and get the histograms
   const char* isPathUrqmd = IsUrQMD ? "UrQMD" : "EPOS";
@@ -315,20 +323,24 @@ int main(int argc, char *argv[])
   canvas->SetTopMargin(0.10);
   canvas->SetBottomMargin(0.15);
 
+  // Initialize parameter arrays OUTSIDE ievt loop so they accumulate across all events within an averaging block
+  Double_t alpha_vec[NKT]={0};
+  Double_t alpha_errup_vec[NKT]={0};
+  Double_t alpha_errdn_vec[NKT]={0};
+  Double_t R_vec[NKT]={0};
+  Double_t R_errup_vec[NKT]={0};
+  Double_t R_errdn_vec[NKT]={0};
+  Double_t N_vec[NKT]={0};
+  Double_t N_errup_vec[NKT]={0};
+  Double_t N_errdn_vec[NKT]={0};
+
   for(int ifile = 1; ifile < NFILEMAX + 1; ifile++) // files were indexed from 1
   {
     for(int ievt = 0; ievt < NEVT; ievt++)
     {
       bool averagingComplete = false; // NEW: track if this is the last event of averaging block
-      Double_t alpha_vec[NKT]={0};  // Fixed to be initialised at the appropriate place
-      Double_t alpha_errup_vec[NKT]={0};
-      Double_t alpha_errdn_vec[NKT]={0};
-      Double_t R_vec[NKT]={0};
-      Double_t R_errup_vec[NKT]={0};
-      Double_t R_errdn_vec[NKT]={0};
-      Double_t N_vec[NKT]={0};
-      Double_t N_errup_vec[NKT]={0};
-      Double_t N_errdn_vec[NKT]={0};
+      // global (across files) event index used for averaging blocks that span files
+      int globalEventIndex = (ifile - 1) * NEVT + ievt;
       
       for (int ikt = 0; ikt < NKT; ++ikt)
       {
@@ -388,8 +400,9 @@ int main(int argc, char *argv[])
           }
 
           //  --- AVERAGING logic ---
-          // Only do resetting if first one of (NEVT_AVG) averaged
-          if((ievt % NEVT_AVG == 0) || NEVT_AVG == 1)
+          // Only do resetting if first one of (NEVT_AVG) averaged. Use a global event
+          // index so averaging can span across multiple files when NEVT_AVG > NEVT.
+          if((globalEventIndex % NEVT_AVG == 0) || NEVT_AVG == 1)
           {
             if(histograms[ikt][iframe]) histograms[ikt][iframe]->Reset();
             histograms[ikt][iframe] = (TH1F*)temp_rhohist->Clone();
@@ -398,7 +411,7 @@ int main(int argc, char *argv[])
           else
           {
             histograms[ikt][iframe]->Add(temp_rhohist); // add for averaging
-            if(ievt % NEVT_AVG != NEVT_AVG - 1)
+            if(globalEventIndex % NEVT_AVG != NEVT_AVG - 1)
             {
               continue; // do until last one of averaging
             }
@@ -480,7 +493,7 @@ int main(int argc, char *argv[])
           
           const char* fitQuality = "GOODFIT";
           if(fitCovStatus != 3) fitQuality = covstatuses[fitCovStatus];
-          if(fitStatus != 0) fitQuality = statuses[fitStatus];
+          if(fitStatus != 0 || fitStatus != 3) fitQuality = statuses[fitStatus]; // Edm_above_max looked still okay by eye
           if(results[0] < 0.55 || results[0] > 1.95) fitQuality = "alpha_out_of_bounds";
           if(results[1] < 0.05 || results[1] > 14.95) fitQuality = "R_out_of_bounds";
           if(results[2] < 0.5 || results[2] > 1.5) fitQuality = "N_out_of_bounds";
@@ -563,12 +576,24 @@ int main(int argc, char *argv[])
           
           // SAVING results
           //Ngoodfits++; // FIXME uncomment this if needed for custom histogram root-naming
-          alphahist[ikt]->Fill(alpha);
-          Rhist[ikt]->Fill(R);
-          Nhist[ikt]->Fill(N);
-          cerr << "Filling alpha vs R histogram ikt " << ikt << " with alpha,R: " << alpha << "," << R << endl;
-          alpha_vs_R[ikt]->Fill(alpha,R);
-          alpha_vs_R_all->Fill(alpha,R);
+          // Debug: check for under/overflow or non-finite values before filling
+          if(!TMath::Finite(alpha) || !TMath::Finite(R) || !TMath::Finite(N)) {
+            cerr << Form("DEBUG: Non-finite fit parameters alpha=%g R=%g N=%g; skipping fill (ifile=%d ievt=%d ikt=%d)\n", alpha, R, N, ifile, ievt, ikt);
+          } else {
+            double axmin = alpha_vs_R_all->GetXaxis()->GetXmin();
+            double axmax = alpha_vs_R_all->GetXaxis()->GetXmax();
+            double aymin = alpha_vs_R_all->GetYaxis()->GetXmin();
+            double aymax = alpha_vs_R_all->GetYaxis()->GetXmax();
+            if(alpha < axmin || alpha > axmax || R < aymin || R > aymax) {
+              cerr << Form("DEBUG: alpha/R (%.4g, %.4g) outside alpha_vs_R_all range [%.4g,%.4g]x[%.4g,%.4g] (energy=%s ifile=%d ievt=%d ikt=%d)\n", alpha, R, axmin, axmax, aymin, aymax, energy, ifile, ievt, ikt);
+            }
+            alphahist[ikt]->Fill(alpha);
+            Rhist[ikt]->Fill(R);
+            Nhist[ikt]->Fill(N);
+            cerr << "Filling alpha vs R histogram ikt " << ikt << " with alpha,R: " << alpha << "," << R << endl;
+            alpha_vs_R[ikt]->Fill(alpha,R);
+            alpha_vs_R_all->Fill(alpha,R);
+          }
 
           // Saving to arrays (then vectors):
           alpha_vec[ikt] = alpha;
@@ -595,6 +620,7 @@ int main(int argc, char *argv[])
       
       if(averagingComplete) // MOVED OUTSIDE: only create graphs when averaging is complete
       {
+        //cerr << "Arrived here as well." << endl; // debug averaging logic
         TGraphAsymmErrors* alpha_vs_kt = new TGraphAsymmErrors(NKT, ktbin_centers, alpha_vec, xLow, xHigh, alpha_errdn_vec, alpha_errup_vec);
         alpha_vs_kt->SetTitle(Form("#alpha(K_{T}), #sqrt{s_{NN}}=%s;K_{T} (GeV/c);#alpha",energy));
         alpha_vs_kt->SetName(Form("alpha_vs_kt_%d", Ngoodfits));
