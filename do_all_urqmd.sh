@@ -27,6 +27,15 @@ cd levyfit
 make clean
 make exe/onedim_EbE_or_Eavg_fit.exe
 
+# Enable job control so `jobs` builtin works inside this script
+set -m
+
+# Ensure log directory exists
+mkdir -p logfiles
+
+# Ensure background children are killed if the script exits or is interrupted
+trap 'echo "Script exiting — terminating background jobs..."; jobs -p | xargs -r kill; wait' EXIT SIGINT SIGTERM
+
 # Simple job limiter: keep at most MAXJOBS background processes in this script
 # Usage: ./do_all_urqmd.sh [MAXJOBS]  (optional). Default is 5 to be safe with memory.
 if [ -n "$1" ]; then
@@ -53,6 +62,9 @@ run_bg() {
 
 nevt_avg_default=500
 
+# list of NEVT_AVG values
+nevt_avgs=(10 25 50 100 200 500 1000 5000 10000)
+
 for avg in "${nevt_avgs[@]}"; do
   echo "Preparing folders for nevt_avg: ${avg}"
   rm -rf ../figs/fitting/lcms/AVG${avg}/
@@ -67,15 +79,12 @@ done
 # done
 
 # Fitting for different nevt_avg for systematics
-nevt_avgs=(10 25 50 100 200 500 1000 5000 10000) # default to be removed if above block uncommented
-                                                 # also 1 as that does not work and lasts too long
-
-for energy in "${energies[@]}"; do
-  echo "Fitting for energy ${energy}"
-  for avg in "${nevt_avgs[@]}"; do
-    echo "Fitting for nevt_avg: ${avg}"
-    run_bg "exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${avg} 0 0 1" "logfiles/fit_log_${energy}_nevtavg${avg}.log"
-    mv ../figs/fitting/lcms/*AVG${avg}*.png ../figs/fitting/lcms/AVG${avg}/
+for avg in "${nevt_avgs[@]}"; do
+  echo "Fitting for nevt_avg: ${avg}"
+  for energy in "${energies[@]}"; do
+    echo "Fitting for energy ${energy}"
+    # Run the fit and then move produced AVG images into their folder only after the fit finishes
+    run_bg "exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${avg} 0 0 1 && mv ../figs/fitting/lcms/*AVG${avg}*.png ../figs/fitting/lcms/AVG${avg}/" "logfiles/fit_log_${energy}_nevtavg${avg}.log"
   done
 done
 
@@ -84,7 +93,12 @@ wait
 
 cd ..
 
-root.exe -b -q plot_param_vs_nevt_avg.cpp\(-1\) # -1 means all KT bins averaged, otherwise give the KT bin index (0..9)
+root.exe -b -q plot_param_vs_nevt_avg.cpp\(-1\)
+for ikt in {0..9}; do
+  echo "Plotting individual graphs for KT bin: ${ikt}"
+  # -1 means all KT bins averaged, otherwise give the KT bin index (0..9)
+  root.exe -b -q plot_param_vs_nevt_avg.cpp\(${ikt}\)
+done
 
 # These plots only for informative purposes, with error bars showing stddev or sg like that
 for ienergy in "${energies[@]}"; do
