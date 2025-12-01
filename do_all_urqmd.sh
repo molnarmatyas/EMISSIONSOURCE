@@ -2,6 +2,9 @@
 
 # Base directory of this script (absolute)
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Sanity check
+echo "Base directory: $BASEDIR"
+sleep 10
 
 energies=("3p0" "3p2" "3p5" "3p9" "4p5" "7p7" "9p2" "11p5" "14p5" "19p6" "27")
 
@@ -34,7 +37,7 @@ make exe/onedim_EbE_or_Eavg_fit.exe
 set -m
 
 # Ensure log directory exists
-mkdir -p logfiles
+mkdir -p $BASEDIR/logfiles
 
 # Ensure background children are killed if the script exits or is interrupted
 trap 'echo "Script exiting — terminating background jobs..."; jobs -p | xargs -r kill; wait' EXIT SIGINT SIGTERM
@@ -70,8 +73,8 @@ nevt_avgs=(10 25 50 100 200 500 1000 5000 10000)
 
 for avg in "${nevt_avgs[@]}"; do
   echo "Preparing folders for nevt_avg: ${avg}"
-  rm -rf ../figs/fitting/lcms/AVG${avg}/
-  mkdir -p ../figs/fitting/lcms/AVG${avg}/
+  rm -rf $BASEDIR/figs/fitting/lcms/AVG${avg}/
+  mkdir -p $BASEDIR/figs/fitting/lcms/AVG${avg}/
 done
 
 # Default fitting
@@ -87,7 +90,7 @@ for avg in "${nevt_avgs[@]}"; do
   for energy in "${energies[@]}"; do
     echo "Fitting for energy ${energy}"
     # Run the fit and then move produced AVG images into their folder only after the fit finishes
-    run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${avg} 0 0 1 && mv ../figs/fitting/lcms/*AVG${avg}*.png ../figs/fitting/lcms/AVG${avg}/" "logfiles/fit_log_${energy}_nevtavg${avg}.log"
+    run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${avg} 0 0 1 && mv $BASEDIR/figs/fitting/lcms/*AVG${avg}*.png $BASEDIR/figs/fitting/lcms/AVG${avg}/" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}.log"
   done
 done
 
@@ -113,9 +116,9 @@ done
 for energy in "${energies[@]}"; do
   echo "Fitting for qLCMS systematics, energy ${energy}"
   # Parallel execution
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1" "logfiles/fit_log_${energy}_defaultqLCMS.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 1 0 1" "logfiles/fit_log_${energy}_strictqLCMS.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 2 0 1" "logfiles/fit_log_${energy}_looseqLCMS.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultqLCMS.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 1 0 1" "$BASEDIR/logfiles/fit_log_${energy}_strictqLCMS.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 2 0 1" "$BASEDIR/logfiles/fit_log_${energy}_looseqLCMS.log"
   # We started up to 3 jobs here; throttle will keep the overall concurrency <= MAXJOBS
   # Optionally wait here to ensure all qLCMS systematics for this energy finish before moving on
   wait
@@ -138,3 +141,5 @@ done
 # Final summary plots
 echo "Plotting param vs sqrt(sNN)"
 root.exe -b -q plot_alphaNR_allcent.cpp\(${nevt_avg_default}\)
+
+root.exe -b -q calc_and_plot_syserr.cpp
