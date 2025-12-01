@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Base directory of this script (absolute)
+BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 energies=("3p0" "3p2" "3p5" "3p9" "4p5" "7p7" "9p2" "11p5" "14p5" "19p6" "27")
 
 cd urqmd-3.4/drho_analyze
@@ -84,7 +87,7 @@ for avg in "${nevt_avgs[@]}"; do
   for energy in "${energies[@]}"; do
     echo "Fitting for energy ${energy}"
     # Run the fit and then move produced AVG images into their folder only after the fit finishes
-    run_bg "exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${avg} 0 0 1 && mv ../figs/fitting/lcms/*AVG${avg}*.png ../figs/fitting/lcms/AVG${avg}/" "logfiles/fit_log_${energy}_nevtavg${avg}.log"
+    run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${avg} 0 0 1 && mv ../figs/fitting/lcms/*AVG${avg}*.png ../figs/fitting/lcms/AVG${avg}/" "logfiles/fit_log_${energy}_nevtavg${avg}.log"
   done
 done
 
@@ -110,9 +113,9 @@ done
 for energy in "${energies[@]}"; do
   echo "Fitting for qLCMS systematics, energy ${energy}"
   # Parallel execution
-  run_bg "exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1" "logfiles/fit_log_${energy}_defaultqLCMS.log"
-  run_bg "exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 1 0 1" "logfiles/fit_log_${energy}_strictqLCMS.log"
-  run_bg "exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 2 0 1" "logfiles/fit_log_${energy}_looseqLCMS.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1" "logfiles/fit_log_${energy}_defaultqLCMS.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 1 0 1" "logfiles/fit_log_${energy}_strictqLCMS.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 2 0 1" "logfiles/fit_log_${energy}_looseqLCMS.log"
   # We started up to 3 jobs here; throttle will keep the overall concurrency <= MAXJOBS
   # Optionally wait here to ensure all qLCMS systematics for this energy finish before moving on
   wait
@@ -123,9 +126,9 @@ done
 for energy in "${energies[@]}"; do
   echo "Fitting for rhofitmax systematics, energy ${energy}"
   # Parallel execution
-  run_bg "exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1" "logfiles/fit_log_${energy}_defaultrhoFitMax.log"
-  run_bg "exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 1 1" "logfiles/fit_log_${energy}_strictrhoFitMax.log"
-  run_bg "exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 2 1" "logfiles/fit_log_${energy}_looserhoFitMax.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1" "logfiles/fit_log_${energy}_defaultrhoFitMax.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 1 1" "logfiles/fit_log_${energy}_strictrhoFitMax.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 2 1" "logfiles/fit_log_${energy}_looserhoFitMax.log"
   wait
   echo "Fitting for rhofitmax systematics, energy ${energy} done."
 done
