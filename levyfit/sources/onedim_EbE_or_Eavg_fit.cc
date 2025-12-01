@@ -493,7 +493,7 @@ int main(int argc, char *argv[])
           
           const char* fitQuality = "GOODFIT";
           if(fitCovStatus != 3) fitQuality = covstatuses[fitCovStatus];
-          if(fitStatus != 0 || fitStatus != 3) fitQuality = statuses[fitStatus]; // Edm_above_max looked still okay by eye
+          if(fitStatus != 0 && fitStatus != 3) fitQuality = statuses[fitStatus]; // only mark bad when status is neither 0 nor 3
           if(results[0] < 0.55 || results[0] > 1.95) fitQuality = "alpha_out_of_bounds";
           if(results[1] < 0.05 || results[1] > 14.95) fitQuality = "R_out_of_bounds";
           if(results[2] < 0.5 || results[2] > 1.5) fitQuality = "N_out_of_bounds";
