@@ -610,7 +610,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             double xmin = mtbin_centers[0]-0.05;
             double xmax = mtbin_centers[NKT-1]+0.05;
             TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
-            const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"N";
+            const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda"; // N
             frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
             frame->GetYaxis()->SetTitle(ytitle);
 
@@ -672,7 +672,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         // Save canvas
         const char* energyplotted = (energy_to_plot>-1)? Form("_energy_%s", energies[energy_to_plot]) : "_allenergies";
         can->SetTitle(Form("m_{T} vs %s systematic uncertainties%s",
-                            (iparam==0)?"#alpha":(iparam==1)?"R":"N", energyplotted));
+                            (iparam==0)?"#alpha":(iparam==1)?"R":"#lambda", energyplotted));
         //can->SaveAs(Form("figs/syserr/mT_vs_param_%d%s.png", iparam, energyplotted));
         can->SaveAs(Form("figs/syserr/mT_vs_param_%s%s.png", levy_params[iparam], energyplotted));
         delete can;
@@ -770,7 +770,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         }
         TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
         frame->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
-        const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"N";
+        const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda";
         frame->GetYaxis()->SetTitle(ytitle);
 
         // sys band graph
@@ -1060,8 +1060,12 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double xmin = x_energy[0] - 1.0;
         double xmax = x_energy[NENERGIES-1] + 1.0;
         TH1F* frame_overlay = gPad->DrawFrame(xmin, ymin_both, xmax, ymax_both);
+        if(iparam==2)
+        {
+            frame_overlay = gPad->DrawFrame(xmin, 0.7, xmax, 1.08);
+        }
         frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
-        const char* ytitle_overlay = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"N";
+        const char* ytitle_overlay = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda"; // =N
         frame_overlay->GetYaxis()->SetTitle(ytitle_overlay);
         
         // Draw mT-averaged data
@@ -1116,6 +1120,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             g_avg_overlay->Draw("3 same");
             g_avg_overlay->SetMarkerStyle(21);
             g_avg_overlay->SetMarkerSize(0.0);
+            if(iparam==2)
+            {
+                //g_avg_overlay->GetYaxis()->SetRangeUser(0.9,1.1);
+            }
             g_avg_overlay->Draw("LPX same");
         }
         
@@ -1157,6 +1165,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             g_ikt2_overlay->Draw("3 same");
             g_ikt2_overlay->SetMarkerStyle(21);
             g_ikt2_overlay->SetMarkerSize(0.0);
+            if(iparam==2)
+            {
+                //g_ikt2_overlay->GetYaxis()->SetRangeUser(0.9,1.1);
+            }
             g_ikt2_overlay->Draw("LPX same");
         }
         
@@ -1174,12 +1186,12 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         }
         
         // Legend
-        TLegend* leg_overlay = new TLegend(0.30, 0.65, 0.55, 0.85);
+        TLegend* leg_overlay = new TLegend(0.30, 0.71, 0.55, 0.91);
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
         leg_overlay->SetTextSize(0.025);
         leg_overlay->AddEntry(g_avg_overlay, "UrQMD <m_{T}>, incl. m_{T} choice sys.unc.", "f");
-        leg_overlay->AddEntry(g_ikt2_overlay, "UrQMD single m_{T} bin (ikt=2)", "f");
+        leg_overlay->AddEntry(g_ikt2_overlay, "UrQMD single m_{T} = 331 MeV bin", "f");
         if(iparam==0){
             leg_overlay->AddEntry(f_analytic, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14}", "l");
         }
