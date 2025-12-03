@@ -698,7 +698,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             int Nsample = 500;
             for(int is=0; is<=Nsample; ++is){
                 double x = fxmin + (fxmax - fxmin) * (double)is / (double)Nsample;
-                double y = 0.85 + pow(x, 0.14);
+                double y = 0.85 + pow(x, -0.14);
                 if(std::isfinite(y)){
                     func_min = std::min(func_min, y);
                     func_max = std::max(func_max, y);
@@ -844,14 +844,14 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         gikt2->SetMarkerSize(0.0); //0.8
         gikt2->Draw("LPX same");
 
-        // If alpha, draw analytic curve y = 0.85 + x^0.14 (make thicker and draw as line on top)
+        // If alpha, draw analytic curve y = 0.85 + x^-0.14 (make thicker and draw as line on top)
         TF1* f = nullptr;
         if(iparam==0){
             double xminf = x_energy[0];
             double xmaxf = x_energy[NENERGIES-1];
             f = new TF1("alpha_curve", "myfunc(x)", xminf, xmaxf);
             f->SetLineColor(TColor::GetColorTransparent(kBlack,0.4));
-            f->SetLineStyle(3);
+            f->SetLineStyle(1);
             f->SetLineWidth(3);
             f->SetNpx(500);
             // draw on left pad
