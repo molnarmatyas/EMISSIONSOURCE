@@ -155,6 +155,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     // Also store mT-averaged default values and the ikt=2 default points per energy
     double avg_alpha[NENERGIES] = {0}, avg_R[NENERGIES] = {0}, avg_N[NENERGIES] = {0};
     double val_alpha_ikt2[NENERGIES] = {0}, val_R_ikt2[NENERGIES] = {0}, val_N_ikt2[NENERGIES] = {0};
+    // And the m_T choice syst uncert
+    double alpha_mTchoice_syst_up[NENERGIES] = {0}, alpha_mTchoice_syst_dn[NENERGIES] = {0};
+    double R_mTchoice_syst_up[NENERGIES] = {0}, R_mTchoice_syst_dn[NENERGIES] = {0};
+    double N_mTchoice_syst_up[NENERGIES] = {0}, N_mTchoice_syst_dn[NENERGIES] = {0};
 
     for(int ienergy = 0; ienergy < NENERGIES; ienergy++)
     {
@@ -811,6 +815,18 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             }
             double neigh_up = sqrt(neigh_up_sq);
             double neigh_dn = sqrt(neigh_dn_sq);
+            // Save m_T choice systematics for further use
+            if(iparam==0)
+            {
+                alpha_mTchoice_syst_up[ie] = neigh_up; alpha_mTchoice_syst_dn[ie] = neigh_dn;
+            }else if(iparam==1)
+            {
+                R_mTchoice_syst_up[ie] = neigh_up; R_mTchoice_syst_dn[ie] = neigh_dn;
+            }else
+            {
+                N_mTchoice_syst_up[ie] = neigh_up; N_mTchoice_syst_dn[ie] = neigh_dn;
+            }
+
             yerrup2[ie] = sqrt(base_up*base_up + neigh_up*neigh_up);
             yerrdn2[ie] = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
             if(std::isfinite(yvals[ie])){
@@ -947,6 +963,232 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         can->SaveAs(Form("figs/syserr/sqrtS_vs_%s.png", levy_params[iparam]));
         delete can;
     }
+
+    /////////////////////////////////////////////////////
+    // Single-panel overlays: each parameter         ////
+    // showing both mT-averaged and ikt=2 together   ////
+    /////////////////////////////////////////////////////
+    
+    for(int iparam=0; iparam<3; iparam++){
+        TCanvas* can_overlay = new TCanvas(Form("can_overlay_param_%d", iparam), "", 1200, 800);
+        
+        // Precompute y-range for both datasets
+        double ymin_both = 1e9, ymax_both = -1e9;
+        
+        // mT-averaged range
+        for(int ie=0; ie<NENERGIES; ie++){
+            double avg = (iparam==0)? avg_alpha[ie] : (iparam==1)? avg_R[ie] : avg_N[ie];
+            double up_sq = 0., dn_sq = 0.;
+            if(iparam==0){
+                up_sq += pow(alpha_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
+                up_sq += pow(alpha_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
+                up_sq += pow(alpha_nevt_pct_up_arr[ie]/100.0 * avg, 2);
+                dn_sq += pow(alpha_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
+                dn_sq += pow(alpha_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
+                dn_sq += pow(alpha_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+            } else if(iparam==1){
+                up_sq += pow(R_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
+                up_sq += pow(R_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
+                up_sq += pow(R_nevt_pct_up_arr[ie]/100.0 * avg, 2);
+                dn_sq += pow(R_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
+                dn_sq += pow(R_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
+                dn_sq += pow(R_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+            } else {
+                up_sq += pow(N_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
+                up_sq += pow(N_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
+                up_sq += pow(N_nevt_pct_up_arr[ie]/100.0 * avg, 2);
+                dn_sq += pow(N_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
+                dn_sq += pow(N_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
+                dn_sq += pow(N_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+            }
+            double errup = sqrt(up_sq);
+            double errdn = sqrt(dn_sq);
+            if(std::isfinite(avg)){
+                ymin_both = std::min(ymin_both, avg - errdn);
+                ymax_both = std::max(ymax_both, avg + errup);
+            }
+        }
+        
+        // ikt=2 range
+        for(int ie=0; ie<NENERGIES; ie++){
+            double val = (iparam==0)? val_alpha_ikt2[ie] : (iparam==1)? val_R_ikt2[ie] : val_N_ikt2[ie];
+            TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+            double base_up = 0., base_dn = 0.;
+            if(gsys && gsys->GetN() > 2){ base_up = gsys->GetEYhigh()[2]; base_dn = gsys->GetEYlow()[2]; }
+            double neigh_up_sq = 0., neigh_dn_sq = 0.;
+            TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+            if(gdef && gdef->GetN()>2){
+                double center = gdef->GetY()[2];
+                for(int j : {1,3}){
+                    if(j<0 || j>=gdef->GetN()) continue;
+                    double nb = gdef->GetY()[j];
+                    double diff = nb - center;
+                    if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
+                }
+            }
+            double neigh_up = sqrt(neigh_up_sq);
+            double neigh_dn = sqrt(neigh_dn_sq);
+            double errup2 = sqrt(base_up*base_up + neigh_up*neigh_up);
+            double errdn2 = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
+            if(std::isfinite(val)){
+                ymin_both = std::min(ymin_both, val - errdn2);
+                ymax_both = std::max(ymax_both, val + errup2);
+            }
+        }
+        
+        // For alpha, also account for analytic curve range
+        if(iparam==0){
+            double fxmin = x_energy[0];
+            double fxmax = x_energy[NENERGIES-1];
+            int Nsample = 500;
+            for(int is=0; is<=Nsample; ++is){
+                double x = fxmin + (fxmax - fxmin) * (double)is / (double)Nsample;
+                double y = 0.85 + pow(x, -0.14);
+                if(std::isfinite(y)){
+                    ymin_both = std::min(ymin_both, y);
+                    ymax_both = std::max(ymax_both, y);
+                }
+            }
+        }
+        
+        if(ymin_both > ymax_both){ ymin_both = 0.; ymax_both = 1.; }
+        double ypadmargin = 0.06 * (ymax_both - ymin_both);
+        ymin_both -= ypadmargin;
+        ymax_both += ypadmargin;
+        
+        // Draw frame
+        double xmin = x_energy[0] - 1.0;
+        double xmax = x_energy[NENERGIES-1] + 1.0;
+        TH1F* frame_overlay = gPad->DrawFrame(xmin, ymin_both, xmax, ymax_both);
+        frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
+        const char* ytitle_overlay = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"N";
+        frame_overlay->GetYaxis()->SetTitle(ytitle_overlay);
+        
+        // Draw mT-averaged data
+        TGraphAsymmErrors* g_avg_overlay;
+        {
+            double yavg_overlay[NENERGIES];
+            double yavg_errup_overlay[NENERGIES];
+            double yavg_errdn_overlay[NENERGIES];
+            for(int ie=0; ie<NENERGIES; ie++){
+                double avg = (iparam==0)? avg_alpha[ie] : (iparam==1)? avg_R[ie] : avg_N[ie];
+                yavg_overlay[ie] = avg;
+                double up_sq = 0., dn_sq = 0.;
+                if(iparam==0){
+                    up_sq += pow(alpha_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
+                    up_sq += pow(alpha_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
+                    up_sq += pow(alpha_nevt_pct_up_arr[ie]/100.0 * avg, 2);
+                    dn_sq += pow(alpha_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
+                    dn_sq += pow(alpha_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
+                    dn_sq += pow(alpha_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+                    // also add m_T choice sys uncert
+                    up_sq += pow(alpha_mTchoice_syst_up[ie], 2);
+                    dn_sq += pow(alpha_mTchoice_syst_dn[ie], 2);
+                } else if(iparam==1){
+                    up_sq += pow(R_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
+                    up_sq += pow(R_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
+                    up_sq += pow(R_nevt_pct_up_arr[ie]/100.0 * avg, 2);
+                    dn_sq += pow(R_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
+                    dn_sq += pow(R_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
+                    dn_sq += pow(R_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+                    up_sq += pow(R_mTchoice_syst_up[ie], 2);
+                    dn_sq += pow(R_mTchoice_syst_dn[ie], 2);
+                } else {
+                    up_sq += pow(N_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
+                    up_sq += pow(N_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
+                    up_sq += pow(N_nevt_pct_up_arr[ie]/100.0 * avg, 2);
+                    dn_sq += pow(N_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
+                    dn_sq += pow(N_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
+                    dn_sq += pow(N_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+                    up_sq += pow(N_mTchoice_syst_up[ie], 2);
+                    dn_sq += pow(N_mTchoice_syst_dn[ie], 2);
+                }
+                yavg_errup_overlay[ie] = sqrt(up_sq);
+                yavg_errdn_overlay[ie] = sqrt(dn_sq);
+            }
+            g_avg_overlay = new TGraphAsymmErrors(NENERGIES, x_energy, yavg_overlay, xerr_low_s, xerr_high_s, yavg_errdn_overlay, yavg_errup_overlay);
+            int col_avg = kBlue+2;
+            int fillcol_avg = TColor::GetColorTransparent(col_avg, 0.35);
+            g_avg_overlay->SetFillColor(fillcol_avg);
+            g_avg_overlay->SetFillStyle(1001);
+            g_avg_overlay->SetLineColor(col_avg);
+            g_avg_overlay->SetLineWidth(3);
+            g_avg_overlay->Draw("3 same");
+            g_avg_overlay->SetMarkerStyle(21);
+            g_avg_overlay->SetMarkerSize(0.0);
+            g_avg_overlay->Draw("LPX same");
+        }
+        
+        // Draw ikt=2 data
+        TGraphAsymmErrors* g_ikt2_overlay;
+        {
+            double yikt2_overlay[NENERGIES];
+            double yikt2_errup_overlay[NENERGIES];
+            double yikt2_errdn_overlay[NENERGIES];
+            for(int ie=0; ie<NENERGIES; ie++){
+                double val = (iparam==0)? val_alpha_ikt2[ie] : (iparam==1)? val_R_ikt2[ie] : val_N_ikt2[ie];
+                yikt2_overlay[ie] = val;
+                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+                double base_up = 0., base_dn = 0.;
+                if(gsys && gsys->GetN() > 2){ base_up = gsys->GetEYhigh()[2]; base_dn = gsys->GetEYlow()[2]; }
+                double neigh_up_sq = 0., neigh_dn_sq = 0.;
+                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+                if(gdef && gdef->GetN()>2){
+                    double center = gdef->GetY()[2];
+                    for(int j : {1,3}){
+                        if(j<0 || j>=gdef->GetN()) continue;
+                        double nb = gdef->GetY()[j];
+                        double diff = nb - center;
+                        if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
+                    }
+                }
+                double neigh_up = sqrt(neigh_up_sq);
+                double neigh_dn = sqrt(neigh_dn_sq);
+                yikt2_errup_overlay[ie] = sqrt(base_up*base_up + neigh_up*neigh_up);
+                yikt2_errdn_overlay[ie] = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
+            }
+            g_ikt2_overlay = new TGraphAsymmErrors(NENERGIES, x_energy, yikt2_overlay, xerr_low_s, xerr_high_s, yikt2_errdn_overlay, yikt2_errup_overlay);
+            int col_ikt2 = kRed+1;
+            int fillcol_ikt2 = TColor::GetColorTransparent(col_ikt2, 0.35);
+            g_ikt2_overlay->SetFillColor(fillcol_ikt2);
+            g_ikt2_overlay->SetFillStyle(1001);
+            g_ikt2_overlay->SetLineColor(col_ikt2);
+            g_ikt2_overlay->SetLineWidth(3);
+            g_ikt2_overlay->Draw("3 same");
+            g_ikt2_overlay->SetMarkerStyle(21);
+            g_ikt2_overlay->SetMarkerSize(0.0);
+            g_ikt2_overlay->Draw("LPX same");
+        }
+        
+        // For alpha, draw analytic curve
+        TF1* f_analytic = nullptr;
+        if(iparam==0){
+            double fxmin = x_energy[0];
+            double fxmax = x_energy[NENERGIES-1];
+            f_analytic = new TF1("alpha_curve_overlay", "0.85 + pow(x, -0.14)", fxmin, fxmax);
+            f_analytic->SetLineColor(kBlack);
+            f_analytic->SetLineStyle(1);
+            f_analytic->SetLineWidth(4);
+            f_analytic->SetNpx(500);
+            f_analytic->Draw("L same");
+        }
+        
+        // Legend
+        TLegend* leg_overlay = new TLegend(0.30, 0.65, 0.55, 0.85);
+        leg_overlay->SetBorderSize(0);
+        leg_overlay->SetFillStyle(0);
+        leg_overlay->SetTextSize(0.025);
+        leg_overlay->AddEntry(g_avg_overlay, "UrQMD <m_{T}>, incl. m_{T} choice sys.unc.", "f");
+        leg_overlay->AddEntry(g_ikt2_overlay, "UrQMD single m_{T} bin (ikt=2)", "f");
+        if(iparam==0){
+            leg_overlay->AddEntry(f_analytic, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14}", "l");
+        }
+        leg_overlay->Draw("L same");
+        
+        can_overlay->SaveAs(Form("figs/syserr/sqrtS_overlay_%s.png", levy_params[iparam]));
+        delete can_overlay;
+    }
+
 
     // OUTPUT FILE to store results (keeps previous behavior)
     TFile* outfile = new TFile("syserr_results.root", "RECREATE");
