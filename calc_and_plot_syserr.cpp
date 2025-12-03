@@ -24,7 +24,8 @@ int NEVT_AVG_DEFAULT = 5; // index
 int NEVT_AVGsyst[] = {10, 25, 50, 100, 200, 500, 1000, 5000, 10000}; // removed 1, not meaningful for low energies, runs too long
 
 
-int calc_and_plot_syserr()
+// -------- MAIN FUNCTION --------
+int calc_and_plot_syserr(int energy_to_plot=-1)
 {
     // Get m_T bin centers
     double mtbin_centers[NKT];
@@ -274,9 +275,6 @@ int calc_and_plot_syserr()
     /////////////  PLOTTING   /////////////////////////
     ////////////////////////////////////////////////////
     
-    // SYSTEMATICS TO mT vs PARAM
-
-    // SYSTEMATICS TO sqrt(sNN) vs PARAM
     
     ////////////////////////////////////////////////////
     ////////  PLOTTING mT vs parameter with sys bands  
@@ -288,7 +286,42 @@ int calc_and_plot_syserr()
         try { return std::stod(num); } catch(...) { return 0.0; }
     };
 
-    double cutoff = 7.7; // GeV dividing low/high energies; treat 7.7 as LOW side
+    // Helper: Find the least-crowded quadrant for legend placement (NDC coords)
+    auto findBestLegendPos = [&parseEnergy](const std::vector<TGraphAsymmErrors*>& graphs, double xmin, double xmax, double ymin, double ymax,
+                                             int iparam, double cutoff, int NENERGIES, int side) 
+        -> std::tuple<double,double,double,double> {
+        double xmid = 0.5*(xmin + xmax);
+        double ymid = 0.5*(ymin + ymax);
+        int count[4] = {0,0,0,0}; // TL,TR,BL,BR
+        
+        for(int ie=0; ie<NENERGIES; ie++) {
+            double e = parseEnergy(energies[ie]);
+            if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+            TGraphAsymmErrors* g = graphs[ie];
+            if(!g) continue;
+            for(int i=0; i<g->GetN(); i++) {
+                double x = g->GetX()[i];
+                double y = g->GetY()[i];
+                int quad = (x < xmid ? 0 : 1) + (y > ymid ? 0 : 2); // 0=TL,1=TR,2=BL,3=BR
+                count[quad]++;
+            }
+        }
+        // Find least-crowded quadrant
+        int minQuad = 0, minCount = count[0];
+        for(int q=1; q<4; q++) {
+            if(count[q] < minCount) { minQuad = q; minCount = count[q]; }
+        }
+        // Return legend coords: width=0.20, height=0.20
+        double legW = 0.20, legH = 0.20;
+        double x1, y2;
+        if(minQuad == 0) { x1 = 0.15; y2 = 0.72; } // TL
+        else if(minQuad == 1) { x1 = 0.65; y2 = 0.72; } // TR
+        else if(minQuad == 2) { x1 = 0.15; y2 = 0.25; } // BL
+        else { x1 = 0.65; y2 = 0.25; } // BR
+        return std::make_tuple(x1, y2, x1+legW, y2+legH);
+    };
+
+    double cutoff = 4.5; // GeV dividing low/high energies; treat 7.7 as LOW side
 
     // Parameter loop: 0=alpha,1=R,2=N
     // ensure output dir exists
@@ -296,7 +329,7 @@ int calc_and_plot_syserr()
 
     for(int iparam=0; iparam<3; iparam++)
     {
-        TCanvas* can = new TCanvas(Form("can_param_%d", iparam), "", 1400, 700);
+        TCanvas* can = new TCanvas(Form("can_param_%d", iparam), "", 2800, 1400);
         can->Divide(2,1);
 
         // Compute a global y-range for this parameter so left/right panels are directly comparable
@@ -321,25 +354,31 @@ int calc_and_plot_syserr()
             gPad->SetLeftMargin(0.12);
             gPad->SetBottomMargin(0.12);
             // Use global y-range computed above
-            double ymin = global_ymin;
-            double ymax = global_ymax;
+            double ymins[] = {1.3, 3, 0.97};
+            double ymaxs[] = {2.1, 8., 1.13};
+            double ymin = ymins[iparam];//global_ymin;
+            double ymax = ymaxs[iparam];//global_ymax;
             double ypad = 0.12*(ymax - ymin);
-            ymin -= ypad; ymax += ypad;
+            //ymin -= ypad; ymax += ypad;
 
             // Draw an empty frame with axis titles
-            double xmin = mtbin_centers[0];
-            double xmax = mtbin_centers[NKT-1];
+            double xmin = mtbin_centers[0]-0.05;
+            double xmax = mtbin_centers[NKT-1]+0.05;
             TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
             const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"N";
             frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
             frame->GetYaxis()->SetTitle(ytitle);
 
-            // Legend
-            // Legend: smaller and moved to upper-left
-            TLegend* leg = new TLegend(0.12,0.72,0.42,0.92);
+            // Legend: auto-position in least-crowded quadrant
+            auto [leg_x1, leg_y2, leg_x2, leg_y1] = findBestLegendPos(
+                (iparam==0)? std::vector<TGraphAsymmErrors*>(alpha_default, alpha_default+NENERGIES) :
+                (iparam==1)? std::vector<TGraphAsymmErrors*>(R_default, R_default+NENERGIES) :
+                             std::vector<TGraphAsymmErrors*>(N_default, N_default+NENERGIES),
+                xmin, xmax, ymin, ymax, iparam, cutoff, NENERGIES, side);
+            TLegend* leg = new TLegend(leg_x1, leg_y2, leg_x2, leg_y1);
             leg->SetFillColor(0);
-            leg->SetBorderSize(0);
-            leg->SetTextSize(0.035);
+            leg->SetBorderSize(1); // set to 0 to remove border
+            leg->SetTextSize(0.023);
 
             // Colors
             int colors[] = {kBlack,kBlue+2,kRed+1,kGreen+2,kMagenta+2,kOrange+7,kViolet+1,kCyan+1};
@@ -347,6 +386,7 @@ int calc_and_plot_syserr()
             int colorIdx=0;
             for(int ie=0; ie<NENERGIES; ie++)
             {
+                if(ienergy>-1 && ie!=energy_to_plot) continue; // plot only selected energy if specified
                 double e = parseEnergy(energies[ie]);
                 // treat 7.7 as LOW side: low = e <= cutoff, high = e > cutoff
                 if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
@@ -364,23 +404,31 @@ int calc_and_plot_syserr()
                 gsys->Draw("3 same");
                 // thin connecting line for central values
                 gdef->SetLineColor(col);
-                gdef->SetLineWidth(1);
+                gdef->SetLineWidth(3);
                 gdef->SetMarkerStyle(20);
-                gdef->SetMarkerSize(0.7);
+                gdef->SetMarkerSize(0.0);
                 gdef->Draw("LP same");
+                //gStyle->SetLegendTextSize(0.015);
 
                 std::stringstream label;
                 label<<energies[ie];
-                leg->AddEntry(gdef, label.str().c_str(), "l");
+                leg->AddEntry(gdef, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "l");
                 colorIdx++;
             }
             leg->Draw();
         }
 
         // Save canvas
-        can->SaveAs(Form("figs/syserr/mT_vs_param_%d.png", iparam));
+        const char* energyplotted = (energy_to_plot>-1)? Form("_energy_%s", energies[energy_to_plot]) : "_allenergies";
+        can->SetTitle(Form("m_{T} vs %s systematic uncertainties%s",
+                            (iparam==0)?"#alpha":(iparam==1)?"R":"N", energyplotted));
+        can->SaveAs(Form("figs/syserr/mT_vs_param_%d%s.png", iparam, energyplotted));
         delete can;
     }
+
+    
+    // SYSTEMATICS TO sqrt(sNN) vs PARAM
+    
 
     // OUTPUT FILE to store results (keeps previous behavior)
     TFile* outfile = new TFile("syserr_results.root", "RECREATE");
