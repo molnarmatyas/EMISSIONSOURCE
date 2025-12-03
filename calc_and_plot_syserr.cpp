@@ -19,9 +19,29 @@
 #include <algorithm>
 #include <sstream>
 
+const char* levy_params[3] = {"alpha","R","N"};
+
 // To be set
 int NEVT_AVG_DEFAULT = 5; // index
 int NEVT_AVGsyst[] = {10, 25, 50, 100, 200, 500, 1000, 5000, 10000}; // removed 1, not meaningful for low energies, runs too long
+
+void correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn, 
+                              TGraphAsymmErrors* systcheckgraph, TGraphAsymmErrors* defaultgraph,
+                              int ikt)
+{
+    // func(*param*_syserr_up[ikt], *param*_syserr_dn[ikt], *param*_*systcheck*[ienergy][1/2], *param*_default[ienergy])
+    double diff = systcheckgraph->GetY()[ikt] - defaultgraph->GetY()[ikt];
+    if(diff>=0.)
+    {
+        // systcheck datapoint above default
+        param_uncert_up[ikt] += pow(diff, 2);
+    }
+    else
+    {
+        // systcheck datapoint below default
+        param_uncert_dn[ikt] += pow(diff, 2);
+    }
+}
 
 
 // -------- MAIN FUNCTION --------
@@ -233,34 +253,36 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double N_syserr_dn[NKT] = {0};
         for(int ikt=0; ikt<NKT; ikt++)
         {
-            // Collect deviations from default for each systematic source
-            // FIXME probably check the direction of deviations (up/down) later
-            alpha_syserr_up[ikt] += pow(alpha_qlcms[ienergy][1]->GetY()[ikt] - alpha_default[ienergy]->GetY()[ikt], 2); // strict qLCMS
-            alpha_syserr_dn[ikt] += pow(alpha_qlcms[ienergy][2]->GetY()[ikt] - alpha_default[ienergy]->GetY()[ikt], 2); // loose qLCMS
-            alpha_syserr_up[ikt] += pow(alpha_rhofitmax[ienergy][1]->GetY()[ikt] - alpha_default[ienergy]->GetY()[ikt], 2); // strict rhofitmax
-            alpha_syserr_dn[ikt] += pow(alpha_rhofitmax[ienergy][2]->GetY()[ikt] - alpha_default[ienergy]->GetY()[ikt], 2); // loose rhofitmax
-            alpha_syserr_up[ikt] += pow(alpha_nevtavg[ienergy][1]->GetY()[ikt] - alpha_default[ienergy]->GetY()[ikt], 2); // smaller nevt_avg
-            alpha_syserr_dn[ikt] += pow(alpha_nevtavg[ienergy][2]->GetY()[ikt] - alpha_default[ienergy]->GetY()[ikt], 2); // larger nevt_avg
+            // Collect deviations from default for each systematic source - check the general direction of deviations (up/down)
+            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_qlcms[ienergy][1], alpha_default[ienergy], ikt); // strict qLCMS
+            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_qlcms[ienergy][2], alpha_default[ienergy], ikt); // loose qLCMS
+            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_rhofitmax[ienergy][1], alpha_default[ienergy], ikt); // strict rhofitmax
+            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_rhofitmax[ienergy][2], alpha_default[ienergy], ikt); // loose rhofitmax
+            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_nevtavg[ienergy][1], alpha_default[ienergy], ikt); // smaller nevt_avg
+            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_nevtavg[ienergy][2], alpha_default[ienergy], ikt); // larger nevt_avg
             alpha_syserr_up[ikt] = sqrt(alpha_syserr_up[ikt]);
             alpha_syserr_dn[ikt] = sqrt(alpha_syserr_dn[ikt]);
+            // cerr << "alpha_syserr_up: " << alpha_syserr_up[ikt] << ", alpha_syserr_dn: " << alpha_syserr_dn[ikt] << endl;
 
-            R_syserr_up[ikt] += pow(R_qlcms[ienergy][1]->GetY()[ikt] - R_default[ienergy]->GetY()[ikt], 2); // strict qLCMS
-            R_syserr_dn[ikt] += pow(R_qlcms[ienergy][2]->GetY()[ikt] - R_default[ienergy]->GetY()[ikt], 2); // loose qLCMS
-            R_syserr_up[ikt] += pow(R_rhofitmax[ienergy][1]->GetY()[ikt] - R_default[ienergy]->GetY()[ikt], 2); // strict rhofitmax
-            R_syserr_dn[ikt] += pow(R_rhofitmax[ienergy][2]->GetY()[ikt] - R_default[ienergy]->GetY()[ikt], 2); // loose rhofitmax
-            R_syserr_up[ikt] += pow(R_nevtavg[ienergy][1]->GetY()[ikt] - R_default[ienergy]->GetY()[ikt], 2); // smaller nevt_avg
-            R_syserr_dn[ikt] += pow(R_nevtavg[ienergy][2]->GetY()[ikt] - R_default[ienergy]->GetY()[ikt], 2); // larger nevt_avg
+            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_qlcms[ienergy][1], R_default[ienergy], ikt); // strict qLCMS
+            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_qlcms[ienergy][2], R_default[ienergy], ikt); // loose qLCMS
+            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_rhofitmax[ienergy][1], R_default[ienergy], ikt); // strict rhofitmax
+            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_rhofitmax[ienergy][2], R_default[ienergy], ikt); // loose rhofitmax
+            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_nevtavg[ienergy][1], R_default[ienergy], ikt); // smaller nevt_avg
+            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_nevtavg[ienergy][2], R_default[ienergy], ikt); // larger nevt_avg
             R_syserr_up[ikt] = sqrt(R_syserr_up[ikt]);
             R_syserr_dn[ikt] = sqrt(R_syserr_dn[ikt]);
+            // cerr << "R_syserr_up: " << R_syserr_up[ikt] << ", R_syserr_dn: " << R_syserr_dn[ikt] << endl;
 
-            N_syserr_up[ikt] += pow(N_qlcms[ienergy][1]->GetY()[ikt] - N_default[ienergy]->GetY()[ikt], 2); // strict qLCMS
-            N_syserr_dn[ikt] += pow(N_qlcms[ienergy][2]->GetY()[ikt] - N_default[ienergy]->GetY()[ikt], 2); // loose qLCMS
-            N_syserr_up[ikt] += pow(N_rhofitmax[ienergy][1]->GetY()[ikt] - N_default[ienergy]->GetY()[ikt], 2); // strict rhofitmax
-            N_syserr_dn[ikt] += pow(N_rhofitmax[ienergy][2]->GetY()[ikt] - N_default[ienergy]->GetY()[ikt], 2); // loose rhofitmax
-            N_syserr_up[ikt] += pow(N_nevtavg[ienergy][1]->GetY()[ikt] - N_default[ienergy]->GetY()[ikt], 2); // smaller nevt_avg
-            N_syserr_dn[ikt] += pow(N_nevtavg[ienergy][2]->GetY()[ikt] - N_default[ienergy]->GetY()[ikt], 2); // larger nevt_avg
+            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_qlcms[ienergy][1], N_default[ienergy], ikt); // strict qLCMS
+            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_qlcms[ienergy][2], N_default[ienergy], ikt); // loose qLCMS
+            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_rhofitmax[ienergy][1], N_default[ienergy], ikt); // strict rhofitmax
+            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_rhofitmax[ienergy][2], N_default[ienergy], ikt); // loose rhofitmax
+            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_nevtavg[ienergy][1], N_default[ienergy], ikt); // smaller nevt_avg
+            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_nevtavg[ienergy][2], N_default[ienergy], ikt); // larger nevt_avg
             N_syserr_up[ikt] = sqrt(N_syserr_up[ikt]);
             N_syserr_dn[ikt] = sqrt(N_syserr_dn[ikt]);
+            // cerr << "N_syserr_up: " << N_syserr_up[ikt] << ", N_syserr_dn: " << N_syserr_dn[ikt] << endl;
         }
         // Create TGraphAsymmErrors for total systematic uncertainties
         alpha_syserr[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_default[ienergy]->GetY(), xerr_low, xerr_high, alpha_syserr_dn, alpha_syserr_up);
@@ -386,7 +408,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             int colorIdx=0;
             for(int ie=0; ie<NENERGIES; ie++)
             {
-                if(ienergy>-1 && ie!=energy_to_plot) continue; // plot only selected energy if specified
+                if(energy_to_plot>-1 && ie!=energy_to_plot) continue; // plot only selected energy if specified
                 double e = parseEnergy(energies[ie]);
                 // treat 7.7 as LOW side: low = e <= cutoff, high = e > cutoff
                 if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
@@ -403,16 +425,22 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 gsys->SetLineWidth(1);
                 gsys->Draw("3 same");
                 // thin connecting line for central values
-                gdef->SetLineColor(col);
-                gdef->SetLineWidth(3);
-                gdef->SetMarkerStyle(20);
-                gdef->SetMarkerSize(0.0);
-                gdef->Draw("LP same");
+                // gdef->SetLineColor(col);
+                // gdef->SetLineWidth(3);
+                // gdef->SetMarkerStyle(20);
+                // gdef->SetMarkerSize(0.0);
+                // gdef->Draw("LP same");
+                gsys->SetLineColor(col);
+                gsys->SetLineWidth(3);
+                gsys->SetMarkerStyle(20);
+                gsys->SetMarkerSize(0.0);
+                gsys->Draw("LPX same");
                 //gStyle->SetLegendTextSize(0.015);
 
                 std::stringstream label;
                 label<<energies[ie];
-                leg->AddEntry(gdef, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "l");
+                // leg->AddEntry(gdef, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "l");
+                leg->AddEntry(gsys, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "l");
                 colorIdx++;
             }
             leg->Draw();
@@ -422,7 +450,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         const char* energyplotted = (energy_to_plot>-1)? Form("_energy_%s", energies[energy_to_plot]) : "_allenergies";
         can->SetTitle(Form("m_{T} vs %s systematic uncertainties%s",
                             (iparam==0)?"#alpha":(iparam==1)?"R":"N", energyplotted));
-        can->SaveAs(Form("figs/syserr/mT_vs_param_%d%s.png", iparam, energyplotted));
+        //can->SaveAs(Form("figs/syserr/mT_vs_param_%d%s.png", iparam, energyplotted));
+        can->SaveAs(Form("figs/syserr/mT_vs_param_%s%s.png", levy_params[iparam], energyplotted));
         delete can;
     }
 
