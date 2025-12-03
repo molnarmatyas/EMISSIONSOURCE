@@ -2,6 +2,7 @@
 *.pdf
 *.pptx
 *.docx
+*.csv
 deprec/*
 plots/*
 figs/*
@@ -24,6 +25,7 @@ status_report/*
 **/*.out*
 **/*.o
 **/*.d
+**/*.csv
 .vscode
 levyfit/exe/*
 levyfit/object/*
