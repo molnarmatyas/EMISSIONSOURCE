@@ -747,6 +747,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
         // Left pad: mT-averaged
         can->cd(1);
+        //gPad->SetLogx(1); // !!! FIXME uncomment if comparison with STAR not needed
         gPad->SetLeftMargin(0.12);
         gPad->SetBottomMargin(0.12);
         double xmin = x_energy[0] - 1.0;
@@ -769,6 +770,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             ymax += padMargin;
         }
         TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
+        if(iparam==0)
+        {
+            //frame = gPad->DrawFrame(1., 0.1, 10000., 2.1); // !!! FIXME uncomment if comparison with STAR not needed
+        }
         frame->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
         const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda";
         frame->GetYaxis()->SetTitle(ytitle);
@@ -788,6 +793,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
         // Right pad: ikt=2
         can->cd(2);
+        //gPad->SetLogx(1); // !!! FIXME uncomment if comparison with STAR not needed
         gPad->SetLeftMargin(0.12);
         gPad->SetBottomMargin(0.12);
         double ymin2 = 1e9, ymax2 = -1e9;
@@ -846,6 +852,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             ymax2 += padMargin2;
         }
         TH1F* frame2 = gPad->DrawFrame(xmin, ymin2, xmax, ymax2);
+        if(iparam==0)
+        {
+            //frame2 = gPad->DrawFrame(1., 0.1, 10000., 2.1); // !!! FIXME uncomment if comparison with STAR not needed
+        }
         frame2->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
         frame2->GetYaxis()->SetTitle(ytitle);
         TGraphAsymmErrors* gikt2 = new TGraphAsymmErrors(NENERGIES, x_energy, yvals, xerr_low_s, xerr_high_s, yerrdn2, yerrup2);
@@ -971,6 +981,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     
     for(int iparam=0; iparam<3; iparam++){
         TCanvas* can_overlay = new TCanvas(Form("can_overlay_param_%d", iparam), "", 1200, 800);
+        //can_overlay->SetLogx(1); // !!! FIXME if not needed to compare with STAR data
+
         
         // Precompute y-range for both datasets
         double ymin_both = 1e9, ymax_both = -1e9;
@@ -1063,6 +1075,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         if(iparam==2)
         {
             frame_overlay = gPad->DrawFrame(xmin, 0.7, xmax, 1.08);
+        }
+        else if(iparam==0)
+        {
+            //frame_overlay = gPad->DrawFrame(1.0, 0.1, 10000., 2.1); // FIXME if not needed to compare with STAR data
         }
         frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
         const char* ytitle_overlay = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda"; // =N
