@@ -8,7 +8,12 @@ sleep 10
 
 energies=("3p0" "3p2" "3p5" "3p9" "4p5" "7p7" "9p2" "11p5" "14p5" "19p6" "27")
 
-cd urqmd-3.4/drho_analyze
+mkdir -p analysed
+mkdir -p figs/fitting/lcms
+mkdir -p levyfit/exe
+mkdir -p object/deps
+
+cd drho_analyze_urqmd
 make clean
 make pairsource_urqmd.exe
 
@@ -24,8 +29,8 @@ for ienergy in "${energies[@]}"; do
   mv ${analysedname}${ienergy}.root ${analysedname}${ienergy}_looseqLCMS.root
   mv ${analysedname}${ienergy}_defaultqLCMS.root ${analysedname}${ienergy}.root # restore default-named file
 done
-mv ${analysedname}*.root ../../analysed/
-cd ../..
+mv ${analysedname}*.root ../analysed/
+cd ..
 
 #root.exe -b -q 'Average_Drho.cpp(100)' # why doesn't this work?! # I guess this rage-comment was related to why it doesn't work except for the default values # Anyways, this is looong deprecated
 

@@ -8,6 +8,7 @@
 #include <TLatex.h>
 #include <TStyle.h>
 #include <iostream>
+//#include "header_for_all_emissionsource.h" // commented out to avoid redefinition errors
 
 const int NCENT = 10; // number of centrality classes
 const char* centleg[NCENT+2] = {"0-5", "5-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80-100","all","0-10"};

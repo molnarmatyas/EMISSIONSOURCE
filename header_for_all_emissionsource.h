@@ -10,3 +10,6 @@ const double energydouble[NENERGIES] = {3.0, 3.2, 3.5, 3.9, 4.5, 7.7, 9.2, 11.5,
 //const int NKT = 8;
 //const double kT_center[NKT] = {0.0452, 0.0904, 0.1299, 0.1649, 0.2044, 0.2633, 0.3820, 0.6221};
 //const double ktbins[NKT + 1] = {0.0, 0.07, 0.11, 0.15, 0.18, 0.23, 0.3, 0.5, 1.0}; // bporfy
+// const char* energies[] = {"30A"};
+// const int NENERGIES = sizeof(energies) / sizeof(energies[0]);
+// const double energydouble[NENERGIES] = {30.0};

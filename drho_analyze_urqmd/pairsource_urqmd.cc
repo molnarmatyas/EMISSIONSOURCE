@@ -15,13 +15,13 @@
 #include <map>
 #include <fstream>
 
-//#include "../../header_for_all_emissionsource.h"
-const int NKT = 10;
-const double ktbins[NKT+1]= {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
+#include "../header_for_all_emissionsource.h"
+// const int NKT = 10;
+// const double ktbins[NKT+1]= {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
 int barWidth = 70;
 
 #define NCH 2
-const double Mass2_pi = 0.019479835;
+//const double Mass2_pi = 0.019479835;
 
 //const double ktbins[NKT+1]= {0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50};
 //const double qmax[NKT] =       {0.05, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26}; // deprecated I guess
