@@ -936,7 +936,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 leg1->SetFillStyle(0);
                 leg1->SetTextSize(0.032);
                 leg1->AddEntry(gavg, "UrQMD (m_{T}-averaged)", "f");
-                leg1->AddEntry(f, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14}", "l");
+                leg1->AddEntry(f, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
                 leg1->Draw("same");
             }
             // Right pad legend: use ikt=2 positions
@@ -953,7 +953,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 leg2->SetFillStyle(0);
                 leg2->SetTextSize(0.030);
                 leg2->AddEntry(gikt2, "UrQMD (m_{T} bin)", "f");
-                leg2->AddEntry(f, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14}", "l");
+                leg2->AddEntry(f, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
                 leg2->Draw("same");
             }
         }
@@ -1209,7 +1209,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         leg_overlay->AddEntry(g_avg_overlay, "UrQMD <m_{T}>, incl. m_{T} choice sys.unc.", "f");
         leg_overlay->AddEntry(g_ikt2_overlay, "UrQMD single m_{T} = 331 MeV bin", "f");
         if(iparam==0){
-            leg_overlay->AddEntry(f_analytic, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14}", "l");
+            leg_overlay->AddEntry(f_analytic, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
         }
         leg_overlay->Draw("L same");
         
