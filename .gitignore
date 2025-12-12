@@ -5,6 +5,7 @@
 *.csv
 deprec/*
 plots/*
+**/plots/*
 figs/*
 logfiles/*
 3dfit_python/results/*
@@ -22,6 +23,7 @@ status_report/*
 **/*.exe
 **/*.txt
 **/*.log
+**/*.f19
 **/*.out*
 **/*.o
 **/*.d

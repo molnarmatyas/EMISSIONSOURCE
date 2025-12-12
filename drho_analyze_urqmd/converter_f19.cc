@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
       return 0;
     }
     //std::string inputfilename = Form("../auau-%s_test_1000evt_b0-4p73_tmax1000.f19",argv[1]);
-    std::string inputfilename = Form("../auau-%s_test_10000evt_b0-4p73_tmax1000.f19",argv[1]);
+    std::string inputfilename = Form("../urqmd-3.4/auau-%s_test_10000evt_b0-4p73_tmax1000.f19",argv[1]);
     std::string line;
     
     // ROOT setup
