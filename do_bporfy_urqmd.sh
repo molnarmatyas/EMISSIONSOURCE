@@ -33,7 +33,7 @@ mv ${analysedname}*.root ../analysed/
 cd ..
 
 mkdir -p levyfit/exe
-mkdir -p object/deps
+mkdir -p levyfit/object/deps
 cd levyfit
 make clean
 make exe/onedim_EbE_or_Eavg_fit.exe
