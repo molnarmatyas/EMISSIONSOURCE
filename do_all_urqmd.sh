@@ -11,7 +11,7 @@ energies=("3p0" "3p2" "3p5" "3p9" "4p5" "7p7" "9p2" "11p5" "14p5" "19p6" "27")
 mkdir -p analysed
 mkdir -p figs/fitting/lcms
 mkdir -p levyfit/exe
-mkdir -p object/deps
+mkdir -p levyfit/object/deps
 
 cd drho_analyze_urqmd
 make clean
