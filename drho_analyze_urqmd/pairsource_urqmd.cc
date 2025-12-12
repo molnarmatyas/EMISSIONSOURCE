@@ -15,9 +15,9 @@
 #include <map>
 #include <fstream>
 
-//#include "../../header_for_all_emissionsource.h"
-const int NKT = 10;
-const double ktbins[NKT+1]= {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
+#include "../header_for_all_emissionsource.h"
+// const int NKT = 10;
+// const double ktbins[NKT+1]= {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
 int barWidth = 70;
 
 #define NCH 2
@@ -193,16 +193,22 @@ int main(int argc, char** argv)
               // CUTS
               double pTj = TMath::Sqrt(PX->at(j)*PX->at(j) + PY->at(j)*PY->at(j));
               double pTk = TMath::Sqrt(PX->at(k)*PX->at(k) + PY->at(k)*PY->at(k));
-              if(pTj<0.15 || pTj>=1.0) continue;
-              if(pTk<0.15 || pTk>=1.0) continue;
+              if(pTj>=1.50) continue;
+              if(pTk>=1.50) continue;
+              //if(pTj<0.15 || pTj>=1.0) continue;
+              //if(pTk<0.15 || pTk>=1.0) continue;
               double pzj = PZ->at(j);
               double pzk = PZ->at(k);
               double pj = TMath::Sqrt(pTj*pTj + pzj*pzj);
               double pk = TMath::Sqrt(pTk*pTk + pzk*pzk);
               double etaj = 0.5 * TMath::Log(TMath::Abs((pj + pzj) / (pj - pzj)));
               double etak = 0.5 * TMath::Log(TMath::Abs((pk + pzk) / (pk - pzk)));
-              if(fabs(etaj) > 1.) continue;
-              if(fabs(etak) > 1.) continue;
+              double yj = 0.5 * TMath::Log((Ej + pzj) / (Ej - pzj));
+              double yk = 0.5 * TMath::Log((Ek + pzk) / (Ek - pzk));
+              if(fabs(yj) > 1.) continue;
+              if(fabs(yk) > 1.) continue; 
+              //if(fabs(etaj) > 1.) continue;
+              //if(fabs(etak) > 1.) continue;
               if(qLCMS < TMath::Sqrt(_qLCMS_cut_values[qLCMS_cuttype] * TMath::Sqrt(KT*KT + Mass2_pi))) // 150 Mev * mT baseline; strict 50 MeV, loose 250 MeV
               //if(qLCMS < qmax[iKT]) 
               //if(qLCMS < ktbins[iKT+1]) 

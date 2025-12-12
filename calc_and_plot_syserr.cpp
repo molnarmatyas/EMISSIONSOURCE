@@ -25,7 +25,7 @@
 const char* levy_params[3] = {"alpha","R","N"};
 
 // To be set
-int NEVT_AVG_DEFAULT = 5; // index
+int NEVT_AVG_DEFAULT = 7; // index
 int NEVT_AVGsyst[] = {10, 25, 50, 100, 200, 500, 1000, 5000, 10000}; // removed 1, not meaningful for low energies, runs too long
 
 void correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn, 
