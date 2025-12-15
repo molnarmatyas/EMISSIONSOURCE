@@ -96,7 +96,7 @@ double fitFunction(const double *x, const double *par)
   double R = par[1];
   double N = par[2];
   double Rcc = (R*pow(2.,1./alpha));
-  return (N/Rcc/Rcc/Rcc)*(myLevy_reader->getValue_3d(alpha, x[0]/Rcc));
+  return (N/Rcc/Rcc/Rcc)*(myLevy_reader->getValue_3d(alpha, x[0]/Rcc)); // counter-intuitively, I think the getValue_3d is used for 1D projections??? - and for 3D projections the getValue_1d???
   //return (N/(Rcc*Rcc*Rcc))*(myLevy_reader->getValue_3d(alpha, x[0]/Rcc));
 }
 
