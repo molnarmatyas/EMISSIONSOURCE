@@ -108,7 +108,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     double mtbin_centers[NKT];
     for(int ii=0; ii<NKT; ii++)
     {
-        mtbin_centers[ii] = 0.5 * (ktbins[ii] + ktbins[ii+1]);
+        //mtbin_centers[ii] = 0.5 * (ktbins[ii] + ktbins[ii+1]);
+        mtbin_centers[ii] = kT_center[ii];
         mtbin_centers[ii] = sqrt(mtbin_centers[ii]*mtbin_centers[ii] + Mass2_pi);
     }
     // x-error arrays (half-bin widths) - set to zero for now
@@ -655,8 +656,9 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 // gdef->Draw("LP same");
                 gsys->SetLineColor(col);
                 gsys->SetLineWidth(3);
-                gsys->SetMarkerStyle(20);
-                gsys->SetMarkerSize(0.0);
+                gsys->SetMarkerStyle(20+colorIdx); // differentiate points
+                gsys->SetMarkerSize(2.0); // instead of 0.0, points needed for better visibility in case of mT vs param
+                gsys->SetMarkerColor(col);
                 gsys->Draw("LPX same");
                 //gStyle->SetLegendTextSize(0.015);
 

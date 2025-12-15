@@ -3,6 +3,8 @@ const double Mass2_ka = 0.24371698032;
 
 const int NKT = 10;
 const double ktbins[NKT + 1] = {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675}; // Matyas
+double kT_center[NKT];
+for(int ii=0; ii<NKT; ii++) kT_center[ii] = 0.5 * (ktbins[ii] + ktbins[ii+1]);
 const char* energies[] = {"3p0","3p2","3p5","3p9","4p5","7p7","9p2","11p5","14p5","19p6","27"};
 const int NENERGIES = sizeof(energies) / sizeof(energies[0]);
 const double energydouble[NENERGIES] = {3.0, 3.2, 3.5, 3.9, 4.5, 7.7, 9.2, 11.5, 14.5, 19.6, 27.0};
