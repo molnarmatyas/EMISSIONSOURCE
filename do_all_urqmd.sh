@@ -12,6 +12,7 @@ mkdir -p analysed
 mkdir -p figs/fitting/lcms
 mkdir -p levyfit/exe
 mkdir -p levyfit/object/deps
+mkdir -p levyfit/results
 
 cd drho_analyze_urqmd
 make clean
