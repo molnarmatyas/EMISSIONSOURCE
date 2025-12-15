@@ -599,7 +599,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gPad->SetLeftMargin(0.12);
             gPad->SetBottomMargin(0.12);
             // Use global y-range computed above
-            double ymins[] = {1.3, 3, 0.97};
+            double ymins[] = {1.0, 3, 0.97};
             double ymaxs[] = {2.1, 8., 1.13};
             double ymin = ymins[iparam];//global_ymin;
             double ymax = ymaxs[iparam];//global_ymax;

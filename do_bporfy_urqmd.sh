@@ -34,6 +34,7 @@ cd ..
 
 mkdir -p levyfit/exe
 mkdir -p levyfit/object/deps
+mkdir -p levyfit/results
 cd levyfit
 make clean
 make exe/onedim_EbE_or_Eavg_fit.exe

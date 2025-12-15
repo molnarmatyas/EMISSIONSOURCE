@@ -70,7 +70,7 @@ TH1* histograms[NKT][NFRAME];
 Levy_reader* myLevy_reader;
 
 double rfitmax = 100.; // TODO make adjustable for kT/cent/... & incr/decr if fit does not converge
-double rfitmin = 3.;//5.;
+double rfitmin = 1.;//3.;//5.;
 const double B[3] = {2500, 1600, 3600}; // for rho_fitmax limits: default, strict, loose
 const double rfitmax_systlimits[3] = {100., 50., 150.}; // for simpler rho_fitmax limits: default, strict, loose
 
