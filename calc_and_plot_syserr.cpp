@@ -108,7 +108,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     double mtbin_centers[NKT];
     for(int ii=0; ii<NKT; ii++)
     {
-        mtbin_centers[ii] = 0.5 * (ktbins[ii] + ktbins[ii+1]);
+        //mtbin_centers[ii] = 0.5 * (ktbins[ii] + ktbins[ii+1]);
+        mtbin_centers[ii] = kT_center[ii];
         mtbin_centers[ii] = sqrt(mtbin_centers[ii]*mtbin_centers[ii] + Mass2_pi);
     }
     // x-error arrays (half-bin widths) - set to zero for now
@@ -599,7 +600,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gPad->SetLeftMargin(0.12);
             gPad->SetBottomMargin(0.12);
             // Use global y-range computed above
-            double ymins[] = {1.0, 3, 0.97};
+            double ymins[] = {0.5, 3, 0.97};
             double ymaxs[] = {2.1, 8., 1.13};
             double ymin = ymins[iparam];//global_ymin;
             double ymax = ymaxs[iparam];//global_ymax;
@@ -656,7 +657,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 gsys->SetLineColor(col);
                 gsys->SetLineWidth(3);
                 gsys->SetMarkerStyle(20);
-                gsys->SetMarkerSize(0.0);
+                gsys->SetMarkerSize(2);
                 gsys->Draw("LPX same");
                 //gStyle->SetLegendTextSize(0.015);
 
