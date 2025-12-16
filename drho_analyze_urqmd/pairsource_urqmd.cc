@@ -111,6 +111,10 @@ int main(int argc, char** argv)
   }
 
   TH1D *KTdist = new TH1D("ktdist","K_{T} distribution",100,0,10);
+  TH1D *rapdist = new TH1D("rapdist","rapidity distribution",100,-10,10);
+  TH1D *post_rapdist = new TH1D("post_rapdist","post-cut rapidity distribution",100,-10,10);
+  TH1D *etadist = new TH1D("etadist","pseudorapidity distribution",100,-10,10);
+  TH1D *post_etadist = new TH1D("post_etadist","post-cut pseudorapidity distribution",100,-10,10);
 
   std::cout << "File " << " loaded" << std::endl;
   std::vector<double> *PX = 0;
@@ -145,9 +149,23 @@ int main(int argc, char** argv)
       for (int j = 0; j < eventsize; j++)
       {
         if (ID->at(j) == pid /* || ID->at(j) == -211 */) {
-          //auto pTj = TMath::Sqrt(PX->at(j)*PX->at(j) + PY->at(j)*PY->at(j));
           //auto pj = TMath::Sqrt(pTj*pTj + PZ->at(j)*PZ->at(j));
           auto Ej = energy->at(j); //TMath::Sqrt(pj*pj + Mass2_pi);
+          // CUTS for j
+          double pTj = TMath::Sqrt(PX->at(j)*PX->at(j) + PY->at(j)*PY->at(j));
+          if(pTj>1.50) continue;
+          double pzj = PZ->at(j);
+          double pj = TMath::Sqrt(pTj*pTj + pzj*pzj);
+          double etaj = 0.5 * TMath::Log(TMath::Abs((pj + pzj) / (pj - pzj)));
+          double yj = 0.5 * TMath::Log((Ej + pzj) / (Ej - pzj)) - 2.02172;
+          rapdist->Fill(yj);
+          etadist->Fill(etaj);
+          if(fabs(yj) > 1.) continue;
+          post_rapdist->Fill(yj);
+          //if(pTj<0.15 || pTj>=1.0) continue;
+          //if(fabs(etaj) > 1.) continue;
+          post_etadist->Fill(etaj);
+          // end of CUTS for j
           for (int k = j+1; k < eventsize; k++)
           {
             if (ID->at(k) == pid /* || ID->at(k) == -211 */) {
@@ -190,24 +208,15 @@ int main(int argc, char** argv)
                 std::cout << "qlcms: " << qLCMS << " kT: " << ktbins[iKT] << "-" << ktbins[iKT+1] << std::endl;
               */
               
-              // CUTS
-              double pTj = TMath::Sqrt(PX->at(j)*PX->at(j) + PY->at(j)*PY->at(j));
+              // CUTS for k
               double pTk = TMath::Sqrt(PX->at(k)*PX->at(k) + PY->at(k)*PY->at(k));
-              if(pTj>=1.50) continue;
-              if(pTk>=1.50) continue;
-              //if(pTj<0.15 || pTj>=1.0) continue;
+              if(pTk>1.50) continue;
               //if(pTk<0.15 || pTk>=1.0) continue;
-              double pzj = PZ->at(j);
               double pzk = PZ->at(k);
-              double pj = TMath::Sqrt(pTj*pTj + pzj*pzj);
               double pk = TMath::Sqrt(pTk*pTk + pzk*pzk);
-              double etaj = 0.5 * TMath::Log(TMath::Abs((pj + pzj) / (pj - pzj)));
               double etak = 0.5 * TMath::Log(TMath::Abs((pk + pzk) / (pk - pzk)));
-              double yj = 0.5 * TMath::Log((Ej + pzj) / (Ej - pzj));
-              double yk = 0.5 * TMath::Log((Ek + pzk) / (Ek - pzk));
-              if(fabs(yj) > 1.) continue;
+              double yk = 0.5 * TMath::Log((Ek + pzk) / (Ek - pzk)) - 2.02172;
               if(fabs(yk) > 1.) continue; 
-              //if(fabs(etaj) > 1.) continue;
               //if(fabs(etak) > 1.) continue;
               if(qLCMS < TMath::Sqrt(_qLCMS_cut_values[qLCMS_cuttype] * TMath::Sqrt(KT*KT + Mass2_pi))) // 150 Mev * mT baseline; strict 50 MeV, loose 250 MeV
               //if(qLCMS < qmax[iKT]) 
@@ -242,6 +251,10 @@ int main(int argc, char** argv)
     }
   }
   KTdist->Write();
+  rapdist->Write();
+  post_rapdist->Write();
+  etadist->Write();
+  post_etadist->Write();
 
   outFile->Close();
 

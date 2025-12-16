@@ -107,14 +107,16 @@ double chiSquare(const double *params)
   double chi2 = 0.0;
 
   TH1* hist = (TH1F*)histograms[thiskt][thisframe]->Clone();
+  double integral = hist->Integral();
   for (int bin = 1; bin <= hist->GetNbinsX(); ++bin)
   {
     double x = hist->GetBinCenter(bin);
     double ex = hist->GetBinError(bin);
     if(x > rfitmax) continue;
     if(x < rfitmin) continue;
+    double binVolume = ( hist->GetXaxis()->GetBinWidth(bin) );
     double observed = hist->GetBinContent(bin);
-    double expected = fitFunction(&x, params);
+    double expected = fitFunction(&x, params)*binVolume*integral*(x*x*4.*M_PI);
     if (ex > 0)
     {
       chi2 += pow((observed - expected)/ex, 2.);
@@ -299,7 +301,7 @@ int main(int argc, char *argv[])
   }
   // Open the file and get the histograms
   const char* isPathUrqmd = IsUrQMD ? "UrQMD" : "EPOS";
-  const char* qlcms_syst_label = (qlcms_syst == 0) ? "" : (qlcms_syst == 1) ? "_strictqLCMS" : "_looseqLCMS";
+  const char* qlcms_syst_label = (qlcms_syst == 0) ? "" : (qlcms_syst == 1) ? "_strictqLCMS" : "_looseqLCMS"; // !!! there is a separate _defaultqLCMS created, but without label is also default
   TFile *file = TFile::Open(Form("%s/analysed/%s_3d_source_%scent_all_%s%s.root", 
                                   path,isPathUrqmd,centleg[ICENT],energy,qlcms_syst_label));
   if (!file)
@@ -406,7 +408,8 @@ int main(int argc, char *argv[])
           {
             if(histograms[ikt][iframe]) histograms[ikt][iframe]->Reset();
             histograms[ikt][iframe] = (TH1F*)temp_rhohist->Clone();
-            if(NEVT_AVG != 1) continue; // if no averaging, proceed to fitting right away
+            //cerr << "First event with entries: " << histograms[ikt][iframe]->GetEntries() << endl;
+            if(NEVT_AVG != 1) continue; 
           }
           else
           {

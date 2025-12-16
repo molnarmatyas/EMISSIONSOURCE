@@ -8,7 +8,7 @@ sleep 10
 mkdir -p analysed
 mkdir -p figs/fitting/lcms
 # Copy the ArSc output to the expected location
-cp ArSc_output_30.root drho_analyze_urqmd/AuAu_30A_tree.root
+cp ArSc_output_PSD_30.root drho_analyze_urqmd/AuAu_30A_tree.root
 cd drho_analyze_urqmd
 
 
