@@ -56,8 +56,9 @@ void progressbar(Int_t event, Int_t nEvents)
   
 }
 
-const char* _qLCMS_cut[3] = {"default", "strict", "loose"};
-const double _qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // in GeV/c
+// Reimplemented in header_for_all_emissionsource.h:
+// const char* _qLCMS_cut[3] = {"default", "strict", "loose"};
+// const double _qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // in GeV/c
 
 
 int main(int argc, char** argv)
@@ -111,6 +112,10 @@ int main(int argc, char** argv)
   }
 
   TH1D *KTdist = new TH1D("ktdist","K_{T} distribution",100,0,10);
+  TH1D *rapdist = new TH1D("rapdist","rapidity distribution",100,-10,10);
+  TH1D *post_rapdist = new TH1D("post_rapdist","post-cut rapidity distribution",100,-10,10);
+  TH1D *etadist = new TH1D("etadist","pseudorapidity distribution",100,-10,10);
+  TH1D *post_etadist = new TH1D("post_etadist","post-cut pseudorapidity distribution",100,-10,10);
 
   std::cout << "File " << " loaded" << std::endl;
   std::vector<double> *PX = 0;
@@ -145,8 +150,6 @@ int main(int argc, char** argv)
       for (int j = 0; j < eventsize; j++)
       {
         if (ID->at(j) == pid /* || ID->at(j) == -211 */) {
-          //auto pTj = TMath::Sqrt(PX->at(j)*PX->at(j) + PY->at(j)*PY->at(j));
-          //auto pj = TMath::Sqrt(pTj*pTj + PZ->at(j)*PZ->at(j));
           auto Ej = energy->at(j); //TMath::Sqrt(pj*pj + Mass2_pi);
           for (int k = j+1; k < eventsize; k++)
           {
@@ -201,8 +204,22 @@ int main(int argc, char** argv)
               double pk = TMath::Sqrt(pTk*pTk + pzk*pzk);
               double etaj = 0.5 * TMath::Log(TMath::Abs((pj + pzj) / (pj - pzj)));
               double etak = 0.5 * TMath::Log(TMath::Abs((pk + pzk) / (pk - pzk)));
+              double yj = 0.5 * TMath::Log((Ej + pzj) / (Ej - pzj)) - 2.02172; // so far only manually, based on bporfy TODO boost automatically to CMS
+              double yk = 0.5 * TMath::Log((Ek + pzk) / (Ek - pzk)) - 2.02172;
+              if(k == j+1) // fill only once per pair
+              {
+                etadist->Fill(etaj);
+                rapdist->Fill(yj);
+              }
               if(fabs(etaj) > 1.) continue;
               if(fabs(etak) > 1.) continue;
+              //if(fabs(yj) > 1.) continue;
+              //if(fabs(yk) > 1.) continue;
+              if(k == j+1) // fill only once per pair
+              {
+                post_etadist->Fill(etaj);
+                post_rapdist->Fill(yj);
+              }
               if(qLCMS < TMath::Sqrt(_qLCMS_cut_values[qLCMS_cuttype] * TMath::Sqrt(KT*KT + Mass2_pi))) // 150 Mev * mT baseline; strict 50 MeV, loose 250 MeV
               //if(qLCMS < qmax[iKT]) 
               //if(qLCMS < ktbins[iKT+1]) 
@@ -214,9 +231,9 @@ int main(int argc, char** argv)
                 D_outlong_lcms[ievent][ich][iKT]->Fill(rhooutlong);
               }
             } // only particles with matching PID
-          } // Loop over pairs
+          } // Loop over pairs - loop for particle k
         } // only particles with matching PID
-      } // end of track loop
+      } // end of track loop - loop for particle j
     } // end of charge loop
   } // end of event loop
   std::cout << std::endl;
@@ -231,11 +248,15 @@ int main(int argc, char** argv)
         D_out_lcms[iev][ich][iKT]->Write();
         D_side_lcms[iev][ich][iKT]->Write();
         D_long_lcms[iev][ich][iKT]->Write();
-        D_outlong_lcms[iev][ich][iKT]->Write();
+        //D_outlong_lcms[iev][ich][iKT]->Write(); // not really used, takes space, uncomment if ever needed
       }
     }
   }
   KTdist->Write();
+  rapdist->Write();
+  post_rapdist->Write();
+  etadist->Write();
+  post_etadist->Write();
 
   outFile->Close();
 

@@ -1,5 +1,5 @@
-# !!! deprecated
 # run everything:
-time ./do_analysis-fit.sh &> fullanalysis_fullfit.log && time ./do_all_plotting.sh &
-# then, or maybe before do_all_plotting.sh
-./do_all_urqmd.sh &
+time ./do_all_urqmd.sh &> allurqmd.log &
+# The EPOS stuff is already deprecated, if datafiles are available, 
+# necessary directories are created, maybe these could work to get something:
+# time ./do_analysis-fit.sh &> fullanalysis_fullfit.log && time ./do_all_plotting.sh &

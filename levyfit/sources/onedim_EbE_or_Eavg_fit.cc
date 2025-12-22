@@ -69,10 +69,10 @@ const char* path = "..";
 TH1* histograms[NKT][NFRAME];
 Levy_reader* myLevy_reader;
 
-double rfitmax = 100.; // TODO make adjustable for kT/cent/... & incr/decr if fit does not converge
-double rfitmin = 3.;//5.;
-const double B[3] = {2500, 1600, 3600}; // for rho_fitmax limits: default, strict, loose
-const double rfitmax_systlimits[3] = {100., 50., 150.}; // for simpler rho_fitmax limits: default, strict, loose
+double rfitmax = rfitmax_systlimits[0];//60.; // TODO make adjustable for kT/cent/... & incr/decr if fit does not converge
+double rfitmin = 3.;//1.;//5.;
+// const double B[3] = {2500, 1600, 3600}; // for rho_fitmax limits: default, strict, loose
+// const double rfitmax_systlimits[3] = {100., 50., 150.}; // for simpler rho_fitmax limits: default, strict, loose
 
 int thiskt = 0;
 int thisframe = 0;
@@ -107,14 +107,16 @@ double chiSquare(const double *params)
   double chi2 = 0.0;
 
   TH1* hist = (TH1F*)histograms[thiskt][thisframe]->Clone();
+  double integral = hist->Integral();
   for (int bin = 1; bin <= hist->GetNbinsX(); ++bin)
   {
     double x = hist->GetBinCenter(bin);
     double ex = hist->GetBinError(bin);
     if(x > rfitmax) continue;
     if(x < rfitmin) continue;
+    double binVolume = ( hist->GetXaxis()->GetBinWidth(bin) );
     double observed = hist->GetBinContent(bin);
-    double expected = fitFunction(&x, params);
+    double expected = fitFunction(&x, params)*binVolume*integral*(x*x*4.*M_PI);
     if (ex > 0)
     {
       chi2 += pow((observed - expected)/ex, 2.);
@@ -299,7 +301,7 @@ int main(int argc, char *argv[])
   }
   // Open the file and get the histograms
   const char* isPathUrqmd = IsUrQMD ? "UrQMD" : "EPOS";
-  const char* qlcms_syst_label = (qlcms_syst == 0) ? "" : (qlcms_syst == 1) ? "_strictqLCMS" : "_looseqLCMS";
+  const char* qlcms_syst_label = (qlcms_syst == 0) ? "" : (qlcms_syst == 1) ? "_strictqLCMS" : "_looseqLCMS"; // in sh script there is _defaultqLCMS created, but renamed back to no suffix
   TFile *file = TFile::Open(Form("%s/analysed/%s_3d_source_%scent_all_%s%s.root", 
                                   path,isPathUrqmd,centleg[ICENT],energy,qlcms_syst_label));
   if (!file)
@@ -406,7 +408,7 @@ int main(int argc, char *argv[])
           {
             if(histograms[ikt][iframe]) histograms[ikt][iframe]->Reset();
             histograms[ikt][iframe] = (TH1F*)temp_rhohist->Clone();
-            if(NEVT_AVG != 1) continue; // if no averaging, proceed to fitting right away
+            if(NEVT_AVG != 1) continue; // if averaging and only first event in avg. block, do not proceed to fitting yet
           }
           else
           {
