@@ -57,8 +57,8 @@ void progressbar(Int_t event, Int_t nEvents)
 }
 
 // Reimplemented in header_for_all_emissionsource.h:
-// const char* _qLCMS_cut[3] = {"default", "strict", "loose"};
-// const double _qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // in GeV/c
+// const char* qLCMS_cut[3] = {"default", "strict", "loose"};
+// const double qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // in GeV/c
 
 
 int main(int argc, char** argv)
@@ -81,7 +81,7 @@ int main(int argc, char** argv)
     qLCMS_cuttype = 0;
     return 0;
   }
-  std::cout << "Using qLCMS cut type: " << _qLCMS_cut[qLCMS_cuttype] << std::endl;
+  std::cout << "Using qLCMS cut type: " << qLCMS_cut[qLCMS_cuttype] << std::endl;
 
   TFile *treefile = new TFile(Form("AuAu_%s_tree.root",argv[1]),"read");
   //TString inputFile = treefile->GetName(); 
@@ -220,7 +220,7 @@ int main(int argc, char** argv)
                 post_etadist->Fill(etaj);
                 post_rapdist->Fill(yj);
               }
-              if(qLCMS < TMath::Sqrt(_qLCMS_cut_values[qLCMS_cuttype] * TMath::Sqrt(KT*KT + Mass2_pi))) // 150 Mev * mT baseline; strict 50 MeV, loose 250 MeV
+              if(qLCMS < TMath::Sqrt(qLCMS_cut_values[qLCMS_cuttype] * TMath::Sqrt(KT*KT + Mass2_pi))) // 150 Mev * mT baseline; strict 50 MeV, loose 250 MeV
               //if(qLCMS < qmax[iKT]) 
               //if(qLCMS < ktbins[iKT+1]) 
               {
