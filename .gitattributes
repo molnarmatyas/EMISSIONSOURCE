@@ -3,3 +3,12 @@
 *.sln  text eol=crlf
 *.csproj text eol=crlf
 *.bat text eol=crlf
+
+# Add binary patterns for your files
+*.png binary
+*.exe binary
+*.zip binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.docx binary
