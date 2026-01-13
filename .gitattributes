@@ -4,6 +4,9 @@
 *.csproj text eol=crlf
 *.bat text eol=crlf
 
+# Force LF for shell scripts
+*.sh text eol=lf
+
 # Add binary patterns for your files
 *.png binary
 *.exe binary
@@ -12,3 +15,5 @@
 *.jpeg binary
 *.pdf binary
 *.docx binary
+
+# Also do not forget setting 'git config --global core.autocrlf true' on Windows and 'git config --global core.autocrlf input' on Linux
