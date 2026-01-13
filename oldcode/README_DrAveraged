@@ -1,0 +1,11 @@
+First, run analysis and fit for all energies:
+./fit_all_energies.sh
+This [uses: eposSpatialDistKT.cpp, levy_fit.cc (& levy_calc.h, Makefile -> levy_fit.exe)] outputs the fitall.log, and figures in the ./figs/ directory.
+
+Run then:
+./run_extraction_and_alphaVSkt.sh
+This [uses: extract_params.sh, plot_alpha_vs_kt.cpp, in each call writes extracted_params.h] outputs "alphaNR_graphs_#energy.root" root files
+
+Finally:
+root.exe -b -q allenergies_paramgraph.cpp
+root.exe -b -q averaged_paramgraph.cpp

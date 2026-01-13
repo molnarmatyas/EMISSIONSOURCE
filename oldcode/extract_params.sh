@@ -53,9 +53,9 @@ extract_param() {
   local err_high_str=$(IFS=,; echo "${err_high[*]}")
 
   # Print values as C++ array
-  echo "double ${label}Values[5] = {$values_str};" # 5 or any other number of K_T bins
-  echo "double ${label}ErrLow[5] = {$err_low_str};"
-  echo "double ${label}ErrHigh[5] = {$err_high_str};"
+  echo "double ${label}Values[10] = {$values_str};" # 5 or any other number of K_T bins
+  echo "double ${label}ErrLow[10] = {$err_low_str};"
+  echo "double ${label}ErrHigh[10] = {$err_high_str};"
   echo
 }
 

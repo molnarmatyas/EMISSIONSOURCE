@@ -22,7 +22,9 @@ double rmax;
 const int NPARS = 3;
 int NDF;
 
-const char* bounds[6] = {"0.0","0.1","0.2","0.3","0.4","0.5"}; // K_T bin bounds
+//const char* bounds[6] = {"0.0","0.1","0.2","0.3","0.4","0.5"}; // K_T bin bounds
+const int nkT = 10;
+const char* bounds[nkT+1] = {"0.175","0.225","0.275","0.325","0.375","0.425","0.475","0.525","0.575","0.625","0.675"};
 
 const char *statuses[6] = {
                          "converged",

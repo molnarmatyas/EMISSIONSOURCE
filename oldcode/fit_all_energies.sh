@@ -11,7 +11,7 @@ do
   echo "Running processing and fit for energy: ${energies[$energy]}"
   root.exe -b -q "eposSpatialDistKT.cpp(100, 100, 1, 0, \"${energies[$energy]}\")"
 #  root.exe -b -q distPoints.cpp
-  for i in {1..4}
+  for i in {0..9} # 1..4
   do
     echo "Running for KT bin ${i}"
     ./levy_fit.exe $i ${energies[$energy]}
@@ -30,7 +30,7 @@ done
 echo "Running processing and fit for energy: 200GeV"
 root.exe -b -q 'eposSpatialDistKT.cpp(100, 25, 1, 0, "200GeV")'
 #root.exe -b -q distPoints.cpp
-for i in {1..4}
+for i in {0..9}
 do
   ./levy_fit.exe $i 200GeV
 done
