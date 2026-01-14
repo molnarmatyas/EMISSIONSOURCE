@@ -557,14 +557,15 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         for(int q=1; q<4; q++) {
             if(count[q] < minCount) { minQuad = q; minCount = count[q]; }
         }
-        // Return legend coords: width=0.20, height=0.20
-        double legW = 0.20, legH = 0.20;
-        double x1, y2;
-        if(minQuad == 0) { x1 = 0.15; y2 = 0.72; } // TL
-        else if(minQuad == 1) { x1 = 0.65; y2 = 0.72; } // TR
-        else if(minQuad == 2) { x1 = 0.15; y2 = 0.25; } // BL
-        else { x1 = 0.65; y2 = 0.25; } // BR
-        return std::make_tuple(x1, y2, x1+legW, y2+legH);
+        // Return an anchor box near the chosen quadrant; the caller will size it.
+        // We return a default small box (caller will override width/height).
+        double anchorX, anchorYlow; // lower-left corner
+        if(minQuad == 0) { anchorX = 0.15; anchorYlow = 0.72; } // TL
+        else if(minQuad == 1) { anchorX = 0.62; anchorYlow = 0.72; } // TR (slightly more left to allow wider legends)
+        else if(minQuad == 2) { anchorX = 0.15; anchorYlow = 0.25; } // BL
+        else { anchorX = 0.62; anchorYlow = 0.25; } // BR
+        // default tiny box; caller will compute final x2,y2
+        return std::make_tuple(anchorX, anchorYlow, anchorX+0.10, anchorYlow+0.10);
     };
 
     double cutoff = 4.5; // GeV dividing low/high energies; treat 7.7 as LOW side
@@ -615,16 +616,47 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
             frame->GetYaxis()->SetTitle(ytitle);
 
-            // Legend: auto-position in least-crowded quadrant
+            // Legend: auto-position in least-crowded quadrant, with dynamic sizing
             auto [leg_x1, leg_y2, leg_x2, leg_y1] = findBestLegendPos(
                 (iparam==0)? std::vector<TGraphAsymmErrors*>(alpha_default, alpha_default+NENERGIES) :
                 (iparam==1)? std::vector<TGraphAsymmErrors*>(R_default, R_default+NENERGIES) :
                          std::vector<TGraphAsymmErrors*>(N_default, N_default+NENERGIES),
                 xmin, xmax, ymin, ymax, iparam, cutoff, NENERGIES, side);
-            TLegend* leg = new TLegend(leg_x1, leg_y2, leg_x2, leg_y1);
+            // Count entries and choose columns
+            int nEntries = 0;
+            for(int ie=0; ie<NENERGIES; ie++){
+                if(energy_to_plot>-1 && ie!=energy_to_plot) continue;
+                double e = energydouble[ie];
+                if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+                if(!gdef || !gsys) continue;
+                nEntries++;
+            }
+            int nCols = (nEntries>14)? 3 : (nEntries>7)? 2 : 1;
+            int nRows = (nEntries==0)? 0 : ( (nEntries + nCols - 1) / nCols );
+            // Derive legend height/width in NDC
+            double lineH = 0.038; // per-entry height
+            double vPad = 0.012;  // top/bottom padding
+            double legH = std::max(0.06, nRows*lineH + 2*vPad);
+            double colW = (nCols==1)? 0.24 : (nCols==2)? 0.42 : 0.58; // per total width for 1/2/3 cols
+            double legW = colW;
+            // Clamp to pad bounds
+            double maxX2 = 0.98, maxY2 = 0.96;
+            double x1 = leg_x1;
+            double y1 = leg_y2; // lower y
+            double x2 = x1 + legW;
+            double y2 = y1 + legH;
+            if(x2 > maxX2){ x1 = std::max(0.10, maxX2 - legW); x2 = x1 + legW; }
+            if(y2 > maxY2){ y1 = std::max(0.12, maxY2 - legH); y2 = y1 + legH; }
+            TLegend* leg = new TLegend(x1, y1, x2, y2);
+            leg->SetNColumns(nCols);
             leg->SetFillColor(0);
-            leg->SetBorderSize(1); // set to 0 to remove border
-            leg->SetTextSize(0.03); // TODO adjust further text size if needed
+            leg->SetBorderSize(1);
+            leg->SetTextSize(0.028);
+            leg->SetMargin(0.20);
+            leg->SetEntrySeparation(0.005);
+            leg->SetColumnSeparation(0.02);
 
             // Colors
             int colors[] = {kBlack,kBlue+2,kRed+1,kGreen+2,kMagenta+2,kOrange+7,kViolet+1,kCyan+1};
