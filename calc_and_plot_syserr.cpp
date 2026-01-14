@@ -624,7 +624,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             TLegend* leg = new TLegend(leg_x1, leg_y2, leg_x2, leg_y1);
             leg->SetFillColor(0);
             leg->SetBorderSize(1); // set to 0 to remove border
-            leg->SetTextSize(0.04);
+            leg->SetTextSize(0.03); // TODO adjust further text size if needed
 
             // Colors
             int colors[] = {kBlack,kBlue+2,kRed+1,kGreen+2,kMagenta+2,kOrange+7,kViolet+1,kCyan+1};
@@ -663,10 +663,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 //gStyle->SetLegendTextSize(0.015);
 
                 std::stringstream label;
-                label.precision(2);
-                label << energydouble[ie];//energies[ie];
+                //label.precision(2);
+                label << std::fixed << std::setprecision(1) << energydouble[ie];//energies[ie];
                 // leg->AddEntry(gdef, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "l");
-                leg->AddEntry(gsys, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "l");
+                leg->AddEntry(gsys, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "lpx"); // changed from "l", let the marker show in legend
                 colorIdx++;
             }
             leg->Draw();
