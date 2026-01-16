@@ -129,7 +129,7 @@ double chiSquare(const double *params)
     _params[1] = params[i+1]; // R_i
     _params[2] = params[NPARS-1]; // N
 
-    double integral = histograms[thiskt][i+begin_i]->Integral();
+    double integral = histograms[thiskt][i+begin_i]->Integral(0, histograms[thiskt][i+begin_i]->GetNbinsX()+1);//Integral(); does not contain under/overflow bins !!!
     for (int ibin = 1; ibin <= histograms[thiskt][i+begin_i]->GetNbinsX(); ++ibin)
     {
       double x = histograms[thiskt][i+begin_i]->GetXaxis()->GetBinCenter(ibin);
@@ -172,7 +172,7 @@ double logLikelihood(const double *params)
     _params[1] = params[i+1]; // R_i
     _params[2] = params[NPARS-1]; // N
 
-    double integral = histograms[thiskt][i+begin_i]->Integral();
+    double integral = histograms[thiskt][i+begin_i]->Integral(0, histograms[thiskt][i+begin_i]->GetNbinsX()+1);//Integral(); !!!
     for (int ibin = 1; ibin <= histograms[thiskt][i+begin_i]->GetNbinsX(); ++ibin)
     {
       double x = histograms[thiskt][i+begin_i]->GetXaxis()->GetBinCenter(ibin);
@@ -200,7 +200,7 @@ static TF1* g_f_r2 = nullptr;
 void Drho_from_rhohist(TH1* hist, int iosl)
 {
   // Create D(rho) from rho histogram
-  double integral = hist->Integral();//0,histograms[ikt][iosl]->GetNbinsX()+1);
+  double integral = hist->Integral(0, hist->GetNbinsX()+1);//0,histograms[ikt][iosl]->GetNbinsX()+1); !!!
   for (int x = 1; x <= hist->GetNbinsX(); ++x)
   {
     double content = hist->GetBinContent(x);
