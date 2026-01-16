@@ -803,6 +803,10 @@ int main(int argc, char *argv[])
                                   path, frames[thisframe], isPathUrqmd, centleg[ICENT], energy, ifile, ievt, ikt, NEVT_AVG, 
                                   fitQualityTag));
               ikt_plotted[ikt] = true; // FIXME uncomment to only save first per ikt
+              if(!is3Dfit)
+              {
+                canvas->Clear();
+              }
             }
             if(is3Dfit)
             {
@@ -964,15 +968,14 @@ int main(int argc, char *argv[])
   }
   
   // Delete canvas directly without calling Clear/Close
-  /*
-  if(canvas) {
+  
+  if(canvas && !is3Dfit) {
     cerr << "about to delete canvas." << endl;
     delete canvas;
     canvas = nullptr;
     cerr << "canvas deleted." << endl;
   }
-  cerr << "canvas cleanup complete." << endl;
-  */
+  
   delete myLevy_reader;
   cout << "about to close input file." << endl;
   file->Close();
