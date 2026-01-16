@@ -258,6 +258,7 @@ void loadHistograms(bool addtogether,
     else
     {
       temp_rhohist[0] = dynamic_cast<TH1D*>(file->Get(histName));
+      if(temp_rhohist[0]) temp_rhohist[0]->SetDirectory(nullptr); // detach from file ownership
     }
     /* Check mostly unnecessary 
     // Check if histogram was successfully retrieved
@@ -279,6 +280,7 @@ void loadHistograms(bool addtogether,
         else
         {
           temp_rhohist[iosl+1] = dynamic_cast<TH1D*>(file->Get(histName));
+          if(temp_rhohist[iosl+1]) temp_rhohist[iosl+1]->SetDirectory(nullptr); // detach from file ownership
         }
       }
     }
@@ -319,6 +321,7 @@ void loadHistograms(bool addtogether,
     else
     {
       temp_rhohist[0] = dynamic_cast<TH1F*>(file->Get(histName));
+      if(temp_rhohist[0]) temp_rhohist[0]->SetDirectory(nullptr); // detach from file ownership
     }
   
     /*
@@ -340,6 +343,7 @@ void loadHistograms(bool addtogether,
         else
         {
           temp_rhohist[iosl+1] = dynamic_cast<TH1F*>(file->Get(histName));
+          if(temp_rhohist[iosl+1]) temp_rhohist[iosl+1]->SetDirectory(nullptr); // detach from file ownership
         }
       }
     }
@@ -419,6 +423,15 @@ int main(int argc, char *argv[])
   myLevy_reader = new Levy_reader(Form("%s/levyfit/tables/levy_values_moreprecise.dat",path));
   cout << "levy reader created." << endl;
 
+  const char* isPathUrqmd = IsUrQMD ? "UrQMD" : "EPOS";
+  const char* qlcms_syst_label = (qlcms_syst == 0) ? "" : (qlcms_syst == 1) ? "_strictqLCMS" : "_looseqLCMS"; // in sh script there is _defaultqLCMS created, but renamed back to no suffix
+  const char* rhofitmax_syst_label = (rho_fitmax_syst == 0) ? "" : (rho_fitmax_syst == 1) ? "_strictrhoFitMax" : "_looserhoFitMax";
+  // Create output file
+  TFile* file_output = new TFile(Form("./results/%s_onedfitresults_%s_cent%s_%s_AVG%d%s%s.root", 
+                                      isPathUrqmd, frames[thisframe], centleg[ICENT], energy, NEVT_AVG,
+                                      qlcms_syst_label, rhofitmax_syst_label), "RECREATE"); // Compare with Yan, add:  _Yan
+  cout << "output file created." << endl;
+
   TH1* alphahist[NKT];
   TH1* Rhist[NKT];
   TH1* R_out_hist[NKT];
@@ -442,14 +455,16 @@ int main(int argc, char *argv[])
     xLow[ikt] = binWidth / 2.;
     xHigh[ikt] = binWidth / 2.;
   }
-  // For collecting from temporary storages
   int Ngoodfits = 0;
+  /*
+  // For collecting from temporary storages
   std::vector<TGraphAsymmErrors*> alpha_vs_KT_all;
   std::vector<TGraphAsymmErrors*> N_vs_KT_all;
   std::vector<TGraphAsymmErrors*> R_vs_KT_all;
   std::vector<TGraphAsymmErrors*> R_out_vs_KT_all;
   std::vector<TGraphAsymmErrors*> R_side_vs_KT_all;
   std::vector<TGraphAsymmErrors*> R_long_vs_KT_all;
+  */
   //vector<double> chi2_vec;
   for(int ikt = 0; ikt < NKT; ikt++)
   {
@@ -473,9 +488,6 @@ int main(int argc, char *argv[])
     }
   }
 
-  const char* isPathUrqmd = IsUrQMD ? "UrQMD" : "EPOS";
-  const char* qlcms_syst_label = (qlcms_syst == 0) ? "" : (qlcms_syst == 1) ? "_strictqLCMS" : "_looseqLCMS"; // in sh script there is _defaultqLCMS created, but renamed back to no suffix
- 
   //TH3F* sourcehists[NKT][NFRAME];
   TCanvas* canvas; TLatex Tl; TPad *pad[NOSL]; TLegend * leg;
   Tl.SetNDC(kTRUE);
@@ -561,108 +573,18 @@ int main(int argc, char *argv[])
         {
           if(ievt%100==0) cout << "ifile,ievt,ikt: " << ifile << "," << ievt << "," << ikt << "," << endl;
           thiskt = ikt;
-          
-          /*
-          TH1* temp_rhohist[4] = {nullptr, nullptr, nullptr, nullptr}; // sqrtrho2, Rout, Rside, Rlong
-
-          if(IsUrQMD)
-          {
-            // Add both charges together...
-            // pi- pi-
-            // -------
-            // Form the histogram name
-            TString histName = Form("D_%s_ev%d_ch%d_KT%d", frames[iframe], ievt, 0, ikt);
-            // Read the histogram
-            temp_rhohist[0] = dynamic_cast<TH1D*>(file->Get(histName));
-            // Check if histogram was successfully retrieved
-            if (!temp_rhohist[0])
-            {
-              std::cerr << "Error: Histogram " << histName << " not found in the file." << std::endl;
-              continue;
-            }
-            if(is3Dfit)
-            {
-              for(int iosl = 0; iosl < NOSL; iosl++)
-              {
-                histName = Form("D_%s_%s_ev%d_ch%d_KT%d", osl_labels[iosl], frames[iframe], ievt, 0, ikt);
-                temp_rhohist[iosl+1] = dynamic_cast<TH1D*>(file->Get(histName));
-              }
-            }
-
-            // pi+ pi+
-            // -------
-            // Form the histogram name
-            histName = Form("D_%s_ev%d_ch%d_KT%d", frames[iframe], ievt, 1, ikt);
-            // Read the histogram
-            temp_rhohist[0]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
-            if (file->Get(histName) == nullptr)
-            {
-              std::cerr << "Error: Histogram " << histName << " not found in the file." << std::endl;
-              continue;
-            }
-            if(is3Dfit)
-            {
-              for(int iosl = 0; iosl < NOSL; iosl++)
-              {
-                histName = Form("D_%s_%s_ev%d_ch%d_KT%d", osl_labels[iosl], frames[iframe], ievt, 1, ikt);
-                temp_rhohist[iosl+1]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
-              }
-            }
-          }
-          else
-          {
-            // With EPOS analysis code, both charges were already added together...
-            // Form the histogram name
-            TString histName = Form("pion_pair_source_avg_%s_ifile%i_ievt%i_ikt%i_sqrtrho2", frames[iframe], ifile, ievt, ikt);
-            // Read the histogram
-            temp_rhohist[0] = dynamic_cast<TH1F*>(file->Get(histName));
-          
-            // Check if histogram was successfully retrieved
-            if (!temp_rhohist[0])
-            {
-              std::cerr << "Error: Histogram " << histName << " not found in the file." << std::endl;
-              continue;
-            }
-            if(is3Dfit)
-            {
-              for(int iosl = 0; iosl < NOSL; iosl++)
-              {
-                histName = Form("pion_pair_source_avg_%s_ifile%i_ievt%i_ikt%i_%s", frames[iframe], ifile, ievt, ikt, osl_labels[iosl]);
-                temp_rhohist[iosl+1] = dynamic_cast<TH1F*>(file->Get(histName));
-              }
-            }
-          }
-          */
 
           //  --- AVERAGING logic ---
           // Only do resetting if first one of (NEVT_AVG) averaged. Use a global event
           // index so averaging can span across multiple files when NEVT_AVG > NEVT.
+          file->cd(); // FIXME is this needed?
           if((globalEventIndex % NEVT_AVG == 0) || NEVT_AVG == 1)
           {
-            /*
-            for(int iosl = 0; iosl < NOSL + 1; iosl++) // +1 for rho proj
-            {
-              if(!temp_rhohist[iosl]) continue; // Skip if nullptr (e.g., 3D slices in 1D fit)
-              if(histograms[ikt][iosl]) histograms[ikt][iosl]->Reset();
-              histograms[ikt][iosl] = (TH1F*)temp_rhohist[iosl]->Clone();
-              if(histograms[ikt][iosl]) histograms[ikt][iosl]->SetDirectory(nullptr); // avoid ROOT ownership issues
-              delete temp_rhohist[iosl]; temp_rhohist[iosl] = nullptr; // clean up, might not be needed
-            }
-            */
             loadHistograms(false, ifile, ievt, ikt, iframe, file, IsUrQMD, histograms[ikt]); // false: do not add, just load
             if(NEVT_AVG != 1) continue; // if averaging and only first event in avg. block, do not proceed to fitting yet
           }
           else
           {
-            /*
-            for(int iosl = 0; iosl < NOSL + 1; iosl++) // +1 for rho proj
-            {
-              if(!temp_rhohist[iosl]) continue; // Skip if nullptr (e.g., 3D slices in 1D fit)
-              if(!histograms[ikt][iosl]) continue; // Safety: should have been cloned earlier
-              histograms[ikt][iosl]->Add(temp_rhohist[iosl]); // add for averaging
-              delete temp_rhohist[iosl]; temp_rhohist[iosl] = nullptr; // clean up, might not be needed
-            }
-            */
             loadHistograms(true, ifile, ievt, ikt, iframe, file, IsUrQMD, histograms[ikt]); // true: add to existing histograms
             if(globalEventIndex % NEVT_AVG != NEVT_AVG - 1)
             {
@@ -1039,9 +961,15 @@ int main(int argc, char *argv[])
           N_vs_kt->SetTitle(Form("#N(K_{T}), #sqrt{s_{NN}}=%s;K_{T} (GeV/c);#N",energy));
           N_vs_kt->SetName(Form("N_vs_kt_%d", Ngoodfits));
 
+          /*
           alpha_vs_KT_all.push_back(alpha_vs_kt);
           R_vs_KT_all.push_back(R_vs_kt);
           N_vs_KT_all.push_back(N_vs_kt);
+          */
+          file_output->cd();
+          alpha_vs_kt->Write();
+          R_vs_kt->Write();
+          N_vs_kt->Write();
 
           TGraphAsymmErrors* R_out_vs_kt = nullptr;
           TGraphAsymmErrors* R_side_vs_kt = nullptr;
@@ -1057,10 +985,14 @@ int main(int argc, char *argv[])
             R_long_vs_kt = new TGraphAsymmErrors(NKT, ktbin_centers, R_long_vec, xLow, xHigh, R_long_errdn_vec, R_long_errup_vec);
             R_long_vs_kt->SetTitle(Form("#R_{long}(K_{T}), #sqrt{s_{NN}}=%s;K_{T} (GeV/c);#R_{long}",energy));
             R_long_vs_kt->SetName(Form("R_long_vs_kt_%d", Ngoodfits));
-
+            /*
             R_out_vs_KT_all.push_back(R_out_vs_kt);
             R_side_vs_KT_all.push_back(R_side_vs_kt);
             R_long_vs_KT_all.push_back(R_long_vs_kt);
+            */
+            R_out_vs_kt->Write();
+            R_side_vs_kt->Write();
+            R_long_vs_kt->Write();
           }
           // Is it a good idea to delete all these temp arrays here to save memory?
           delete alpha_vs_kt; delete R_vs_kt; delete N_vs_kt;
@@ -1074,7 +1006,9 @@ int main(int argc, char *argv[])
       } // end ievt
       cerr << "Finished all events in ifile " << ifile << endl;
       cout << "about to close input file." << endl;
+      file->cd(); // FIXME is this needed?
       file->Close();
+      cerr << "input file closed." << endl;
       delete file;
       cout << "input file closed, delete done." << endl;
     } // end ifile
@@ -1122,12 +1056,6 @@ int main(int argc, char *argv[])
   
   delete myLevy_reader;
 
-  const char* rhofitmax_syst_label = (rho_fitmax_syst == 0) ? "" : (rho_fitmax_syst == 1) ? "_strictrhoFitMax" : "_looserhoFitMax";
-  // Create output file
-  TFile* file_output = new TFile(Form("./results/%s_onedfitresults_%s_cent%s_%s_AVG%d%s%s.root", 
-                                      isPathUrqmd, frames[thisframe], centleg[ICENT], energy, NEVT_AVG,
-                                      qlcms_syst_label, rhofitmax_syst_label), "RECREATE"); // Compare with Yan, add:  _Yan
-  cout << "output file created." << endl;
   file_output->cd();
   cout << "output file cd() done." << endl;
 
@@ -1154,7 +1082,9 @@ int main(int argc, char *argv[])
   delete alpha_vs_R_all; delete confidencehist_all;
   cout << "histograms written." << endl;
 
-  for(size_t i=0; i<alpha_vs_KT_all.size(); i++)
+  /*
+  int vectorSize = alpha_vs_KT_all.size();
+  for(size_t i=0; i<vectorSize; i++)
   {
     //cout << "i: " << i << endl;
     // Maybe instead of writing out all, average them first? - not needed yet, the output are still way smaller files than input files
@@ -1165,13 +1095,22 @@ int main(int argc, char *argv[])
       R_out_vs_KT_all[i]->Write();
       R_side_vs_KT_all[i]->Write();
       R_long_vs_KT_all[i]->Write();
-      delete R_out_vs_KT_all[i]; delete R_side_vs_KT_all[i]; delete R_long_vs_KT_all[i];
     }
     N_vs_KT_all[i]->Write();
-    delete alpha_vs_KT_all[i]; delete R_vs_KT_all[i]; delete N_vs_KT_all[i];
   }
-  cout << "vectors in form of TGraphAsymmErrors written." << endl;
+  cout << "vectors in form of TGraphAsymmErrors written. Now deleting them..." << endl;  
+  for(size_t i=0; i<vectorSize; i++)
+  {
+    delete alpha_vs_KT_all[i]; delete R_vs_KT_all[i]; delete N_vs_KT_all[i];
+    if(is3Dfit)
+    {
+      delete R_out_vs_KT_all[i]; delete R_side_vs_KT_all[i]; delete R_long_vs_KT_all[i];
+    }
+  }
+  cout << "all deleted. Now closing output file..." << endl;
+  */
   file_output->Close();
+  cout << "output file closed. Done." << endl;
   return 0;
 }
 
