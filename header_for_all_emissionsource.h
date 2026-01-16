@@ -1,8 +1,15 @@
 #ifndef HEADER_FOR_ALL_EMISSIONSOURCE_H
 #define HEADER_FOR_ALL_EMISSIONSOURCE_H
 
+const int NFRAME = 3; // lcms, pcms, lab
+const int NOSL = 3; // out, side, long, plus rho
+const int NCH = 2; // number of charge combinations
+const int NCENT = 10; // number of centrality classes
+
 //#include <array>    // std::array
 //#include <cstddef>  // std::size_t
+
+const bool is3Dfit = true; // global flag to indicate if 3D fit is being performed
 
 // Mass^2 values
 const double Mass2_pi = 0.019479835;
@@ -23,7 +30,8 @@ const char* qLCMS_cut[3] = {"default", "strict", "loose"};
 const double qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // GeV/c
 
 // from onedim_EbE_or_Eavg_fit.cc
-const double B[3] = {2500.0, 1600.0, 3600.0}; // rho_fitmax limits: default, strict, loose
+// TODO rfitmax_systlimits[NENERGIES][3], then same for NCENT...
+const double B[3] = {2500.0, 1600.0, 3600.0}; // rho_fitmax limits: default, strict, loose - NOT USED
 const double rfitmax_systlimits[3] = {100.0, 50.0, 150.0}; // simpler limits
 
 // bporfy kT bins and centers
@@ -33,5 +41,7 @@ const double rfitmax_systlimits[3] = {100.0, 50.0, 150.0}; // simpler limits
 // const char* energies[] = {"30A"};
 // const int NENERGIES = sizeof(energies) / sizeof(energies[0]);
 // const double energydouble[NENERGIES] = {30.0};
+
+const char* centleg[NCENT+2] = {"0-5", "5-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80-100","all","0-10"};
 
 #endif // HEADER_FOR_ALL_EMISSIONSOURCE_H
