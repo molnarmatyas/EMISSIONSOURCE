@@ -124,7 +124,7 @@ double chiSquare(const double *params)
 
   for(int i=0; i<NPARS-NOSL+1; i++) // NPARS-NOSL+1 = 3 for 3D fit, 1 for 1D fit
   {
-    double *_params = new double[NOSL]; // alpha, R_i, N
+    double _params[NOSL]; // alpha, R_i, N (stack-allocated to avoid heap churn)
     _params[0] = params[0]; // alpha
     _params[1] = params[i+1]; // R_i
     _params[2] = params[NPARS-1]; // N
@@ -148,7 +148,6 @@ double chiSquare(const double *params)
       }
       NDF++;
     }
-    delete[] _params;
   }
   NDF -= NPARS;
   return chi2;
@@ -168,7 +167,7 @@ double logLikelihood(const double *params)
   
   for(int i=0; i<NPARS-NOSL+1; i++) // NPARS-NOSL+1 = 3 for 3D fit, 1 for 1D fit
   {
-    double *_params = new double[NOSL]; // alpha, R_i, N
+    double _params[NOSL]; // alpha, R_i, N (stack-allocated to avoid heap churn)
     _params[0] = params[0]; // alpha
     _params[1] = params[i+1]; // R_i
     _params[2] = params[NPARS-1]; // N
@@ -190,7 +189,6 @@ double logLikelihood(const double *params)
         logL += expected + observed*log(observed/expected) - observed;
       NDF++;
     }
-    delete[] _params;
   }
   NDF -= NPARS;
   return 2.0 * logL;
@@ -240,6 +238,115 @@ void Drho_from_rhohist(TH1* hist, int iosl)
   hist->GetXaxis()->SetTitleOffset(1.2);
 }
 
+
+void loadHistograms(bool addtogether,
+                    int ifile, int ievt, int ikt, int iframe, TFile* file, bool IsUrQMD, TH1* temp_rhohist[NOSL + 1])
+{
+  // function should be called with temp_rhohist == histograms[ikt]
+  if(IsUrQMD)
+  {
+    // Add both charges together...
+    // pi- pi-
+    // -------
+    // Form the histogram name
+    TString histName = Form("D_%s_ev%d_ch%d_KT%d", frames[iframe], ievt, 0, ikt);
+    // Read the histogram
+    if(addtogether)
+    {
+      temp_rhohist[0]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
+    }
+    else
+    {
+      temp_rhohist[0] = dynamic_cast<TH1D*>(file->Get(histName));
+    }
+    /* Check mostly unnecessary 
+    // Check if histogram was successfully retrieved
+    if (!temp_rhohist[0])
+    {
+      std::cerr << "Error: Histogram " << histName << " not found in the file." << std::endl;
+      continue;
+    }
+    */
+    if(is3Dfit)
+    {
+      for(int iosl = 0; iosl < NOSL; iosl++)
+      {
+        histName = Form("D_%s_%s_ev%d_ch%d_KT%d", osl_labels[iosl], frames[iframe], ievt, 0, ikt);
+        if(addtogether)
+        {
+          temp_rhohist[iosl+1]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
+        }
+        else
+        {
+          temp_rhohist[iosl+1] = dynamic_cast<TH1D*>(file->Get(histName));
+        }
+      }
+    }
+
+    // pi+ pi+
+    // -------
+    // Form the histogram name
+    histName = Form("D_%s_ev%d_ch%d_KT%d", frames[iframe], ievt, 1, ikt);
+    // Read the histogram (always add the second charge)
+    temp_rhohist[0]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
+    /*
+    if (file->Get(histName) == nullptr)
+    {
+      std::cerr << "Error: Histogram " << histName << " not found in the file." << std::endl;
+      continue;
+    }
+    */
+    if(is3Dfit)
+    {
+      for(int iosl = 0; iosl < NOSL; iosl++)
+      {
+        histName = Form("D_%s_%s_ev%d_ch%d_KT%d", osl_labels[iosl], frames[iframe], ievt, 1, ikt);
+        // Always add second charge (it's after the first charge assignment/add, so accumulates correctly)
+        temp_rhohist[iosl+1]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
+      }
+    }
+  } // end if UrQMD
+  else
+  {
+    // With EPOS analysis code, both charges were already added together...
+    // Form the histogram name
+    TString histName = Form("pion_pair_source_avg_%s_ifile%i_ievt%i_ikt%i_sqrtrho2", frames[iframe], ifile, ievt, ikt);
+    // Read the histogram
+    if(addtogether)
+    {
+      temp_rhohist[0]->Add(dynamic_cast<TH1F*>(file->Get(histName)));
+    }
+    else
+    {
+      temp_rhohist[0] = dynamic_cast<TH1F*>(file->Get(histName));
+    }
+  
+    /*
+    if (!temp_rhohist[0])
+    {
+      std::cerr << "Error: Histogram " << histName << " not found in the file." << std::endl;
+      continue;
+    }
+    */
+    if(is3Dfit)
+    {
+      for(int iosl = 0; iosl < NOSL; iosl++)
+      {
+        histName = Form("pion_pair_source_avg_%s_ifile%i_ievt%i_ikt%i_%s", frames[iframe], ifile, ievt, ikt, osl_labels[iosl]);
+        if(addtogether)
+        {
+          temp_rhohist[iosl+1]->Add(dynamic_cast<TH1F*>(file->Get(histName)));
+        }
+        else
+        {
+          temp_rhohist[iosl+1] = dynamic_cast<TH1F*>(file->Get(histName));
+        }
+      }
+    }
+  } // end else EPOS
+}
+
+// -------------------------------   MAIN FUNCTION   -------------------------------
 int main(int argc, char *argv[])
 {
   // Changes only for 3D fit
@@ -423,6 +530,12 @@ int main(int argc, char *argv[])
   Double_t N_errup_vec[NKT]={0};
   Double_t N_errdn_vec[NKT]={0};
 
+  ROOT::Math::Minimizer* minimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
+  // Set the minimizer properties
+  minimizer->SetMaxFunctionCalls(10000);
+  minimizer->SetMaxIterations(10000);
+  minimizer->SetTolerance(0.001);
+
   for(int iframe = 0; iframe < 3; iframe++)
   {
     if(iframe != thisframe) continue;
@@ -446,9 +559,10 @@ int main(int argc, char *argv[])
         
         for (int ikt = 0; ikt < NKT; ++ikt)
         {
-          cout << "ifile,ievt,ikt: " << ifile << "," << ievt << "," << ikt << "," << endl;
+          if(ievt%100==0) cout << "ifile,ievt,ikt: " << ifile << "," << ievt << "," << ikt << "," << endl;
           thiskt = ikt;
           
+          /*
           TH1* temp_rhohist[4] = {nullptr, nullptr, nullptr, nullptr}; // sqrtrho2, Rout, Rside, Rlong
 
           if(IsUrQMD)
@@ -518,12 +632,14 @@ int main(int argc, char *argv[])
               }
             }
           }
+          */
 
           //  --- AVERAGING logic ---
           // Only do resetting if first one of (NEVT_AVG) averaged. Use a global event
           // index so averaging can span across multiple files when NEVT_AVG > NEVT.
           if((globalEventIndex % NEVT_AVG == 0) || NEVT_AVG == 1)
           {
+            /*
             for(int iosl = 0; iosl < NOSL + 1; iosl++) // +1 for rho proj
             {
               if(!temp_rhohist[iosl]) continue; // Skip if nullptr (e.g., 3D slices in 1D fit)
@@ -532,10 +648,13 @@ int main(int argc, char *argv[])
               if(histograms[ikt][iosl]) histograms[ikt][iosl]->SetDirectory(nullptr); // avoid ROOT ownership issues
               delete temp_rhohist[iosl]; temp_rhohist[iosl] = nullptr; // clean up, might not be needed
             }
+            */
+            loadHistograms(false, ifile, ievt, ikt, iframe, file, IsUrQMD, histograms[ikt]); // false: do not add, just load
             if(NEVT_AVG != 1) continue; // if averaging and only first event in avg. block, do not proceed to fitting yet
           }
           else
           {
+            /*
             for(int iosl = 0; iosl < NOSL + 1; iosl++) // +1 for rho proj
             {
               if(!temp_rhohist[iosl]) continue; // Skip if nullptr (e.g., 3D slices in 1D fit)
@@ -543,6 +662,8 @@ int main(int argc, char *argv[])
               histograms[ikt][iosl]->Add(temp_rhohist[iosl]); // add for averaging
               delete temp_rhohist[iosl]; temp_rhohist[iosl] = nullptr; // clean up, might not be needed
             }
+            */
+            loadHistograms(true, ifile, ievt, ikt, iframe, file, IsUrQMD, histograms[ikt]); // true: add to existing histograms
             if(globalEventIndex % NEVT_AVG != NEVT_AVG - 1)
             {
               continue; // do until last one of averaging
@@ -562,6 +683,7 @@ int main(int argc, char *argv[])
           //rfitmax = sqrt(ktbin_centers[ikt]*ktbin_centers[ikt] + Mass2_pi) * B[qlcms_syst];
           rfitmax = rfitmax_systlimits[rho_fitmax_syst]; // simpler limits, "by-look" better
           
+          /*
           // Create the minimizer
           ROOT::Math::Minimizer* minimizer = ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad");
         
@@ -569,6 +691,8 @@ int main(int argc, char *argv[])
           minimizer->SetMaxFunctionCalls(10000);
           minimizer->SetMaxIterations(10000);
           minimizer->SetTolerance(0.001);
+          */
+          minimizer->Clear(); // Clear previous fit info if any
         
           // Create the function to be minimized
           ROOT::Math::Functor functor(&logLikelihood, NPARS);
@@ -685,11 +809,11 @@ int main(int argc, char *argv[])
           //double alpha_dn=0., alpha_up=0.;
           //minimizer->GetMinosError(0, alpha_dn, alpha_up);
           // etc. for R and N
-          delete minimizer;
+          //delete minimizer;
           
           // PLOTTING FIT RESULTS
           // --------------------
-          if(!donotdraw)
+          if(!donotdraw && !ikt_plotted[ikt])
           {
             if(!is3Dfit)
             {
@@ -803,7 +927,7 @@ int main(int argc, char *argv[])
             } // end if 3D
 
             // Both for 1D and 3D: save the canvas as a PNG file
-            if(!ikt_plotted[ikt])
+            //if(!ikt_plotted[ikt])
             {
               const char* fitQualityTag = (strcmp(fitQuality,"GOODFIT") == 0) ? "" : Form("_BADFIT_%s",fitQuality);
               canvas->SaveAs(Form("%s/figs/fitting/%s/%s_onedsource_cent%s_%s_ifile%i_ievt%i_ikt%i_ich0_AVG%d%s.png", 
@@ -966,6 +1090,9 @@ int main(int argc, char *argv[])
     }
     cerr << "histograms deleted." << endl;
   } // end of iframe loop
+
+  delete minimizer;
+  cerr << "minimizer deleted." << endl;
 
   
   // Clean up pads for 3D fit
