@@ -227,10 +227,11 @@ int main(int argc, char** argv)
               //if(qLCMS < ktbins[iKT+1]) 
               {
                 D_lcms[ievent][ich][iKT]->Fill(TMath::Sqrt(rho2));
-                D_out_lcms[ievent][ich][iKT]->Fill(rhoout);
-                D_side_lcms[ievent][ich][iKT]->Fill(rhoside);
-                D_long_lcms[ievent][ich][iKT]->Fill(rholong);
-                D_outlong_lcms[ievent][ich][iKT]->Fill(rhooutlong);
+                // absolute value is needed, otherwise all negative values go into underflow bin !!!
+                D_out_lcms[ievent][ich][iKT]->Fill(TMath::Abs(rhoout));
+                D_side_lcms[ievent][ich][iKT]->Fill(TMath::Abs(rhoside));
+                D_long_lcms[ievent][ich][iKT]->Fill(TMath::Abs(rholong));
+                D_outlong_lcms[ievent][ich][iKT]->Fill(TMath::Abs(rhooutlong));
               }
             } // only particles with matching PID
           } // Loop over pairs - loop for particle k

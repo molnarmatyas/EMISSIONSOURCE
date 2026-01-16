@@ -530,6 +530,7 @@ int main(int argc, char *argv[])
               if(histograms[ikt][iosl]) histograms[ikt][iosl]->Reset();
               histograms[ikt][iosl] = (TH1F*)temp_rhohist[iosl]->Clone();
               if(histograms[ikt][iosl]) histograms[ikt][iosl]->SetDirectory(nullptr); // avoid ROOT ownership issues
+              delete temp_rhohist[iosl]; temp_rhohist[iosl] = nullptr; // clean up, might not be needed
             }
             if(NEVT_AVG != 1) continue; // if averaging and only first event in avg. block, do not proceed to fitting yet
           }
@@ -540,6 +541,7 @@ int main(int argc, char *argv[])
               if(!temp_rhohist[iosl]) continue; // Skip if nullptr (e.g., 3D slices in 1D fit)
               if(!histograms[ikt][iosl]) continue; // Safety: should have been cloned earlier
               histograms[ikt][iosl]->Add(temp_rhohist[iosl]); // add for averaging
+              delete temp_rhohist[iosl]; temp_rhohist[iosl] = nullptr; // clean up, might not be needed
             }
             if(globalEventIndex % NEVT_AVG != NEVT_AVG - 1)
             {
@@ -778,11 +780,16 @@ int main(int argc, char *argv[])
                 if(iosl == 0) Tl.DrawLatex(0.24, 0.40, Form("#chi^{2}/NDF = %1.0f/%i", chi2val, NDF));
                 //if(iosl == 0) Tl.DrawLatex(0.24, 0.56, Form("conf.lev. = %1.5f", conflev));
                 if(iosl == 0) Tl.DrawLatex(0.25, 0.33, Form("#alpha = %1.2f #pm %1.2f",alpha, dalpha));
-                if(iosl == 0) Tl.DrawLatex(0.24, 0.26, Form("^{*}#lambda = %1.2f #pm %1.2f",N, dN));
+                if(iosl == 0) Tl.DrawLatex(0.24, 0.26, Form("#lambda = %1.2f #pm %1.2f",N, dN));
                 //if(iosl == 0) Tl.DrawLatex(0.24, 0.38, Form("Fit status: %s", statuses[fitstatus]));
                 //if(iosl == 0) Tl.DrawLatex(0.24, 0.32, Form("Cov. matrix: %s", covstatuses[fitcovstatus+1]));
                 //if(iosl == 0) Tl.DrawLatex(0.24, 0.26, Form("Edm %1.3f", minimizer->Edm()));
                 Tl.DrawLatex((iosl == 0 ? 0.24 : 0.18), 0.20, Form("R_{%s} = (%1.2f #pm %1.2f) fm^{2}", osl_labels[iosl], Rosl, dRosl));
+                // I feel like these should be deleted, but if I do that, the fit functions do not draw properly... ROOT ownership is weird
+                // at least they do not cause significant memory bottleneck over the whole run
+                //delete f_levyfunc;
+                //delete f_levyfunc_full;
+
               } // end iosl loop
 
               canvas->cd();
@@ -931,6 +938,12 @@ int main(int argc, char *argv[])
             R_side_vs_KT_all.push_back(R_side_vs_kt);
             R_long_vs_KT_all.push_back(R_long_vs_kt);
           }
+          // Is it a good idea to delete all these temp arrays here to save memory?
+          delete alpha_vs_kt; delete R_vs_kt; delete N_vs_kt;
+          if(is3Dfit)
+          {
+            delete R_out_vs_kt; delete R_side_vs_kt; delete R_long_vs_kt;
+          }
           
           Ngoodfits++;
         }
@@ -973,7 +986,9 @@ int main(int argc, char *argv[])
   
   if(canvas && !is3Dfit) {
     cerr << "about to delete canvas." << endl;
-    delete canvas;
+    //canvas->Clear();
+    //canvas->Close();
+    delete canvas; // somehow Close() or Clear() or anything with canvas was causing issues with 3D here
     canvas = nullptr;
     cerr << "canvas deleted." << endl;
   }
@@ -1000,13 +1015,16 @@ int main(int argc, char *argv[])
       R_out_hist[ikt]->Write();
       R_side_hist[ikt]->Write();
       R_long_hist[ikt]->Write();
+      delete R_out_hist[ikt]; delete R_side_hist[ikt]; delete R_long_hist[ikt];
     }
     alpha_vs_R[ikt]->Write();
     Nhist[ikt]->Write(); // I could put this with alpha and R together in TH3, but stick with this for now
     confidencehist[ikt]->Write();
+    delete alphahist[ikt]; delete Rhist[ikt]; delete alpha_vs_R[ikt]; delete Nhist[ikt]; delete confidencehist[ikt];
   }
   alpha_vs_R_all->Write();
   confidencehist_all->Write();
+  delete alpha_vs_R_all; delete confidencehist_all;
   cout << "histograms written." << endl;
 
   for(size_t i=0; i<alpha_vs_KT_all.size(); i++)
@@ -1020,8 +1038,10 @@ int main(int argc, char *argv[])
       R_out_vs_KT_all[i]->Write();
       R_side_vs_KT_all[i]->Write();
       R_long_vs_KT_all[i]->Write();
+      delete R_out_vs_KT_all[i]; delete R_side_vs_KT_all[i]; delete R_long_vs_KT_all[i];
     }
     N_vs_KT_all[i]->Write();
+    delete alpha_vs_KT_all[i]; delete R_vs_KT_all[i]; delete N_vs_KT_all[i];
   }
   cout << "vectors in form of TGraphAsymmErrors written." << endl;
   file_output->Close();
