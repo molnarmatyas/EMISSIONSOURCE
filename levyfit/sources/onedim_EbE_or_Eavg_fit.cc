@@ -194,6 +194,9 @@ double logLikelihood(const double *params)
   return 2.0 * logL;
 }
 
+// Static TF1 to avoid repeated allocation/deallocation overhead
+static TF1* g_f_r2 = nullptr;
+
 void Drho_from_rhohist(TH1* hist, int iosl)
 {
   // Create D(rho) from rho histogram
@@ -206,12 +209,11 @@ void Drho_from_rhohist(TH1* hist, int iosl)
     hist->SetBinContent(x, content / binVolume);
     hist->SetBinError(x, error / binVolume);
   }
-  TF1* f_r2 = nullptr;
   if(!is3Dfit)
   {
-    f_r2 = new TF1("f_r2","1./(x*x*4.*pi)",0.,1.e8); // Undo Jacobian from 1D fit
-    hist->Multiply(f_r2,1.);
-    delete f_r2;
+    // Create once, reuse forever
+    if(!g_f_r2) g_f_r2 = new TF1("f_r2","1./(x*x*4.*pi)",0.,1.e8);
+    hist->Multiply(g_f_r2,1.);
   }
   hist->Scale(1.0 / integral);
 
@@ -253,7 +255,11 @@ void loadHistograms(bool addtogether,
     // Read the histogram
     if(addtogether)
     {
-      temp_rhohist[0]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
+      TH1D* tempHist = dynamic_cast<TH1D*>(file->Get(histName));
+      if(tempHist) {
+        temp_rhohist[0]->Add(tempHist);
+        delete tempHist;  // CRITICAL: delete the temporary histogram after adding
+      }
     }
     else
     {
@@ -275,7 +281,11 @@ void loadHistograms(bool addtogether,
         histName = Form("D_%s_%s_ev%d_ch%d_KT%d", osl_labels[iosl], frames[iframe], ievt, 0, ikt);
         if(addtogether)
         {
-          temp_rhohist[iosl+1]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
+          TH1D* tempHist = dynamic_cast<TH1D*>(file->Get(histName));
+          if(tempHist) {
+            temp_rhohist[iosl+1]->Add(tempHist);
+            delete tempHist;
+          }
         }
         else
         {
@@ -290,7 +300,11 @@ void loadHistograms(bool addtogether,
     // Form the histogram name
     histName = Form("D_%s_ev%d_ch%d_KT%d", frames[iframe], ievt, 1, ikt);
     // Read the histogram (always add the second charge)
-    temp_rhohist[0]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
+    TH1D* tempHist2 = dynamic_cast<TH1D*>(file->Get(histName));
+    if(tempHist2) {
+      temp_rhohist[0]->Add(tempHist2);
+      delete tempHist2;
+    }
     /*
     if (file->Get(histName) == nullptr)
     {
@@ -304,7 +318,11 @@ void loadHistograms(bool addtogether,
       {
         histName = Form("D_%s_%s_ev%d_ch%d_KT%d", osl_labels[iosl], frames[iframe], ievt, 1, ikt);
         // Always add second charge (it's after the first charge assignment/add, so accumulates correctly)
-        temp_rhohist[iosl+1]->Add(dynamic_cast<TH1D*>(file->Get(histName)));
+        TH1D* tempHist3 = dynamic_cast<TH1D*>(file->Get(histName));
+        if(tempHist3) {
+          temp_rhohist[iosl+1]->Add(tempHist3);
+          delete tempHist3;
+        }
       }
     }
   } // end if UrQMD
@@ -316,7 +334,11 @@ void loadHistograms(bool addtogether,
     // Read the histogram
     if(addtogether)
     {
-      temp_rhohist[0]->Add(dynamic_cast<TH1F*>(file->Get(histName)));
+      TH1F* tempHist = dynamic_cast<TH1F*>(file->Get(histName));
+      if(tempHist) {
+        temp_rhohist[0]->Add(tempHist);
+        delete tempHist;
+      }
     }
     else
     {
@@ -338,7 +360,11 @@ void loadHistograms(bool addtogether,
         histName = Form("pion_pair_source_avg_%s_ifile%i_ievt%i_ikt%i_%s", frames[iframe], ifile, ievt, ikt, osl_labels[iosl]);
         if(addtogether)
         {
-          temp_rhohist[iosl+1]->Add(dynamic_cast<TH1F*>(file->Get(histName)));
+          TH1F* tempHist2 = dynamic_cast<TH1F*>(file->Get(histName));
+          if(tempHist2) {
+            temp_rhohist[iosl+1]->Add(tempHist2);
+            delete tempHist2;
+          }
         }
         else
         {
