@@ -9,10 +9,10 @@
 #include <iostream>
 
 #include "header_for_all_emissionsource.h"
-const int NCENT = 10; // number of centrality classes
+//const int NCENT = 10; // number of centrality classes
 //const int NKT = 10;
 //double ktbins[NKT + 1] = {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
-const char* centleg[NCENT+2] = {"0-5", "5-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80-100","all","0-10"};
+//const char* centleg[NCENT+2] = {"0-5", "5-10", "10-20", "20-30", "30-40", "40-50", "50-60", "60-70", "70-80", "80-100","all","0-10"};
 //const double ktbins[NKT + 1] = {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
 
 //const double Mass2_pi = 0.019479835;
