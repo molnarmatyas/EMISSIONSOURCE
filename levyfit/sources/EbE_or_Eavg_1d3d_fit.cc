@@ -77,7 +77,7 @@ const char* path = "..";
 TH1* histograms[NKT][NOSL+1]; // +1 for rho proj histograms
 Levy_reader* myLevy_reader;
 
-double rfitmax = rfitmax_systlimits[0];//60.; // TODO make adjustable for kT/cent/... & incr/decr if fit does not converge
+double rfitmax = rfitmax_systlimits[0][0][0];//60.; // TODO make adjustable for kT/cent/... & incr/decr if fit does not converge
 double rfitmin = 3.;//1.;//5.;
 // const double B[3] = {2500, 1600, 3600}; // for rho_fitmax limits: default, strict, loose
 // const double rfitmax_systlimits[3] = {100., 50., 150.}; // for simpler rho_fitmax limits: default, strict, loose
@@ -376,9 +376,64 @@ void loadHistograms(bool addtogether,
   } // end else EPOS
 }
 
+int energy_to_energyindex(const char* energy)
+{
+  for(int i = 0; i < NENERGIES; i++)
+  {
+    if(strcmp(energy, energies[i]) == 0)
+      return i;
+  }
+  cerr << "Error: energy " << energy << " not found in energies array!" << endl;
+  return -1; // Not found
+}
+
+void fill_rfitmax_systlimits()
+{
+  for(int ienergy = 0; ienergy < NENERGIES; ienergy++)
+  {
+    for(int ikt = 0; ikt < NKT; ikt++)
+    {
+      for(int syst = 0; syst < 3; syst++)
+      {
+        int syst_plusminus = syst;
+        if(syst == 1) syst_plusminus = -1; // strict: decrease, loose: increase
+        if(syst == 2) syst_plusminus = 1;
+        //rfitmax_systlimits[ienergy][ikt][syst] = rfitmax_def + B[syst]/pow(energydouble[ienergy], 0.5)*pow(kT_center[ikt], -1.0);
+        if(is3Dfit)
+        {
+          // ((kT_center-0.2)/0.05) gives back value of ikt in this case; formally implemented to allow different kT binning
+          rfitmax_systlimits[ienergy][ikt][syst] = (rfitmax_def-((kT_center-0.2)/0.05)*5.0)*(1.0 + syst_plusminus*0.6)*sqrt(energydouble[ienergy]/11.5);
+        }
+        else
+        {
+          rfitmax_systlimits[ienergy][ikt][syst] = 150.0+syst_plusminus*50.0; // simpler fixed limits for 1D fit
+        }
+      }
+    }
+  }
+  cout << "rho fitmax systematic limits filled. The 3D matrix rfitmax_systlimits[NENERGIES][NKT][3] is the following:" << endl;
+  for(int ienergy = 0; ienergy < NENERGIES; ienergy++)
+  {
+    cout << "Energy: " << energies[ienergy] << endl;
+    for(int ikt = 0; ikt < NKT; ikt++)
+    {
+      cout << "  kT bin [" << ktbins[ikt] << ", " << ktbins[ikt+1] << "]: ";
+      for(int syst = 0; syst < 3; syst++)
+      {
+        cout << rfitmax_systlimits[ienergy][ikt][syst] << " ";
+      }
+      cout << endl;
+    }
+  }
+}
+
 // -------------------------------   MAIN FUNCTION   -------------------------------
 int main(int argc, char *argv[])
 {
+  // Before all, build rho fit max syst limits array
+  fill_rfitmax_systlimits();
+  int ienergy = energy_to_energyindex(energy);
+
   // Changes only for 3D fit
   if(is3Dfit) NPARS = 5; // alpha, Rout, Rside, Rlong, N; else alpha, R, N
 
@@ -421,8 +476,10 @@ int main(int argc, char *argv[])
     NEVT_AVG = (int)atoi(argv[5]);
     if(NEVT_AVG < 1)
     {
-      cerr << "NEVT_AVG must be at least 1!" << endl;
-      return 1;
+      //cerr << "NEVT_AVG must be at least 1!" << endl;
+      //return 1;
+      NEVT_AVG = NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]];
+      cout << "NEVT_AVG set to default value of " << NEVT_AVG << " for energy " << energy << "." << endl;
     }
     qlcms_syst = (int)atoi(argv[6]);
     rho_fitmax_syst = (int)atoi(argv[7]);
@@ -446,7 +503,7 @@ int main(int argc, char *argv[])
   }
 
   cout << "about to create levy reader." << endl;
-  myLevy_reader = new Levy_reader(Form("%s/levyfit/tables/levy_values_moreprecise.dat",path));
+  myLevy_reader = new Levy_reader(Form("%s/levyfit/tables/levy_values_20250325.dat",path));
   cout << "levy reader created." << endl;
 
   const char* isPathUrqmd = IsUrQMD ? "UrQMD" : "EPOS";
@@ -629,7 +686,7 @@ int main(int argc, char *argv[])
           // FITTING PROCEDURE STARTING HERE
           // k_T- (or m_T-) dependent fit rannge
           //rfitmax = sqrt(ktbin_centers[ikt]*ktbin_centers[ikt] + Mass2_pi) * B[qlcms_syst];
-          rfitmax = rfitmax_systlimits[rho_fitmax_syst]; // simpler limits, "by-look" better
+          rfitmax = rfitmax_systlimits[ienergy][ikt][rho_fitmax_syst]; // Matyas defined limits, "by-look"
           
           /*
           // Create the minimizer

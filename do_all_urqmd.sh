@@ -43,7 +43,7 @@ cd ..
 
 cd levyfit
 make clean
-make exe/onedim_EbE_or_Eavg_fit.exe
+make exe/EbE_or_Eavg_1d3d_fit.exe
 
 # Enable job control so `jobs` builtin works inside this script
 set -m
@@ -78,7 +78,7 @@ run_bg() {
   limit_jobs
 }
 
-nevt_avg_default=500
+nevt_avg_default=0 # default value; if <0, use different for each energy, acc. to header 
 
 # list of NEVT_AVG values
 nevt_avgs=(10 25 50 100 200 500 1000 5000 10000)
@@ -92,7 +92,7 @@ done
 # Default fitting
 # for ienergy in "${energies[@]}"; do
 #   echo "Fitting for energy: ${ienergy}"
-#   exe/onedim_EbE_or_Eavg_fit.exe 11 ${ienergy} 1 10000 ${nevt_avg_default} 0 0 1 &> logfiles/fit_log_${ienergy}.log # avg. by 100--10000 events
+#   exe/EbE_or_Eavg_1d3d_fit.exe 11 ${ienergy} 1 10000 ${nevt_avg_default} 0 0 1 &> logfiles/fit_log_${ienergy}.log # avg. by 100--10000 events
 #   mv ../figs/fitting/lcms/*AVG1000*.png ../figs/fitting/lcms/AVG1000/
 # done
 
@@ -102,7 +102,7 @@ for avg in "${nevt_avgs[@]}"; do
   for energy in "${energies[@]}"; do
     echo "Fitting for energy ${energy}"
     # Run the fit and then move produced AVG images into their folder only after the fit finishes
-    run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${avg} 0 0 1 && mv $BASEDIR/figs/fitting/lcms/*AVG${avg}*.png $BASEDIR/figs/fitting/lcms/AVG${avg}/" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}.log"
+    run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 10000 ${avg} 0 0 1 && mv $BASEDIR/figs/fitting/lcms/*AVG${avg}*.png $BASEDIR/figs/fitting/lcms/AVG${avg}/" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}.log"
   done
 done
 
@@ -121,7 +121,8 @@ done
 # These plots only for informative purposes, with error bars showing stddev or sg like that
 for ienergy in "${energies[@]}"; do
   echo "Plotting individual graphs for energy: ${ienergy}"
-  root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,${nevt_avg_default}\)
+  #root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,${nevt_avg_default}\)
+  root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,5000\)
 done
 
 # qLCMS systematics
@@ -131,9 +132,9 @@ mkdir -p $BASEDIR/figs/fitting/lcms/looseQlcms
 for energy in "${energies[@]}"; do
   echo "Fitting for qLCMS systematics, energy ${energy}"
   # Parallel execution
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/defaultQlcms/" "$BASEDIR/logfiles/fit_log_${energy}_defaultqLCMS.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 1 0 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/strictQlcms/" "$BASEDIR/logfiles/fit_log_${energy}_strictqLCMS.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 2 0 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/looseQlcms/" "$BASEDIR/logfiles/fit_log_${energy}_looseqLCMS.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/defaultQlcms/" "$BASEDIR/logfiles/fit_log_${energy}_defaultqLCMS.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 1 0 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/strictQlcms/" "$BASEDIR/logfiles/fit_log_${energy}_strictqLCMS.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 2 0 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/looseQlcms/" "$BASEDIR/logfiles/fit_log_${energy}_looseqLCMS.log"
   # We started up to 3 jobs here; throttle will keep the overall concurrency <= MAXJOBS
   # Optionally wait here to ensure all qLCMS systematics for this energy finish before moving on
   wait
@@ -147,9 +148,9 @@ mkdir -p $BASEDIR/figs/fitting/lcms/looserhoFitMax
 for energy in "${energies[@]}"; do
   echo "Fitting for rhofitmax systematics, energy ${energy}"
   # Parallel execution
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/defaultrhoFitMax/" "logfiles/fit_log_${energy}_defaultrhoFitMax.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 1 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/strictrhoFitMax/" "logfiles/fit_log_${energy}_strictrhoFitMax.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/onedim_EbE_or_Eavg_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 2 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/looserhoFitMax/" "logfiles/fit_log_${energy}_looserhoFitMax.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 0 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/defaultrhoFitMax/" "logfiles/fit_log_${energy}_defaultrhoFitMax.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 1 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/strictrhoFitMax/" "logfiles/fit_log_${energy}_strictrhoFitMax.log"
+  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 10000 ${nevt_avg_default} 0 2 1 && mv $BASEDIR/figs/fitting/lcms/*.png $BASEDIR/figs/fitting/lcms/looserhoFitMax/" "logfiles/fit_log_${energy}_looserhoFitMax.log"
   wait
   echo "Fitting for rhofitmax systematics, energy ${energy} done."
 done
@@ -158,6 +159,7 @@ done
 
 # Final summary plots
 echo "Plotting param vs sqrt(sNN)"
-root.exe -b -q plot_alphaNR_allcent.cpp\(${nevt_avg_default}\)
+#root.exe -b -q plot_alphaNR_allcent.cpp\(${nevt_avg_default}\)
+root.exe -b -q plot_alphaNR_allcent.cpp\(5000\)
 
 root.exe -b -q calc_and_plot_syserr.cpp\(-1\) # -1 for all energies, otherwise int integers to only plot one-one energy on mT vs param plots

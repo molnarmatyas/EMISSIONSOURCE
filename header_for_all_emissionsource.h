@@ -1,5 +1,6 @@
 #ifndef HEADER_FOR_ALL_EMISSIONSOURCE_H
 #define HEADER_FOR_ALL_EMISSIONSOURCE_H
+#include <cmath> // for taking square root here
 
 const int NFRAME = 3; // lcms, pcms, lab
 const int NOSL = 3; // out, side, long, plus rho
@@ -30,9 +31,17 @@ const char* qLCMS_cut[3] = {"default", "strict", "loose"};
 const double qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // GeV/c
 
 // from onedim_EbE_or_Eavg_fit.cc
-// TODO rfitmax_systlimits[NENERGIES][3], then same for NCENT...
+// TODO rfitmax_systlimits centrality dependence maybe in the future?
 const double B[3] = {2500.0, 1600.0, 3600.0}; // rho_fitmax limits: default, strict, loose - NOT USED
-const double rfitmax_systlimits[3] = {60.0, 25.0, 95.0}; // simpler limits
+const double rfitmax_def = 72.0;
+double rfitmax_systlimits[NENERGIES][NKT][3]; // to be calculated in fitting code
+
+// Default number of events to be averaged over for each fit, for each energy; indices correspond to NEVT_AVGsyst array below
+const int NEVT_AVGsyst[] = {10, 25, 50, 100, 200, 500, 1000, 5000, 10000}; // removed 1, not meaningful for low energies, runs too long
+const int NEVTAVGS = sizeof(NEVT_AVGsyst) / sizeof(int);
+const int NEVT_AVG_DEFAULT[NENERGIES] = {7,7,7,7,7,6,6,6,5,5,4}; // indices in NEVT_AVGsyst corresponding to default
+//{60.0, 25.0, 95.0}; // simpler limits for 3D
+//const double rfitmax_systlimits[3] = {100.0, 50.0, 150.0}; // for 1D this unified stuff was sufficient;
 
 // bporfy kT bins and centers
 // const int NKT = 8;

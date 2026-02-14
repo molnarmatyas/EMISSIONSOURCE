@@ -25,8 +25,7 @@
 const char* levy_params[3] = {"alpha","R","N"};
 
 // To be set
-int NEVT_AVG_DEFAULT = 5; // index
-int NEVT_AVGsyst[] = {10, 25, 50, 100, 200, 500, 1000, 5000, 10000}; // removed 1, not meaningful for low energies, runs too long
+//int NEVT_AVG_DEFAULT = 5; // single index
 
 void correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn, 
                               TGraphAsymmErrors* systcheckgraph, TGraphAsymmErrors* defaultgraph,
@@ -165,7 +164,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     {
         // Default
         TFile* f_default = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
-                                            energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT]), "READ");
+                                            energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]]), "READ");
         double alpha_vals[NKT] = {0};
         double alpha_errdn[NKT] = {0};
         double alpha_errup[NKT] = {0};
@@ -211,7 +210,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         for(int iq=0; iq<3; iq++)
         {
             TFile* f_qlcms = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
-                                            energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT], qlcms_labels[iq]), "READ");
+                                            energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]], qlcms_labels[iq]), "READ");
             for(int ikt=0; ikt<NKT; ikt++)
             {
                 TH2F* alphaR = (TH2F*)f_qlcms->Get(Form("alpha_vs_R_ikt%i", ikt));
@@ -249,7 +248,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         for(int ir=0; ir<3; ir++)
         {
             TFile* f_qlcms = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
-                                            energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT], rhofitmax_labels[ir]), "READ");
+                                            energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]], rhofitmax_labels[ir]), "READ");
             for(int ikt=0; ikt<NKT; ikt++)
             {
                 TH2F* alphaR = (TH2F*)f_qlcms->Get(Form("alpha_vs_R_ikt%i", ikt));
@@ -286,9 +285,9 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         for(int in=0; in<3; in++)
         {
             int index = 0;
-            if(in==0) index = NEVT_AVG_DEFAULT; // default
-            else if(in==1) index = NEVT_AVG_DEFAULT - 1; // reasonably smaller
-            else if(in==2) index = NEVT_AVG_DEFAULT + 1; // reasonably larger
+            if(in==0) index = NEVT_AVG_DEFAULT[ienergy]; // default
+            else if(in==1) index = NEVT_AVG_DEFAULT[ienergy] - 1; // reasonably smaller
+            else if(in==2) index = NEVT_AVG_DEFAULT[ienergy] + 1; // reasonably larger
             TFile* f_qlcms = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
                                             energies[ienergy], NEVT_AVGsyst[index]), "READ");
             
