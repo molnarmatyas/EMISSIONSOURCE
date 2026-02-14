@@ -32,7 +32,7 @@ const double qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // GeV/c
 // from onedim_EbE_or_Eavg_fit.cc
 // TODO rfitmax_systlimits[NENERGIES][3], then same for NCENT...
 const double B[3] = {2500.0, 1600.0, 3600.0}; // rho_fitmax limits: default, strict, loose - NOT USED
-const double rfitmax_systlimits[3] = {100.0, 50.0, 150.0}; // simpler limits
+const double rfitmax_systlimits[3] = {60.0, 25.0, 95.0}; // simpler limits
 
 // bporfy kT bins and centers
 // const int NKT = 8;
