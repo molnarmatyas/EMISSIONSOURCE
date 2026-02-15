@@ -402,7 +402,7 @@ void fill_rfitmax_systlimits()
         if(is3Dfit)
         {
           // ((kT_center-0.2)/0.05) gives back value of ikt in this case; formally implemented to allow different kT binning
-          rfitmax_systlimits[ienergy][ikt][syst] = (rfitmax_def-((kT_center-0.2)/0.05)*5.0)*(1.0 + syst_plusminus*0.6)*sqrt(energydouble[ienergy]/11.5);
+          rfitmax_systlimits[ienergy][ikt][syst] = (rfitmax_def-((kT_center[ikt]-0.2)/0.05)*5.0)*(1.0 + syst_plusminus*0.6)*sqrt(energydouble[ienergy]/11.5);
         }
         else
         {
@@ -432,7 +432,7 @@ int main(int argc, char *argv[])
 {
   // Before all, build rho fit max syst limits array
   fill_rfitmax_systlimits();
-  int ienergy = energy_to_energyindex(energy);
+  int _ienergy=11; // default energy index, will be overridden by args;
 
   // Changes only for 3D fit
   if(is3Dfit) NPARS = 5; // alpha, Rout, Rside, Rlong, N; else alpha, R, N
@@ -462,6 +462,7 @@ int main(int argc, char *argv[])
   if(argc > 2)
   {
     energy = argv[2];
+    _ienergy = energy_to_energyindex(energy);
   }
   if(argc > 3)
   {
@@ -478,7 +479,7 @@ int main(int argc, char *argv[])
     {
       //cerr << "NEVT_AVG must be at least 1!" << endl;
       //return 1;
-      NEVT_AVG = NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]];
+      NEVT_AVG = NEVT_AVGsyst[NEVT_AVG_DEFAULT[_ienergy]];
       cout << "NEVT_AVG set to default value of " << NEVT_AVG << " for energy " << energy << "." << endl;
     }
     qlcms_syst = (int)atoi(argv[6]);
@@ -686,7 +687,7 @@ int main(int argc, char *argv[])
           // FITTING PROCEDURE STARTING HERE
           // k_T- (or m_T-) dependent fit rannge
           //rfitmax = sqrt(ktbin_centers[ikt]*ktbin_centers[ikt] + Mass2_pi) * B[qlcms_syst];
-          rfitmax = rfitmax_systlimits[ienergy][ikt][rho_fitmax_syst]; // Matyas defined limits, "by-look"
+          rfitmax = rfitmax_systlimits[_ienergy][ikt][rho_fitmax_syst]; // Matyas defined limits, "by-look"
           
           /*
           // Create the minimizer
