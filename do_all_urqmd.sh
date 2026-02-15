@@ -119,6 +119,7 @@ for ikt in {0..9}; do
 done
 
 # These plots only for informative purposes, with error bars showing stddev or sg like that
+mkdir -p $BASEDIR/alphaNR_vs_kt
 for ienergy in "${energies[@]}"; do
   echo "Plotting individual graphs for energy: ${ienergy}"
   #root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,${nevt_avg_default}\)
