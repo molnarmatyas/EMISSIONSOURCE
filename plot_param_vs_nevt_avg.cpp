@@ -203,7 +203,9 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     c1->cd(2);
     gPad->SetLogx();
     // Change legend position from (0.65, 0.75, 0.85, 0.85) to bottom left
-    TLegend* leg2 = new TLegend(0.1, 0.1, 0.3, 0.4);
+    //TLegend* leg2 = new TLegend(0.1, 0.1, 0.3, 0.4);
+    // Place R legend in the upper-right with same size as alpha legend (width=0.2, height=0.3)
+    TLegend* leg2 = new TLegend(0.7, 0.6, 0.9, 0.9);
     
     for(size_t i = 0; i < R_graphs.size(); i++) {
         if(i == 0) {
@@ -232,7 +234,7 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             N_graphs[i]->SetTitle("Levy N vs NEVT_AVG");
             N_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             N_graphs[i]->GetYaxis()->SetTitle("N");
-            N_graphs[i]->GetYaxis()->SetRangeUser(0.98, 1.12); // N between 0.95 and 1.12
+            N_graphs[i]->GetYaxis()->SetRangeUser(0.92, 1.12); // N between 0.98 and 1.12
             N_graphs[i]->Draw("APE");
             N_graphs[i]->Draw("L same");
         } else {

@@ -78,7 +78,7 @@ run_bg() {
   limit_jobs
 }
 
-nevt_avg_default=0 # default value; if <0, use different for each energy, acc. to header 
+nevt_avg_default=0 # default value; if <1, using different for each energy, acc. to header 
 
 # list of NEVT_AVG values
 nevt_avgs=(10 25 50 100 200 500 1000 5000 10000)

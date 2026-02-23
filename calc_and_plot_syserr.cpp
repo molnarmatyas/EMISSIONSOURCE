@@ -27,7 +27,7 @@ const char* levy_params[3] = {"alpha","R","N"};
 // To be set
 //int NEVT_AVG_DEFAULT = 5; // single index
 
-void correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn, 
+double correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn, 
                               TGraphAsymmErrors* systcheckgraph, TGraphAsymmErrors* defaultgraph,
                               int ikt)
 {
@@ -43,6 +43,8 @@ void correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn,
         // systcheck datapoint below default
         param_uncert_dn[ikt] += pow(diff, 2);
     }
+
+    return diff;
 }
 
 // I do not know if this makes any sense, this will return the average syst. difference in percent
@@ -165,6 +167,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         // Default
         TFile* f_default = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
                                             energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]]), "READ");
+        if(!f_default || f_default->IsZombie())
+        {
+            printf("Could not open default file for energy %s: %s\n", energies[ienergy], f_default ? f_default->GetName() : "NULL");
+            continue;
+        }
         double alpha_vals[NKT] = {0};
         double alpha_errdn[NKT] = {0};
         double alpha_errup[NKT] = {0};
@@ -211,6 +218,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         {
             TFile* f_qlcms = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
                                             energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]], qlcms_labels[iq]), "READ");
+            if(!f_qlcms || f_qlcms->IsZombie())
+            {
+                printf("Could not open qLCMS file for energy %s: %s\n", energies[ienergy], f_qlcms ? f_qlcms->GetName() : "NULL");
+                continue;
+            }
             for(int ikt=0; ikt<NKT; ikt++)
             {
                 TH2F* alphaR = (TH2F*)f_qlcms->Get(Form("alpha_vs_R_ikt%i", ikt));
@@ -247,25 +259,30 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         const char* rhofitmax_labels[3] = {"","_strictrhoFitMax","_looserhoFitMax"};
         for(int ir=0; ir<3; ir++)
         {
-            TFile* f_qlcms = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
+            TFile* f_rhofitmax = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
                                             energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]], rhofitmax_labels[ir]), "READ");
+            if(!f_rhofitmax || f_rhofitmax->IsZombie())
+            {
+                printf("Could not open rhofitmax file for energy %s: %s\n", energies[ienergy], f_rhofitmax ? f_rhofitmax->GetName() : "NULL");
+                continue;
+            }
             for(int ikt=0; ikt<NKT; ikt++)
             {
-                TH2F* alphaR = (TH2F*)f_qlcms->Get(Form("alpha_vs_R_ikt%i", ikt));
+                TH2F* alphaR = (TH2F*)f_rhofitmax->Get(Form("alpha_vs_R_ikt%i", ikt));
                 alpha_vals[ikt] = alphaR->GetMean(1);
                 alpha_errdn[ikt] = alphaR->GetStdDev(1);
                 alpha_errup[ikt] = alphaR->GetStdDev(1);
                 R_vals[ikt] = alphaR->GetMean(2);
                 R_errdn[ikt] = alphaR->GetStdDev(2);
                 R_errup[ikt] = alphaR->GetStdDev(2);
-                N_vals[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
-                N_errdn[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
-                N_errup[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
+                N_vals[ikt] = ((TH1F*)f_rhofitmax->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
+                N_errdn[ikt] = ((TH1F*)f_rhofitmax->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
+                N_errup[ikt] = ((TH1F*)f_rhofitmax->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
             }
             alpha_rhofitmax[ienergy][ir] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
             R_rhofitmax[ienergy][ir] = new TGraphAsymmErrors(NKT, mtbin_centers, R_vals, xerr_low, xerr_high, R_errdn, R_errup);
             N_rhofitmax[ienergy][ir] = new TGraphAsymmErrors(NKT, mtbin_centers, N_vals, xerr_low, xerr_high, N_errdn, N_errup);
-            f_qlcms->Close();
+            f_rhofitmax->Close();
             // Reset arrays for next use
             for(int ikt=0; ikt<NKT; ikt++)
             {
@@ -288,26 +305,31 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             if(in==0) index = NEVT_AVG_DEFAULT[ienergy]; // default
             else if(in==1) index = NEVT_AVG_DEFAULT[ienergy] - 1; // reasonably smaller
             else if(in==2) index = NEVT_AVG_DEFAULT[ienergy] + 1; // reasonably larger
-            TFile* f_qlcms = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
+            TFile* f_nevtavg = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
                                             energies[ienergy], NEVT_AVGsyst[index]), "READ");
+            if(!f_nevtavg || f_nevtavg->IsZombie())
+            {
+                printf("Could not open nevt_avg file for energy %s: %s\n", energies[ienergy], f_nevtavg ? f_nevtavg->GetName() : "NULL");
+                continue;
+            }
             
             for(int ikt=0; ikt<NKT; ikt++)
             {
-                TH2F* alphaR = (TH2F*)f_qlcms->Get(Form("alpha_vs_R_ikt%i", ikt));
+                TH2F* alphaR = (TH2F*)f_nevtavg->Get(Form("alpha_vs_R_ikt%i", ikt));
                 alpha_vals[ikt] = alphaR->GetMean(1);
                 alpha_errdn[ikt] = alphaR->GetStdDev(1);
                 alpha_errup[ikt] = alphaR->GetStdDev(1);
                 R_vals[ikt] = alphaR->GetMean(2);
                 R_errdn[ikt] = alphaR->GetStdDev(2);
                 R_errup[ikt] = alphaR->GetStdDev(2);
-                N_vals[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
-                N_errdn[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
-                N_errup[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
+                N_vals[ikt] = ((TH1F*)f_nevtavg->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
+                N_errdn[ikt] = ((TH1F*)f_nevtavg->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
+                N_errup[ikt] = ((TH1F*)f_nevtavg->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
             }
             alpha_nevtavg[ienergy][in] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
             R_nevtavg[ienergy][in] = new TGraphAsymmErrors(NKT, mtbin_centers, R_vals, xerr_low, xerr_high, R_errdn, R_errup);
             N_nevtavg[ienergy][in] = new TGraphAsymmErrors(NKT, mtbin_centers, N_vals, xerr_low, xerr_high, N_errdn, N_errup);
-            f_qlcms->Close();
+            f_nevtavg->Close();
             // Reset arrays for next use
             for(int ikt=0; ikt<NKT; ikt++)
             {
@@ -330,11 +352,23 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double R_syserr_dn[NKT] = {0};
         double N_syserr_up[NKT] = {0};
         double N_syserr_dn[NKT] = {0};
+        // For calculating individual contributions, later in percent
+        double alpha_qlcms_up[NKT] = {0.}, alpha_qlcms_dn[NKT] = {0.};
+        double alpha_rhofit_up[NKT] = {0.}, alpha_rhofit_dn[NKT] = {0.};
+        double alpha_nevt_up[NKT] = {0.}, alpha_nevt_dn[NKT] = {0.};
+        double R_qlcms_up[NKT] = {0.}, R_qlcms_dn[NKT] = {0.};
+        double R_rhofit_up[NKT] = {0.}, R_rhofit_dn[NKT] = {0.};
+        double R_nevt_up[NKT] = {0.}, R_nevt_dn[NKT] = {0.};
+        double N_qlcms_up[NKT] = {0.}, N_qlcms_dn[NKT] = {0.};
+        double N_rhofit_up[NKT] = {0.}, N_rhofit_dn[NKT] = {0.};
+        double N_nevt_up[NKT] = {0.}, N_nevt_dn[NKT] = {0.};
         for(int ikt=0; ikt<NKT; ikt++)
         {
             // Collect deviations from default for each systematic source - check the general direction of deviations (up/down)
-            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_qlcms[ienergy][1], alpha_default[ienergy], ikt); // strict qLCMS
-            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_qlcms[ienergy][2], alpha_default[ienergy], ikt); // loose qLCMS
+            double diff1 = 0.; double diff2 = 0.;
+            diff1 = correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_qlcms[ienergy][1], alpha_default[ienergy], ikt); // strict qLCMS
+            diff2 = correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_qlcms[ienergy][2], alpha_default[ienergy], ikt); // loose qLCMS
+            // TODO deal with saving individual syst. unc. contributions as well
             correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_rhofitmax[ienergy][1], alpha_default[ienergy], ikt); // strict rhofitmax
             correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_rhofitmax[ienergy][2], alpha_default[ienergy], ikt); // loose rhofitmax
             correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_nevtavg[ienergy][1], alpha_default[ienergy], ikt); // smaller nevt_avg
@@ -368,6 +402,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         R_syserr[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, R_default[ienergy]->GetY(), xerr_low, xerr_high, R_syserr_dn, R_syserr_up);
         N_syserr[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, N_default[ienergy]->GetY(), xerr_low, xerr_high, N_syserr_dn, N_syserr_up);
 
+        // FIXME all of these use the full syst. unc., not the individual contributions, but that would be needed for this to make sense
         // Give one-one number about the systematic uncertainty contributions from each source
         /*
         // Average
@@ -541,7 +576,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         
         for(int ie=0; ie<NENERGIES; ie++) {
             double e = energydouble[ie];
-            if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+            //if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+            if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff
             TGraphAsymmErrors* g = graphs[ie];
             if(!g) continue;
             for(int i=0; i<g->GetN(); i++) {
@@ -600,7 +636,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gPad->SetLeftMargin(0.12);
             gPad->SetBottomMargin(0.12);
             // Use global y-range computed above
-            double ymins[] = {1.3, 3, 0.97}; // {0.5, 0, 0.5};
+            double ymins[] = {1.3, 3, 0.90}; // {0.5, 0, 0.5};
             double ymaxs[] = {2.1, 8., 1.13}; // {2., 10., 1.2};
             double ymin = ymins[iparam];//global_ymin;
             double ymax = ymaxs[iparam];//global_ymax;
@@ -626,7 +662,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             for(int ie=0; ie<NENERGIES; ie++){
                 if(energy_to_plot>-1 && ie!=energy_to_plot) continue;
                 double e = energydouble[ie];
-                if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+                //if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+                if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff
                 TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
                 TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
                 if(!gdef || !gsys) continue;
@@ -666,14 +703,15 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 if(energy_to_plot>-1 && ie!=energy_to_plot) continue; // plot only selected energy if specified
                 double e = energydouble[ie];
                 // treat 7.7 as LOW side: low = e <= cutoff, high = e > cutoff
-                if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+                //if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+                if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff
                 // graphs
                 TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
                 TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
                 if(!gdef || !gsys) continue;
                 int col = colors[colorIdx % (sizeof(colors)/sizeof(int))];
                 // filled band: use sys graph draw option 3
-                int fillcol = TColor::GetColorTransparent(col, 0.35);
+                int fillcol = TColor::GetColorTransparent(col, 0.25); // 25-35% transparent fill of line color
                 gsys->SetFillColor(fillcol);
                 gsys->SetFillStyle(1001);
                 gsys->SetLineColor(col);
