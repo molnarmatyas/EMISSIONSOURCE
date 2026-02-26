@@ -769,7 +769,7 @@ int main(int argc, char *argv[])
           cout << "Confidence: " << confidence << endl;
           
           const char* fitQuality = "GOODFIT";
-          if(fitCovStatus != 3) fitQuality = covstatuses[fitCovStatus];
+          if(fitCovStatus != 3 && fitCovStatus != 2) fitQuality = covstatuses[fitCovStatus]; // "approximated" looks good
           if(fitStatus != 0 && fitStatus != 3) fitQuality = statuses[fitStatus]; // only mark bad when status is neither 0 nor 3
           if(results[0] < 0.55 || results[0] > 1.95) fitQuality = "alpha_out_of_bounds";
           if(results[1] < 0.05 || results[1] > 14.95) fitQuality = "R_out_of_bounds"; // TODO check but probably enough for one rho
@@ -936,8 +936,9 @@ int main(int argc, char *argv[])
             //if(!ikt_plotted[ikt])
             {
               const char* fitQualityTag = (strcmp(fitQuality,"GOODFIT") == 0) ? "" : Form("_BADFIT_%s",fitQuality);
-              canvas->SaveAs(Form("%s/figs/fitting/%s/%s_onedsource_cent%s_%s_ifile%i_ievt%i_ikt%i_ich0_AVG%d%s.png", 
-                                  path, frames[thisframe], isPathUrqmd, centleg[ICENT], energy, ifile, ievt, ikt, NEVT_AVG, 
+              canvas->SaveAs(Form("%s/figs/fitting/%s/%s_onedsource_cent%s_%s_ifile%i_ievt%i_ikt%i_ich0_AVG%d%s%s%s.png", 
+                                  path, frames[thisframe], isPathUrqmd, centleg[ICENT], energy, ifile, ievt, ikt, 
+                                  NEVT_AVG, qlcms_syst_label, rhofitmax_syst_label,
                                   fitQualityTag));
               ikt_plotted[ikt] = true; // FIXME uncomment to only save first per ikt
               if(!is3Dfit)
