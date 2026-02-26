@@ -27,24 +27,51 @@ const char* levy_params[3] = {"alpha","R","N"};
 // To be set
 //int NEVT_AVG_DEFAULT = 5; // single index
 
-double correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn, 
-                              TGraphAsymmErrors* systcheckgraph, TGraphAsymmErrors* defaultgraph,
-                              int ikt)
+void correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn, 
+                              TGraphAsymmErrors* systcheckgraph1, TGraphAsymmErrors* systcheckgraph2,
+                              TGraphAsymmErrors* defaultgraph, int ikt)
 {
-    // func(*param*_syserr_up[ikt], *param*_syserr_dn[ikt], *param*_*systcheck*[ienergy][1/2], *param*_default[ienergy])
-    double diff = systcheckgraph->GetY()[ikt] - defaultgraph->GetY()[ikt];
-    if(diff>=0.)
+    // This function will check the direction of the deviation of the systcheckgraph from the defaultgraph.
+    // If the systcheck point is above the default, it will add the squared difference to the upward uncertainty; if below, to the downward uncertainty.
+    // If both systcheck points are on the same side, then add the average of the two differences.
+    // Sample:
+    // func(*param*_syserr_up[ikt], *param*_syserr_dn[ikt], *param*_*systcheck1[ienergy][1], *param*_*systcheck*[ienergy][2], *param*_default[ienergy])
+    double diff1 = systcheckgraph1->GetY()[ikt] - defaultgraph->GetY()[ikt];
+    double diff2 = systcheckgraph2->GetY()[ikt] - defaultgraph->GetY()[ikt];
+    double diffavg = 0.5 * (diff1 + diff2); // average of two differences
+    if((diff1 >= 0. && diff2 >= 0.) || (diff1 < 0. && diff2 < 0.))
     {
-        // systcheck datapoint above default
-        param_uncert_up[ikt] += pow(diff, 2);
+        // both differences on the same side -> use average
+        if(diffavg >= 0.)
+        {
+            param_uncert_up[ikt] += pow(diffavg, 2);
+        }
+        else
+        {
+            param_uncert_dn[ikt] += pow(diffavg, 2);
+        }
     }
     else
     {
-        // systcheck datapoint below default
-        param_uncert_dn[ikt] += pow(diff, 2);
+        // differences on opposite sides -> use each difference separately
+        if(diff1 >= 0.)
+        {
+            param_uncert_up[ikt] += pow(diff1, 2);
+        }
+        else
+        {
+            param_uncert_dn[ikt] += pow(diff1, 2);
+        }
+        if(diff2 >= 0.)
+        {
+            param_uncert_up[ikt] += pow(diff2, 2);
+        }
+        else
+        {
+            param_uncert_dn[ikt] += pow(diff2, 2);
+        }
     }
-
-    return diff;
+    //return diffavg; // change from void to double if you want to return the average difference
 }
 
 // I do not know if this makes any sense, this will return the average syst. difference in percent
@@ -353,46 +380,36 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double N_syserr_up[NKT] = {0};
         double N_syserr_dn[NKT] = {0};
         // For calculating individual contributions, later in percent
-        double alpha_qlcms_up[NKT] = {0.}, alpha_qlcms_dn[NKT] = {0.};
-        double alpha_rhofit_up[NKT] = {0.}, alpha_rhofit_dn[NKT] = {0.};
-        double alpha_nevt_up[NKT] = {0.}, alpha_nevt_dn[NKT] = {0.};
-        double R_qlcms_up[NKT] = {0.}, R_qlcms_dn[NKT] = {0.};
-        double R_rhofit_up[NKT] = {0.}, R_rhofit_dn[NKT] = {0.};
-        double R_nevt_up[NKT] = {0.}, R_nevt_dn[NKT] = {0.};
-        double N_qlcms_up[NKT] = {0.}, N_qlcms_dn[NKT] = {0.};
-        double N_rhofit_up[NKT] = {0.}, N_rhofit_dn[NKT] = {0.};
-        double N_nevt_up[NKT] = {0.}, N_nevt_dn[NKT] = {0.};
+        double alpha_qlcms_up[NKT] = {0}, alpha_qlcms_dn[NKT] = {0};
+        double alpha_rhofitmax_up[NKT] = {0}, alpha_rhofitmax_dn[NKT] = {0};
+        double alpha_nevtavg_up[NKT] = {0}, alpha_nevtavg_dn[NKT] = {0};
+        double R_qlcms_up[NKT] = {0}, R_qlcms_dn[NKT] = {0};
+        double R_rhofitmax_up[NKT] = {0}, R_rhofitmax_dn[NKT] = {0};
+        double R_nevtavg_up[NKT] = {0}, R_nevtavg_dn[NKT] = {0};
+        double N_qlcms_up[NKT] = {0}, N_qlcms_dn[NKT] = {0};
+        double N_rhofitmax_up[NKT] = {0}, N_rhofitmax_dn[NKT] = {0};
+        double N_nevtavg_up[NKT] = {0}, N_nevtavg_dn[NKT] = {0};
         for(int ikt=0; ikt<NKT; ikt++)
         {
             // Collect deviations from default for each systematic source - check the general direction of deviations (up/down)
-            double diff1 = 0.; double diff2 = 0.;
-            diff1 = correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_qlcms[ienergy][1], alpha_default[ienergy], ikt); // strict qLCMS
-            diff2 = correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_qlcms[ienergy][2], alpha_default[ienergy], ikt); // loose qLCMS
+            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_qlcms[ienergy][1], alpha_qlcms[ienergy][2], alpha_default[ienergy], ikt); // loose, strict qLCMS
             // TODO deal with saving individual syst. unc. contributions as well
-            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_rhofitmax[ienergy][1], alpha_default[ienergy], ikt); // strict rhofitmax
-            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_rhofitmax[ienergy][2], alpha_default[ienergy], ikt); // loose rhofitmax
-            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_nevtavg[ienergy][1], alpha_default[ienergy], ikt); // smaller nevt_avg
-            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_nevtavg[ienergy][2], alpha_default[ienergy], ikt); // larger nevt_avg
+            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_rhofitmax[ienergy][1], alpha_rhofitmax[ienergy][2], alpha_default[ienergy], ikt); // loose, strict rhofitmax
+            correct_syserr_direction(alpha_syserr_up, alpha_syserr_dn, alpha_nevtavg[ienergy][1], alpha_nevtavg[ienergy][2], alpha_default[ienergy], ikt); // smaller, larger nevt_avg
             alpha_syserr_up[ikt] = sqrt(alpha_syserr_up[ikt]);
             alpha_syserr_dn[ikt] = sqrt(alpha_syserr_dn[ikt]);
             // cerr << "alpha_syserr_up: " << alpha_syserr_up[ikt] << ", alpha_syserr_dn: " << alpha_syserr_dn[ikt] << endl;
 
-            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_qlcms[ienergy][1], R_default[ienergy], ikt); // strict qLCMS
-            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_qlcms[ienergy][2], R_default[ienergy], ikt); // loose qLCMS
-            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_rhofitmax[ienergy][1], R_default[ienergy], ikt); // strict rhofitmax
-            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_rhofitmax[ienergy][2], R_default[ienergy], ikt); // loose rhofitmax
-            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_nevtavg[ienergy][1], R_default[ienergy], ikt); // smaller nevt_avg
-            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_nevtavg[ienergy][2], R_default[ienergy], ikt); // larger nevt_avg
+            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_qlcms[ienergy][1], R_qlcms[ienergy][2], R_default[ienergy], ikt); // strict, loose qLCMS
+            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_rhofitmax[ienergy][1], R_rhofitmax[ienergy][2], R_default[ienergy], ikt); // strict, loose rhofitmax
+            correct_syserr_direction(R_syserr_up, R_syserr_dn, R_nevtavg[ienergy][1], R_nevtavg[ienergy][2], R_default[ienergy], ikt); // smaller, larger nevt_avg
             R_syserr_up[ikt] = sqrt(R_syserr_up[ikt]);
             R_syserr_dn[ikt] = sqrt(R_syserr_dn[ikt]);
             // cerr << "R_syserr_up: " << R_syserr_up[ikt] << ", R_syserr_dn: " << R_syserr_dn[ikt] << endl;
 
-            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_qlcms[ienergy][1], N_default[ienergy], ikt); // strict qLCMS
-            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_qlcms[ienergy][2], N_default[ienergy], ikt); // loose qLCMS
-            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_rhofitmax[ienergy][1], N_default[ienergy], ikt); // strict rhofitmax
-            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_rhofitmax[ienergy][2], N_default[ienergy], ikt); // loose rhofitmax
-            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_nevtavg[ienergy][1], N_default[ienergy], ikt); // smaller nevt_avg
-            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_nevtavg[ienergy][2], N_default[ienergy], ikt); // larger nevt_avg
+            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_qlcms[ienergy][1], N_qlcms[ienergy][2], N_default[ienergy], ikt); // strict, loose qLCMS
+            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_rhofitmax[ienergy][1], N_rhofitmax[ienergy][2], N_default[ienergy], ikt); // strict, loose rhofitmax
+            correct_syserr_direction(N_syserr_up, N_syserr_dn, N_nevtavg[ienergy][1], N_nevtavg[ienergy][2], N_default[ienergy], ikt); // smaller, larger nevt_avg
             N_syserr_up[ikt] = sqrt(N_syserr_up[ikt]);
             N_syserr_dn[ikt] = sqrt(N_syserr_dn[ikt]);
             // cerr << "N_syserr_up: " << N_syserr_up[ikt] << ", N_syserr_dn: " << N_syserr_dn[ikt] << endl;
@@ -404,48 +421,42 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
         // FIXME all of these use the full syst. unc., not the individual contributions, but that would be needed for this to make sense
         // Give one-one number about the systematic uncertainty contributions from each source
-        /*
-        // Average
-        double alpha_qlcms_percent_up = calc_syst_contribution(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn);
-        double alpha_rhofitmax_percent_up = calc_syst_contribution(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn);
-        double alpha_nevtavg_percent_up = calc_syst_contribution(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn);
-        double R_qlcms_percent_up = calc_syst_contribution(R_default[ienergy], R_syserr_up, R_syserr_dn);
-        double R_rhofitmax_percent_up = calc_syst_contribution(R_default[ienergy], R_syserr_up, R_syserr_dn);
-        double R_nevtavg_percent_up = calc_syst_contribution(R_default[ienergy], R_syserr_up, R_syserr_dn);
-        double N_qlcms_percent_up = calc_syst_contribution(N_default[ienergy], N_syserr_up, N_syserr_dn);
-        double N_rhofitmax_percent_up = calc_syst_contribution(N_default[ienergy], N_syserr_up, N_syserr_dn);
-        double N_nevtavg_percent_up = calc_syst_contribution(N_default[ienergy], N_syserr_up, N_syserr_dn);
 
-        double alpha_qlcms_percent_dn = calc_syst_contribution(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn, 0);
-        double alpha_rhofitmax_percent_dn = calc_syst_contribution(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn, 0);
-        double alpha_nevtavg_percent_dn = calc_syst_contribution(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn, 0);
-        double R_qlcms_percent_dn = calc_syst_contribution(R_default[ienergy], R_syserr_up, R_syserr_dn, 0);
-        double R_rhofitmax_percent_dn = calc_syst_contribution(R_default[ienergy], R_syserr_up, R_syserr_dn, 0);
-        double R_nevtavg_percent_dn = calc_syst_contribution(R_default[ienergy], R_syserr_up, R_syserr_dn, 0);
-        double N_qlcms_percent_dn = calc_syst_contribution(N_default[ienergy], N_syserr_up, N_syserr_dn, 0);
-        double N_rhofitmax_percent_dn = calc_syst_contribution(N_default[ienergy], N_syserr_up, N_syserr_dn, 0);
-        double N_nevtavg_percent_dn = calc_syst_contribution(N_default[ienergy], N_syserr_up, N_syserr_dn, 0);
-        */
+        // Firstly, extract the individual contributions as well
+        for(int ikt=0; ikt<NKT; ikt++)
+        {
+            correct_syserr_direction(alpha_qlcms_up, alpha_qlcms_dn, alpha_qlcms[ienergy][1], alpha_qlcms[ienergy][2], alpha_default[ienergy], ikt);
+            correct_syserr_direction(alpha_rhofitmax_up, alpha_rhofitmax_dn, alpha_rhofitmax[ienergy][1], alpha_rhofitmax[ienergy][2], alpha_default[ienergy], ikt);
+            correct_syserr_direction(alpha_nevtavg_up, alpha_nevtavg_dn, alpha_nevtavg[ienergy][1], alpha_nevtavg[ienergy][2], alpha_default[ienergy], ikt);
+            correct_syserr_direction(R_qlcms_up, R_qlcms_dn, R_qlcms[ienergy][1], R_qlcms[ienergy][2], R_default[ienergy], ikt);
+            correct_syserr_direction(R_rhofitmax_up, R_rhofitmax_dn, R_rhofitmax[ienergy][1], R_rhofitmax[ienergy][2], R_default[ienergy], ikt);
+            correct_syserr_direction(R_nevtavg_up, R_nevtavg_dn, R_nevtavg[ienergy][1], R_nevtavg[ienergy][2], R_default[ienergy], ikt);
+            correct_syserr_direction(N_qlcms_up, N_qlcms_dn, N_qlcms[ienergy][1], N_qlcms[ienergy][2], N_default[ienergy], ikt);
+            correct_syserr_direction(N_rhofitmax_up, N_rhofitmax_dn, N_rhofitmax[ienergy][1], N_rhofitmax[ienergy][2], N_default[ienergy], ikt);
+            correct_syserr_direction(N_nevtavg_up, N_nevtavg_dn, N_nevtavg[ienergy][1], N_nevtavg[ienergy][2], N_default[ienergy], ikt);
+        }
+        
+        // Average with calc_syst_contribution
+        
         // Median, might make more sense
-        double alpha_qlcms_percent_up = calc_syst_contrib_median(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn);
-        double alpha_rhofitmax_percent_up = calc_syst_contrib_median(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn);
-        double alpha_nevtavg_percent_up = calc_syst_contrib_median(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn);
-        double R_qlcms_percent_up = calc_syst_contrib_median(R_default[ienergy], R_syserr_up, R_syserr_dn);
-        double R_rhofitmax_percent_up = calc_syst_contrib_median(R_default[ienergy], R_syserr_up, R_syserr_dn);
-        double R_nevtavg_percent_up = calc_syst_contrib_median(R_default[ienergy], R_syserr_up, R_syserr_dn);
-        double N_qlcms_percent_up = calc_syst_contrib_median(N_default[ienergy], N_syserr_up, N_syserr_dn);
-        double N_rhofitmax_percent_up = calc_syst_contrib_median(N_default[ienergy], N_syserr_up, N_syserr_dn);
-        double N_nevtavg_percent_up = calc_syst_contrib_median(N_default[ienergy], N_syserr_up, N_syserr_dn);
-
-        double alpha_qlcms_percent_dn = calc_syst_contrib_median(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn, 0);
-        double alpha_rhofitmax_percent_dn = calc_syst_contrib_median(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn, 0);
-        double alpha_nevtavg_percent_dn = calc_syst_contrib_median(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn, 0);
-        double R_qlcms_percent_dn = calc_syst_contrib_median(R_default[ienergy], R_syserr_up, R_syserr_dn, 0);
-        double R_rhofitmax_percent_dn = calc_syst_contrib_median(R_default[ienergy], R_syserr_up, R_syserr_dn, 0);
-        double R_nevtavg_percent_dn = calc_syst_contrib_median(R_default[ienergy], R_syserr_up, R_syserr_dn, 0);
-        double N_qlcms_percent_dn = calc_syst_contrib_median(N_default[ienergy], N_syserr_up, N_syserr_dn, 0);
-        double N_rhofitmax_percent_dn = calc_syst_contrib_median(N_default[ienergy], N_syserr_up, N_syserr_dn, 0);
-        double N_nevtavg_percent_dn = calc_syst_contrib_median(N_default[ienergy], N_syserr_up, N_syserr_dn, 0);
+        double alpha_qlcms_percent_up = calc_syst_contrib_median(alpha_default[ienergy], alpha_qlcms_up, alpha_qlcms_dn);
+        double alpha_rhofitmax_percent_up = calc_syst_contrib_median(alpha_default[ienergy], alpha_rhofitmax_up, alpha_rhofitmax_dn);
+        double alpha_nevtavg_percent_up = calc_syst_contrib_median(alpha_default[ienergy], alpha_nevtavg_up, alpha_nevtavg_dn);
+        double R_qlcms_percent_up = calc_syst_contrib_median(R_default[ienergy], R_qlcms_up, R_qlcms_dn);
+        double R_rhofitmax_percent_up = calc_syst_contrib_median(R_default[ienergy], R_rhofitmax_up, R_rhofitmax_dn);
+        double R_nevtavg_percent_up = calc_syst_contrib_median(R_default[ienergy], R_nevtavg_up, R_nevtavg_dn);
+        double N_qlcms_percent_up = calc_syst_contrib_median(N_default[ienergy], N_qlcms_up, N_qlcms_dn);
+        double N_rhofitmax_percent_up = calc_syst_contrib_median(N_default[ienergy], N_rhofitmax_up, N_rhofitmax_dn);
+        double N_nevtavg_percent_up = calc_syst_contrib_median(N_default[ienergy], N_nevtavg_up, N_nevtavg_dn);
+        double alpha_qlcms_percent_dn = calc_syst_contrib_median(alpha_default[ienergy], alpha_qlcms_up, alpha_qlcms_dn, 0);
+        double alpha_rhofitmax_percent_dn = calc_syst_contrib_median(alpha_default[ienergy], alpha_rhofitmax_up, alpha_rhofitmax_dn, 0);
+        double alpha_nevtavg_percent_dn = calc_syst_contrib_median(alpha_default[ienergy], alpha_nevtavg_up, alpha_nevtavg_dn, 0);
+        double R_qlcms_percent_dn = calc_syst_contrib_median(R_default[ienergy], R_qlcms_up, R_qlcms_dn, 0);
+        double R_rhofitmax_percent_dn = calc_syst_contrib_median(R_default[ienergy], R_rhofitmax_up, R_rhofitmax_dn, 0);
+        double R_nevtavg_percent_dn = calc_syst_contrib_median(R_default[ienergy], R_nevtavg_up, R_nevtavg_dn, 0);
+        double N_qlcms_percent_dn = calc_syst_contrib_median(N_default[ienergy], N_qlcms_up, N_qlcms_dn, 0);
+        double N_rhofitmax_percent_dn = calc_syst_contrib_median(N_default[ienergy], N_rhofitmax_up, N_rhofitmax_dn, 0);
+        double N_nevtavg_percent_dn = calc_syst_contrib_median(N_default[ienergy], N_nevtavg_up, N_nevtavg_dn, 0);
 
         // Append CSV block lines: energy header, parameter sub-header, then lines for alpha,R,N
         std::ostringstream h1;
@@ -576,8 +587,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         
         for(int ie=0; ie<NENERGIES; ie++) {
             double e = energydouble[ie];
-            //if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
-            if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff
+            if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+            //if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff DOES NOT WORK  
             TGraphAsymmErrors* g = graphs[ie];
             if(!g) continue;
             for(int i=0; i<g->GetN(); i++) {
@@ -662,8 +673,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             for(int ie=0; ie<NENERGIES; ie++){
                 if(energy_to_plot>-1 && ie!=energy_to_plot) continue;
                 double e = energydouble[ie];
-                //if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
-                if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff
+                if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+                //if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff DOES NOT WORK
                 TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
                 TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
                 if(!gdef || !gsys) continue;
@@ -703,8 +714,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 if(energy_to_plot>-1 && ie!=energy_to_plot) continue; // plot only selected energy if specified
                 double e = energydouble[ie];
                 // treat 7.7 as LOW side: low = e <= cutoff, high = e > cutoff
-                //if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
-                if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff
+                if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
+                //if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff DOES NOT WORK
                 // graphs
                 TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
                 TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
