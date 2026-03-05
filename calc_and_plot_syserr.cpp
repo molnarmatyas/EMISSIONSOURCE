@@ -22,7 +22,7 @@
 #include <iomanip>
 #include <TF1.h>
 
-bool debug = false; // set to true to print parameter results for each systematic variation
+bool debug = true; // set to true to print parameter results for each systematic variation
 
 const char* levy_params[3] = {"alpha","R","N"};
 
@@ -40,6 +40,25 @@ void correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn,
     // func(*param*_syserr_up[ikt], *param*_syserr_dn[ikt], *param*_*systcheck1[ienergy][1], *param*_*systcheck*[ienergy][2], *param*_default[ienergy])
     double diff1 = systcheckgraph1->GetY()[ikt] - defaultgraph->GetY()[ikt];
     double diff2 = systcheckgraph2->GetY()[ikt] - defaultgraph->GetY()[ikt];
+    
+    // Taking care of potential zero or near-zero default values to avoid misleading large percent differences; if default is zero, we cannot determine the direction, so we skip this point
+    if(defaultgraph->GetY()[ikt] < 1e-12)
+    {
+        // skip tiny/invalid points
+        cerr << "Zero value in default graph! ikt: " << ikt << endl;
+        return;
+    }
+    if(systcheckgraph1->GetY()[ikt] < 1e-12)
+    {
+        cerr << "Zero value in systcheckgraph1! Setting diff1 to zero. ikt: " << ikt << endl;
+        diff1 = 0.0;
+    }
+    if(systcheckgraph2->GetY()[ikt] < 1e-12)
+    {
+        cerr << "Zero value in systcheckgraph2! Setting diff2 to zero. ikt: " << ikt << endl;
+        diff2 = 0.0;
+    }
+
     double diffavg = 0.5 * (diff1 + diff2); // average of two differences
     if((diff1 >= 0. && diff2 >= 0.) || (diff1 < 0. && diff2 < 0.))
     {
@@ -214,10 +233,25 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         for(int ikt=0; ikt<NKT; ikt++)
         {
             TH2F* alphaR = (TH2F*)f_default->Get(Form("alpha_vs_R_ikt%i", ikt));
+            if(alphaR->GetEntries() < 1e-5)
+            {
+                printf("Warning: [default] alpha_vs_R_ikt%i histogram for energy %s has no entries. Skipping this point.\n", ikt, energies[ienergy]);
+                continue;
+            } // Could do the same for N as well, but does not really matter since the more important point is done in correct_syserr_direction() where we compare the default to the syst checks, so if default is zero there, we skip the point and do not include it in the uncertainty calculation at all
             alpha_vals[ikt] = alphaR->GetMean(1);
+            if(alpha_vals[ikt] < 1e-12)
+            {
+                printf("Warning: [default] alpha value for energy %s, ikt %i is very small (%g). Skipping this point.\n", energies[ienergy], ikt, alpha_vals[ikt]);
+                continue;
+            }
             alpha_errdn[ikt] = alphaR->GetStdDev(1);
             alpha_errup[ikt] = alphaR->GetStdDev(1);
             R_vals[ikt] = alphaR->GetMean(2);
+            if(R_vals[ikt] < 1e-12)
+            {
+                printf("Warning: [default] R value for energy %s, ikt %i is very small (%g). Skipping this point.\n", energies[ienergy], ikt, R_vals[ikt]);
+                continue;
+            }
             R_errdn[ikt] = alphaR->GetStdDev(2);
             R_errup[ikt] = alphaR->GetStdDev(2);
             N_vals[ikt] = ((TH1F*)f_default->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
@@ -261,6 +295,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             for(int ikt=0; ikt<NKT; ikt++)
             {
                 TH2F* alphaR = (TH2F*)f_qlcms->Get(Form("alpha_vs_R_ikt%i", ikt));
+                if(alphaR->GetEntries() < 1e-5)
+                {
+                    printf("Warning: [qLCMS %s] alpha_vs_R_ikt%i histogram for energy %s has no entries. Skipping this point.\n", qlcms_labels[iq], ikt, energies[ienergy]);
+                    continue;
+                }
                 alpha_vals[ikt] = alphaR->GetMean(1);
                 alpha_errdn[ikt] = alphaR->GetStdDev(1);
                 alpha_errup[ikt] = alphaR->GetStdDev(1);
@@ -270,6 +309,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 N_vals[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
                 N_errdn[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
                 N_errup[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
+
                 if(debug)
                 {
                     cout << "qLCMS variation: " << qlcms_labels[iq] << endl;
@@ -309,6 +349,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             for(int ikt=0; ikt<NKT; ikt++)
             {
                 TH2F* alphaR = (TH2F*)f_rhofitmax->Get(Form("alpha_vs_R_ikt%i", ikt));
+                if(alphaR->GetEntries() < 1e-5)
+                {
+                    printf("Warning: [rhofitmax %s] alpha_vs_R_ikt%i histogram for energy %s has no entries. Skipping this point.\n", rhofitmax_labels[ir], ikt, energies[ienergy]);
+                    continue;
+                }
                 alpha_vals[ikt] = alphaR->GetMean(1);
                 alpha_errdn[ikt] = alphaR->GetStdDev(1);
                 alpha_errup[ikt] = alphaR->GetStdDev(1);
@@ -361,6 +406,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             for(int ikt=0; ikt<NKT; ikt++)
             {
                 TH2F* alphaR = (TH2F*)f_nevtavg->Get(Form("alpha_vs_R_ikt%i", ikt));
+                if(alphaR->GetEntries() < 1e-5)
+                {
+                    printf("Warning: [nevt_avg %s] alpha_vs_R_ikt%i histogram for energy %s has no entries. Skipping this point.\n", (in==0 ? "default" : (in==1 ? "smaller" : "larger")), ikt, energies[ienergy]);
+                    continue;
+                }
                 alpha_vals[ikt] = alphaR->GetMean(1);
                 alpha_errdn[ikt] = alphaR->GetStdDev(1);
                 alpha_errup[ikt] = alphaR->GetStdDev(1);

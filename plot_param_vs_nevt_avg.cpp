@@ -188,6 +188,7 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             alpha_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             alpha_graphs[i]->GetYaxis()->SetTitle("#alpha");
             alpha_graphs[i]->GetYaxis()->SetRangeUser(1.3, 1.9);
+            alpha_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0]-1.0, nevt_avg[NEVTAVGS]+1000.0);
             alpha_graphs[i]->Draw("APE");
             // overlay a connecting line so points remain visible with error bars
             alpha_graphs[i]->Draw("L same");
@@ -213,6 +214,7 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             R_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             R_graphs[i]->GetYaxis()->SetTitle("R [fm]");
             R_graphs[i]->GetYaxis()->SetRangeUser(3, 7); // R between 0 and 10 fm
+            R_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0]-1.0, nevt_avg[NEVTAVGS]+1000.0);
             R_graphs[i]->Draw("APE");
             R_graphs[i]->Draw("L same");
         } else {
@@ -235,6 +237,7 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             N_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             N_graphs[i]->GetYaxis()->SetTitle("N");
             N_graphs[i]->GetYaxis()->SetRangeUser(0.92, 1.12); // N between 0.98 and 1.12
+            N_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0]-1.0, nevt_avg[NEVTAVGS]+1000.0);
             N_graphs[i]->Draw("APE");
             N_graphs[i]->Draw("L same");
         } else {
@@ -257,6 +260,7 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             conflev_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             conflev_graphs[i]->GetYaxis()->SetTitle("Confidence Level");
             conflev_graphs[i]->GetYaxis()->SetRangeUser(0, 1.05); // Confidence level between 0 and 1
+            conflev_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0]-1.0, nevt_avg[NEVTAVGS]+1000.0);
             conflev_graphs[i]->Draw("APE");
             conflev_graphs[i]->Draw("L same");
         } else {
