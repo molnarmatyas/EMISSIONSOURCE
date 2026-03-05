@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 kT_center = np.array([0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65]);
 energies = np.array([3.0, 3.2, 3.5, 3.9, 4.5, 7.7, 9.2, 11.5, 14.5, 19.6, 27.0]);
 
-rmaxdef = 72.0
+rmaxdef = 80.0#72.0
 
 def rhofitmax(kT, energy, syst=0):
     ktparam = (kT-0.2) / 0.05

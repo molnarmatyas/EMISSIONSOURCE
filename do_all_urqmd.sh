@@ -3,6 +3,7 @@
 # To run this script, simply execute `./do_all_urqmd.sh` from the terminal. It will run the entire analysis chain for all energies and produce the final plots. You can optionally specify a maximum number of concurrent jobs (e.g. `./do_all_urqmd.sh 3`) to limit resource usage during the fitting stage.
 # The analysis part can be skipped via internally setting `do_analysis=false` if you already have the analysed ROOT files and just want to re-run the fitting with different parameters or systematics.
 do_analysis=false
+do_conversion=false # whether to convert from .f19 to root tree files
 
 # Base directory of this script (absolute)
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,33 +19,7 @@ mkdir -p levyfit/exe
 mkdir -p levyfit/object/deps
 mkdir -p levyfit/results
 
-cd drho_analyze_urqmd
-make clean
-make pairsource_urqmd.exe
-
-analysedname="UrQMD_3d_source_0-10cent_all_"
-if [ "$do_analysis" = true ]; then
-  for ienergy in "${energies[@]}"; do
-    echo "Creating source for energy: ${ienergy}"
-    ./pairsource_urqmd.exe "${ienergy}" 0 # 0 = default qLCMS cut
-    # For systematics:
-    mv ${analysedname}${ienergy}.root ${analysedname}${ienergy}_defaultqLCMS.root
-    ./pairsource_urqmd.exe "${ienergy}" 1 # 1 = strict qLCMS cut
-    mv ${analysedname}${ienergy}.root ${analysedname}${ienergy}_strictqLCMS.root
-    ./pairsource_urqmd.exe "${ienergy}" 2 # 2 = loose qLCMS cut
-    mv ${analysedname}${ienergy}.root ${analysedname}${ienergy}_looseqLCMS.root
-    mv ${analysedname}${ienergy}_defaultqLCMS.root ${analysedname}${ienergy}.root # restore default-named file
-  done
-  mv ${analysedname}*.root ../analysed/
-fi
-cd ..
-
-#root.exe -b -q 'Average_Drho.cpp(100)' # why doesn't this work?! # I guess this rage-comment was related to why it doesn't work except for the default values # Anyways, this is looong deprecated
-
-cd levyfit
-make clean
-make exe/EbE_or_Eavg_1d3d_fit.exe
-
+# JOB CONTROL ------
 # Enable job control so `jobs` builtin works inside this script
 set -m
 
@@ -77,6 +52,47 @@ run_bg() {
   # throttle
   limit_jobs
 }
+# END JOB CONTROL ------
+
+cd drho_analyze_urqmd
+make clean
+make pairsource_urqmd.exe
+make converter_f19.exe
+
+# BEWARE - ONLY START THIS PART IN THIS FORM IF YOU HAVE ENOUGH RESOURCES
+# otherwise, delete "&" to run sequentially
+# TODO full resource usage to be determined, TODO run_bg for parallel execution
+if [ "$do_conversion" = true ]; then
+  for ienergy in "${energies[@]}"; do
+    echo "Converting .f19 to .root for energy: ${ienergy}"
+    ./converter_f19.exe "${ienergy}"  &> "${ienergy}.log" &
+  done
+  wait # wait for all conversions to finish before moving on
+fi
+
+# TODO parallelize this part as well, full resource usage to be determined before
+analysedname="UrQMD_3d_source_0-10cent_all_"
+if [ "$do_analysis" = true ]; then
+  for ienergy in "${energies[@]}"; do
+    echo "Creating source for energy: ${ienergy}"
+    ./pairsource_urqmd.exe "${ienergy}" 0 # 0 = default qLCMS cut
+    # For systematics:
+    #mv ${analysedname}${ienergy}.root ${analysedname}${ienergy}_defaultqLCMS.root # no need for renaming from now on
+    ./pairsource_urqmd.exe "${ienergy}" 1 # 1 = strict qLCMS cut
+    #mv ${analysedname}${ienergy}.root ${analysedname}${ienergy}_strictqLCMS.root
+    ./pairsource_urqmd.exe "${ienergy}" 2 # 2 = loose qLCMS cut
+    #mv ${analysedname}${ienergy}.root ${analysedname}${ienergy}_looseqLCMS.root
+    #mv ${analysedname}${ienergy}_defaultqLCMS.root ${analysedname}${ienergy}.root # restore default-named file
+  done
+  mv ${analysedname}*.root ../analysed/
+fi
+cd ..
+
+#root.exe -b -q 'Average_Drho.cpp(100)' # why doesn't this work?! # I guess this rage-comment was related to why it doesn't work except for the default values # Anyways, this is looong deprecated
+
+cd levyfit
+make clean
+make exe/EbE_or_Eavg_1d3d_fit.exe
 
 nevt_avg_default=0 # default value; if <1, using different for each energy, acc. to header 
 

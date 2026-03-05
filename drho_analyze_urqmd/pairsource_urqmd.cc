@@ -61,6 +61,7 @@ void progressbar(Int_t event, Int_t nEvents)
 // Reimplemented in header_for_all_emissionsource.h:
 // const char* qLCMS_cut[3] = {"default", "strict", "loose"};
 // const double qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // in GeV/c
+const char* qLCMS_outputtext[3] = {"", "_strictqLCMS", "_looseqLCMS"};
 
 
 int main(int argc, char** argv)
@@ -87,7 +88,8 @@ int main(int argc, char** argv)
 
   TFile *treefile = new TFile(Form("AuAu_%s_tree.root",argv[1]),"read");
   //TString inputFile = treefile->GetName(); 
-  TFile* outFile = new TFile(Form("UrQMD_3d_source_%scent_all_%s.root",centleg[11],argv[1]),"RECREATE"); // FIXME make 11->ICENT for other centralities
+  TFile* outFile = new TFile(Form("UrQMD_3d_source_%scent_all_%s%s.root",centleg[11],argv[1],
+                                  qLCMS_outputtext[qLCMS_cuttype]),"RECREATE"); // FIXME make 11->ICENT for other centralities
   
   TTree *event = (TTree*) treefile->Get("urqmd_tree");
   const int Nbins = 200;

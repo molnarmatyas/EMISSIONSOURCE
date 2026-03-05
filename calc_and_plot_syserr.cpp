@@ -22,6 +22,8 @@
 #include <iomanip>
 #include <TF1.h>
 
+bool debug = false; // set to true to print parameter results for each systematic variation
+
 const char* levy_params[3] = {"alpha","R","N"};
 
 // To be set
@@ -191,6 +193,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
     for(int ienergy = 0; ienergy < NENERGIES; ienergy++)
     {
+        if(debug) cout << "Processing energy: " << energies[ienergy] << endl;
         // Default
         TFile* f_default = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
                                             energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]]), "READ");
@@ -220,6 +223,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             N_vals[ikt] = ((TH1F*)f_default->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
             N_errdn[ikt] = ((TH1F*)f_default->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
             N_errup[ikt] = ((TH1F*)f_default->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
+            if(debug)
+            {
+                cout << "Default." << endl;
+                cout << Form("ikt %i: alpha = %g +%g -%g; R = %g +%g -%g; N = %g +%g -%g", ikt, alpha_vals[ikt], alpha_errup[ikt], alpha_errdn[ikt], R_vals[ikt], R_errup[ikt], R_errdn[ikt], N_vals[ikt], N_errup[ikt], N_errdn[ikt]) << endl;
+            }
         }        
         alpha_default[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
         R_default[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, R_vals, xerr_low, xerr_high, R_errdn, R_errup);
@@ -262,6 +270,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 N_vals[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
                 N_errdn[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
                 N_errup[ikt] = ((TH1F*)f_qlcms->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
+                if(debug)
+                {
+                    cout << "qLCMS variation: " << qlcms_labels[iq] << endl;
+                    cout << Form("ikt %i: alpha = %g +%g -%g; R = %g +%g -%g; N = %g +%g -%g", ikt, alpha_vals[ikt], alpha_errup[ikt], alpha_errdn[ikt], R_vals[ikt], R_errup[ikt], R_errdn[ikt], N_vals[ikt], N_errup[ikt], N_errdn[ikt]) << endl;
+                }
             }
             alpha_qlcms[ienergy][iq] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
             R_qlcms[ienergy][iq] = new TGraphAsymmErrors(NKT, mtbin_centers, R_vals, xerr_low, xerr_high, R_errdn, R_errup);
@@ -305,6 +318,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 N_vals[ikt] = ((TH1F*)f_rhofitmax->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
                 N_errdn[ikt] = ((TH1F*)f_rhofitmax->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
                 N_errup[ikt] = ((TH1F*)f_rhofitmax->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
+                if(debug)
+                {
+                    cout << "rhofitmax variation: " << rhofitmax_labels[ir] << endl;
+                    cout << Form("ikt %i: alpha = %g +%g -%g; R = %g +%g -%g; N = %g +%g -%g", ikt, alpha_vals[ikt], alpha_errup[ikt], alpha_errdn[ikt], R_vals[ikt], R_errup[ikt], R_errdn[ikt], N_vals[ikt], N_errup[ikt], N_errdn[ikt]) << endl;
+                }
             }
             alpha_rhofitmax[ienergy][ir] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
             R_rhofitmax[ienergy][ir] = new TGraphAsymmErrors(NKT, mtbin_centers, R_vals, xerr_low, xerr_high, R_errdn, R_errup);
@@ -352,6 +370,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 N_vals[ikt] = ((TH1F*)f_nevtavg->Get(Form("Nhist_ikt%i", ikt)))->GetMean();
                 N_errdn[ikt] = ((TH1F*)f_nevtavg->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
                 N_errup[ikt] = ((TH1F*)f_nevtavg->Get(Form("Nhist_ikt%i", ikt)))->GetStdDev();
+                if(debug)
+                {
+                    cout << "nevt_avg variation: " << (in==0 ? "default" : (in==1 ? "smaller" : "larger")) << endl;
+                    cout << Form("ikt %i: alpha = %g +%g -%g; R = %g +%g -%g; N = %g +%g -%g", ikt, alpha_vals[ikt], alpha_errup[ikt], alpha_errdn[ikt], R_vals[ikt], R_errup[ikt], R_errdn[ikt], N_vals[ikt], N_errup[ikt], N_errdn[ikt]) << endl;
+                }
             }
             alpha_nevtavg[ienergy][in] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
             R_nevtavg[ienergy][in] = new TGraphAsymmErrors(NKT, mtbin_centers, R_vals, xerr_low, xerr_high, R_errdn, R_errup);
@@ -647,8 +670,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gPad->SetLeftMargin(0.12);
             gPad->SetBottomMargin(0.12);
             // Use global y-range computed above
-            double ymins[] = {1.3, 3, 0.90}; // {0.5, 0, 0.5};
-            double ymaxs[] = {2.1, 8., 1.13}; // {2., 10., 1.2};
+            double ymins[] = {1.3, 3, 0.5}; // {0.5, 0, 0.90};
+            double ymaxs[] = {2.1, 8., 1.2}; // {2., 10., 1.13};
             double ymin = ymins[iparam];//global_ymin;
             double ymax = ymaxs[iparam];//global_ymax;
             double ypad = 0.12*(ymax - ymin);
