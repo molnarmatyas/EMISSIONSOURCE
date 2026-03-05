@@ -402,7 +402,7 @@ void fill_rfitmax_systlimits()
         if(is3Dfit)
         {
           // ((kT_center-0.2)/0.05) gives back value of ikt in this case; formally implemented to allow different kT binning
-          rfitmax_systlimits[ienergy][ikt][syst] = (rfitmax_def-((kT_center[ikt]-0.2)/0.05)*5.0)*(1.0 + syst_plusminus*0.6)*sqrt(energydouble[ienergy]/11.5);
+          rfitmax_systlimits[ienergy][ikt][syst] = (rfitmax_def-((kT_center[ikt]-0.2)/0.05)*5.0)*(1.0 + syst_plusminus*0.25)*sqrt(energydouble[ienergy]/11.5);
         }
         else
         {

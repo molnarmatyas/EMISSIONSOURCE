@@ -193,3 +193,6 @@ echo "Plotting param vs sqrt(sNN)"
 root.exe -b -q plot_alphaNR_allcent.cpp\(5000\)
 
 root.exe -b -q calc_and_plot_syserr.cpp\(-1\) # -1 for all energies, otherwise int integers to only plot one-one energy on mT vs param plots
+~/anaconda3/bin/python3.12 rhofitmax_vs_kt_snn.py
+# or:
+# python3 rhofitmax_vs_kt_snn.py

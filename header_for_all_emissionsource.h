@@ -32,7 +32,7 @@ const double qLCMS_cut_values[3] = {0.15, 0.05, 0.25}; // GeV/c
 
 // from onedim_EbE_or_Eavg_fit.cc
 // TODO rfitmax_systlimits centrality dependence maybe in the future?
-const double B[3] = {2500.0, 1600.0, 3600.0}; // rho_fitmax limits: default, strict, loose - NOT USED
+//const double B[3] = {2500.0, 1600.0, 3600.0}; // rho_fitmax limits: default, strict, loose - NOT USED
 const double rfitmax_def = 80.0;//72.0;
 double rfitmax_systlimits[NENERGIES][NKT][3]; // to be calculated in fitting code
 

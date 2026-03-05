@@ -12,20 +12,41 @@ rmaxdef = 80.0#72.0
 
 def rhofitmax(kT, energy, syst=0):
     ktparam = (kT-0.2) / 0.05
+    #ktparam = np.sqrt(ktparam) # tried but this goes down too slow, even if multiplied not by 5.0 but by 10.0
     systpm = 0.0
     if syst == 1:
         systpm = -1.0
     elif syst == 2:
         systpm = 1.0
-    return (rmaxdef - ktparam * 5.0) * (1.0 + systpm * 0.6) * np.sqrt(energy/11.5)
+    return (rmaxdef - ktparam * 5.0) * (1.0 + systpm * 0.25) * np.sqrt(energy/11.5) # only pm20% instead of the previous 60%
 
-plt.figure(figsize=(8,6))
-plt.title(r'$\rho_{fit}^{max}$ vs $k_T$ for different energies')
-plt.xlabel(r'$k_T$ (GeV)')
-plt.ylabel(r'$\rho_{fit}^{max}$')
-for energy in energies:
-    plt.plot(kT_center, rhofitmax(kT_center, energy), 'o-', label=f'{energy} GeV')
-plt.legend()
-fig1 = plt.gcf()
-fig1.savefig("figs/rhofitmax_vs_kt_snn.png")
-plt.show()
+#plt.figure(figsize=(8,6))
+#plt.title(r'$\rho_{fit}^{max}$ vs $k_T$ for different energies')
+#plt.xlabel(r'$k_T$ (GeV)')
+#plt.ylabel(r'$\rho_{fit}^{max}$')
+#for energy in energies:
+#    plt.plot(kT_center, rhofitmax(kT_center, energy), 'o-', label=f'{energy} GeV')
+#plt.legend()
+#fig1 = plt.gcf()
+#fig1.savefig("figs/rhofitmax_vs_kt_snn.png")
+#plt.show()
+
+# Plot all three syst variations side-by-side
+plt.figure(figsize=(18,6))
+plt.suptitle(r'$\rho_{fit}^{max}$ vs $k_T$ for different energies and systematic variations')
+for syst in range(3):
+    plt.subplot(1, 3, syst+1)
+    if syst == 0:
+        plt.title('Default')
+    elif syst == 1:
+        plt.title(r'Smaller $\rho_{fit}^{max}$')
+    else:
+        plt.title(r'Larger $\rho_{fit}^{max}$')
+    plt.xlabel(r'$k_T$ (GeV)')
+    plt.ylabel(r'$\rho_{fit}^{max}$')
+    for energy in energies:
+        plt.plot(kT_center, rhofitmax(kT_center, energy, syst), 'o-', label=f'{energy} GeV')
+    plt.legend()
+fig2 = plt.gcf()
+fig2.savefig("figs/rhofitmax_vs_kt_snn_all_syst.png")
+#plt.show() # do not show if called from command line, to avoid blocking the script from finishing and saving the figure
