@@ -12,6 +12,7 @@
 #include <complex>
 #include <vector>
 #include <list>
+#include <map>
 #include <cstdlib>
 #include <iomanip>
 #include <string>
@@ -85,6 +86,96 @@ double rfitmin = 3.;//1.;//5.;
 int thiskt = 0;
 int thisframe = 0;
 int NDF = 0;
+
+// TTree format support (new compact format from pairsource_urqmd)
+static TTree* g_pairTree = nullptr;
+static TFile* g_cachedFile = nullptr;
+static const int g_Nbins = 200;
+static double g_logbins[201]; // g_Nbins+1
+static bool g_logbinsInitialized = false;
+// Cache for pre-built histograms from TTree (indexed by [ievent][ikt][iosl])
+// iosl: 0=rho, 1=out, 2=side, 3=long
+static std::map<int, std::map<int, std::map<int, TH1F*>>> g_histCache;
+static bool g_histCacheBuilt = false;
+static int g_maxEventInTree = -1;
+
+void initLogBins() {
+  if(g_logbinsInitialized) return;
+  double xmin = 1.e-1;
+  double xmax = 1.e3;
+  double binfactor = TMath::Power(xmax/xmin, 1.0/g_Nbins);
+  g_logbins[0] = xmin;
+  for(int ibin = 1; ibin <= g_Nbins; ibin++)
+    g_logbins[ibin] = xmin * TMath::Power(binfactor, ibin);
+  g_logbinsInitialized = true;
+}
+
+// Build all histograms from TTree in a single pass (called once per file)
+void buildHistCacheFromTree() {
+  if(!g_pairTree || g_histCacheBuilt) return;
+  
+  initLogBins();
+  
+  // Clear any existing cache
+  for(auto& evtMap : g_histCache) {
+    for(auto& ktMap : evtMap.second) {
+      for(auto& oslPair : ktMap.second) {
+        if(oslPair.second) delete oslPair.second;
+      }
+    }
+  }
+  g_histCache.clear();
+  
+  // Read branch variables
+  Int_t t_ievent;
+  Short_t t_ich, t_iKT;
+  Float_t t_rho, t_rhoout, t_rhoside, t_rholong;
+  g_pairTree->SetBranchAddress("ievent", &t_ievent);
+  g_pairTree->SetBranchAddress("ich", &t_ich);
+  g_pairTree->SetBranchAddress("iKT", &t_iKT);
+  g_pairTree->SetBranchAddress("rho", &t_rho);
+  g_pairTree->SetBranchAddress("rhoout", &t_rhoout);
+  g_pairTree->SetBranchAddress("rhoside", &t_rhoside);
+  g_pairTree->SetBranchAddress("rholong", &t_rholong);
+  
+  std::cout << "Building histogram cache from TTree (" << g_pairTree->GetEntries() << " entries)..." << std::endl;
+  
+  g_maxEventInTree = -1;
+  Long64_t nentries = g_pairTree->GetEntries();
+  for(Long64_t i = 0; i < nentries; i++) {
+    g_pairTree->GetEntry(i);
+    
+    int ievt = t_ievent;
+    int ikt = t_iKT;
+    
+    if(ievt > g_maxEventInTree) g_maxEventInTree = ievt;
+    
+    // Create histograms on demand (both charges combined)
+    if(g_histCache[ievt][ikt].find(0) == g_histCache[ievt][ikt].end()) {
+      g_histCache[ievt][ikt][0] = new TH1F(Form("cache_rho_ev%d_kt%d", ievt, ikt), "", g_Nbins, g_logbins);
+      g_histCache[ievt][ikt][0]->SetDirectory(nullptr);
+      if(is3Dfit) {
+        g_histCache[ievt][ikt][1] = new TH1F(Form("cache_out_ev%d_kt%d", ievt, ikt), "", g_Nbins, g_logbins);
+        g_histCache[ievt][ikt][2] = new TH1F(Form("cache_side_ev%d_kt%d", ievt, ikt), "", g_Nbins, g_logbins);
+        g_histCache[ievt][ikt][3] = new TH1F(Form("cache_long_ev%d_kt%d", ievt, ikt), "", g_Nbins, g_logbins);
+        g_histCache[ievt][ikt][1]->SetDirectory(nullptr);
+        g_histCache[ievt][ikt][2]->SetDirectory(nullptr);
+        g_histCache[ievt][ikt][3]->SetDirectory(nullptr);
+      }
+    }
+    
+    // Fill histograms (both charges go into same histogram)
+    g_histCache[ievt][ikt][0]->Fill(t_rho);
+    if(is3Dfit) {
+      g_histCache[ievt][ikt][1]->Fill(t_rhoout);
+      g_histCache[ievt][ikt][2]->Fill(t_rhoside);
+      g_histCache[ievt][ikt][3]->Fill(t_rholong);
+    }
+  }
+  
+  g_histCacheBuilt = true;
+  std::cout << "Histogram cache built. Max event index: " << g_maxEventInTree << std::endl;
+}
 
 const char* statuses[6] = {"converged",
                            "cov._made_pos.def.",
@@ -247,6 +338,54 @@ void loadHistograms(bool addtogether,
   // function should be called with temp_rhohist == histograms[ikt]
   if(IsUrQMD)
   {
+    // Check if file has TTree format (new compact format) or histogram format (legacy)
+    if(file != g_cachedFile) {
+      g_cachedFile = file;
+      g_histCacheBuilt = false; // Reset cache when file changes
+      g_pairTree = dynamic_cast<TTree*>(file->Get("pairTree"));
+      if(g_pairTree) {
+        std::cout << "Detected TTree format (compact)." << std::endl;
+        buildHistCacheFromTree(); // Build all histograms in ONE pass
+      }
+    }
+    
+    if(g_pairTree && g_histCacheBuilt) {
+      // Use cached histograms (already built from TTree)
+      auto evtIt = g_histCache.find(ievt);
+      if(evtIt != g_histCache.end()) {
+        auto ktIt = evtIt->second.find(ikt);
+        if(ktIt != evtIt->second.end()) {
+          if(addtogether) {
+            if(ktIt->second[0] && ktIt->second[0]->GetEntries() > 0)
+              temp_rhohist[0]->Add(ktIt->second[0]);
+            if(is3Dfit) {
+              if(ktIt->second[1] && ktIt->second[1]->GetEntries() > 0)
+                temp_rhohist[1]->Add(ktIt->second[1]);
+              if(ktIt->second[2] && ktIt->second[2]->GetEntries() > 0)
+                temp_rhohist[2]->Add(ktIt->second[2]);
+              if(ktIt->second[3] && ktIt->second[3]->GetEntries() > 0)
+                temp_rhohist[3]->Add(ktIt->second[3]);
+            }
+          } else {
+            // Clone the cached histogram (caller may modify it)
+            temp_rhohist[0] = dynamic_cast<TH1F*>(ktIt->second[0]->Clone());
+            temp_rhohist[0]->SetDirectory(nullptr);
+            if(is3Dfit) {
+              temp_rhohist[1] = dynamic_cast<TH1F*>(ktIt->second[1]->Clone());
+              temp_rhohist[2] = dynamic_cast<TH1F*>(ktIt->second[2]->Clone());
+              temp_rhohist[3] = dynamic_cast<TH1F*>(ktIt->second[3]->Clone());
+              temp_rhohist[1]->SetDirectory(nullptr);
+              temp_rhohist[2]->SetDirectory(nullptr);
+              temp_rhohist[3]->SetDirectory(nullptr);
+            }
+          }
+        }
+      }
+      // If not found in cache, histograms remain nullptr/unchanged (no pairs for this evt/kt)
+      return;
+    }
+    
+    // LEGACY histogram format: read histograms directly
     // Add both charges together...
     // pi- pi-
     // -------
