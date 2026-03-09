@@ -66,11 +66,11 @@ const char* qLCMS_outputtext[3] = {"", "_strictqLCMS", "_looseqLCMS"};
 
 int main(int argc, char** argv)
 {
-  std::map<int, std::map<int, std::map<int, TH1D *> > > D_lcms;
-  std::map<int, std::map<int, std::map<int, TH1D *> > > D_out_lcms;
-  std::map<int, std::map<int, std::map<int, TH1D *> > > D_side_lcms;
-  std::map<int, std::map<int, std::map<int, TH1D *> > > D_long_lcms;
-  std::map<int, std::map<int, std::map<int, TH1D *> > > D_outlong_lcms;
+  std::map<int, std::map<int, std::map<int, TH1F *> > > D_lcms;
+  std::map<int, std::map<int, std::map<int, TH1F *> > > D_out_lcms;
+  std::map<int, std::map<int, std::map<int, TH1F *> > > D_side_lcms;
+  std::map<int, std::map<int, std::map<int, TH1F *> > > D_long_lcms;
+  std::map<int, std::map<int, std::map<int, TH1F *> > > D_outlong_lcms;
   if(argc < 3)
   {
     std::cerr << "usage: pairsource_urqmd <energy_string> <qLCMS_cut>" << std::endl;
@@ -90,7 +90,9 @@ int main(int argc, char** argv)
   //TString inputFile = treefile->GetName(); 
   TFile* outFile = new TFile(Form("UrQMD_3d_source_%scent_all_%s%s.root",centleg[11],argv[1],
                                   qLCMS_outputtext[qLCMS_cuttype]),"RECREATE"); // FIXME make 11->ICENT for other centralities
-  
+  // File compression - no decrease in size, but was worth trying
+  // outFile->SetCompressionLevel(9); // maximum compression - smaller output, but this might consume more memory and might become slower 
+
   TTree *event = (TTree*) treefile->Get("urqmd_tree");
   const int Nbins = 200;
   double xmin = 1.e-1;
@@ -100,20 +102,6 @@ int main(int argc, char** argv)
   logbins[0] = xmin;
   for(int ibin = 1; ibin <= Nbins; ibin++)
       logbins[ibin] = xmin * TMath::Power(binfactor,ibin);
-  for(int iev = 0; iev < event->GetEntries(); iev++)
-  {
-   for (int ich = 0; ich < NCH; ich++)
-   {
-      for (int iKT = 0; iKT < NKT; iKT++)
-      {
-        D_lcms[iev][ich][iKT] = new TH1D(Form("D_lcms_ev%i_ch%i_KT%i", iev, ich, iKT),"Spatial size of charged pion source in the LCMS",Nbins,logbins);
-        D_out_lcms[iev][ich][iKT] = new TH1D(Form("D_out_lcms_ev%i_ch%i_KT%i", iev, ich, iKT),"Spatial size, out direction of charged pion source in the LCMS",Nbins,logbins);
-        D_side_lcms[iev][ich][iKT] = new TH1D(Form("D_side_lcms_ev%i_ch%i_KT%i", iev, ich, iKT),"Spatial size, side direction of charged pion source in the LCMS",Nbins,logbins);
-        D_long_lcms[iev][ich][iKT] = new TH1D(Form("D_long_lcms_ev%i_ch%i_KT%i", iev, ich, iKT),"Spatial size, long direction of charged pion source in the LCMS",Nbins,logbins);
-        D_outlong_lcms[iev][ich][iKT] = new TH1D(Form("D_outlong_lcms_ev%i_ch%i_KT%i", iev, ich, iKT),"Spatial size, outlong direction of charged pion source in the LCMS",Nbins,logbins);
-      }
-    }
-  }
 
   TH1D *KTdist = new TH1D("ktdist","K_{T} distribution",100,0,10);
   TH1D *rapdist = new TH1D("rapdist","rapidity distribution",100,-10,10);
@@ -145,6 +133,20 @@ int main(int argc, char** argv)
   for (Int_t ievent = 0; ievent < nEvent; ievent++) {
     event->GetEntry(ievent);
     progressbar(ievent+1.0, nEvent);
+    
+    // Create histograms for this event only (incremental processing)
+    for (int ich = 0; ich < NCH; ich++)
+    {
+      for (int iKT = 0; iKT < NKT; iKT++)
+      {
+        D_lcms[ievent][ich][iKT] = new TH1F(Form("D_lcms_ev%i_ch%i_KT%i", ievent, ich, iKT),"Spatial size of charged pion source in the LCMS",Nbins,logbins);
+        D_out_lcms[ievent][ich][iKT] = new TH1F(Form("D_out_lcms_ev%i_ch%i_KT%i", ievent, ich, iKT),"Spatial size, out direction of charged pion source in the LCMS",Nbins,logbins);
+        D_side_lcms[ievent][ich][iKT] = new TH1F(Form("D_side_lcms_ev%i_ch%i_KT%i", ievent, ich, iKT),"Spatial size, side direction of charged pion source in the LCMS",Nbins,logbins);
+        D_long_lcms[ievent][ich][iKT] = new TH1F(Form("D_long_lcms_ev%i_ch%i_KT%i", ievent, ich, iKT),"Spatial size, long direction of charged pion source in the LCMS",Nbins,logbins);
+        D_outlong_lcms[ievent][ich][iKT] = new TH1F(Form("D_outlong_lcms_ev%i_ch%i_KT%i", ievent, ich, iKT),"Spatial size, outlong direction of charged pion source in the LCMS",Nbins,logbins);
+      }
+    }
+    
     int eventsize = PX->size();
     int pid = 0;
     for(int ich = 0; ich < NCH; ich++)
@@ -240,23 +242,38 @@ int main(int argc, char** argv)
         } // only particles with matching PID
       } // end of track loop - loop for particle j
     } // end of charge loop
-  } // end of event loop
-  std::cout << std::endl;
-  outFile->cd();
-  for(int iev = 0; iev < event->GetEntries(); iev++)
-  {
+    
+    // Write and delete histograms for this event immediately (incremental processing)
+    // Only write non-empty histograms to save disk space
+    outFile->cd();
     for(int ich = 0; ich < NCH; ich++)
     {
       for(int iKT = 0; iKT < NKT; iKT++)
       {
-        D_lcms[iev][ich][iKT]->Write();
-        D_out_lcms[iev][ich][iKT]->Write();
-        D_side_lcms[iev][ich][iKT]->Write();
-        D_long_lcms[iev][ich][iKT]->Write();
-        //D_outlong_lcms[iev][ich][iKT]->Write(); // not really used, takes space, uncomment if ever needed
+        if(D_lcms[ievent][ich][iKT]->GetEntries() > 0) D_lcms[ievent][ich][iKT]->Write();
+        if(D_out_lcms[ievent][ich][iKT]->GetEntries() > 0) D_out_lcms[ievent][ich][iKT]->Write();
+        if(D_side_lcms[ievent][ich][iKT]->GetEntries() > 0) D_side_lcms[ievent][ich][iKT]->Write();
+        if(D_long_lcms[ievent][ich][iKT]->GetEntries() > 0) D_long_lcms[ievent][ich][iKT]->Write();
+        //if(D_outlong_lcms[ievent][ich][iKT]->GetEntries() > 0) D_outlong_lcms[ievent][ich][iKT]->Write(); // not really used
+        
+        // Free memory immediately
+        delete D_lcms[ievent][ich][iKT];
+        delete D_out_lcms[ievent][ich][iKT];
+        delete D_side_lcms[ievent][ich][iKT];
+        delete D_long_lcms[ievent][ich][iKT];
+        delete D_outlong_lcms[ievent][ich][iKT];
       }
     }
-  }
+    // Clear map entries for this event to release map memory
+    D_lcms.erase(ievent);
+    D_out_lcms.erase(ievent);
+    D_side_lcms.erase(ievent);
+    D_long_lcms.erase(ievent);
+    D_outlong_lcms.erase(ievent);
+    
+  } // end of event loop
+  std::cout << std::endl;
+  outFile->cd();
   KTdist->Write();
   rapdist->Write();
   post_rapdist->Write();

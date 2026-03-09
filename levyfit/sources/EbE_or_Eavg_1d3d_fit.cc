@@ -255,7 +255,7 @@ void loadHistograms(bool addtogether,
     // Read the histogram
     if(addtogether)
     {
-      TH1D* tempHist = dynamic_cast<TH1D*>(file->Get(histName));
+      TH1F* tempHist = dynamic_cast<TH1F*>(file->Get(histName));
       if(tempHist) {
         temp_rhohist[0]->Add(tempHist);
         delete tempHist;  // CRITICAL: delete the temporary histogram after adding
@@ -263,7 +263,7 @@ void loadHistograms(bool addtogether,
     }
     else
     {
-      temp_rhohist[0] = dynamic_cast<TH1D*>(file->Get(histName));
+      temp_rhohist[0] = dynamic_cast<TH1F*>(file->Get(histName));
       if(temp_rhohist[0]) temp_rhohist[0]->SetDirectory(nullptr); // detach from file ownership
     }
     /* Check mostly unnecessary 
@@ -281,7 +281,7 @@ void loadHistograms(bool addtogether,
         histName = Form("D_%s_%s_ev%d_ch%d_KT%d", osl_labels[iosl], frames[iframe], ievt, 0, ikt);
         if(addtogether)
         {
-          TH1D* tempHist = dynamic_cast<TH1D*>(file->Get(histName));
+          TH1F* tempHist = dynamic_cast<TH1F*>(file->Get(histName));
           if(tempHist) {
             temp_rhohist[iosl+1]->Add(tempHist);
             delete tempHist;
@@ -289,7 +289,7 @@ void loadHistograms(bool addtogether,
         }
         else
         {
-          temp_rhohist[iosl+1] = dynamic_cast<TH1D*>(file->Get(histName));
+          temp_rhohist[iosl+1] = dynamic_cast<TH1F*>(file->Get(histName));
           if(temp_rhohist[iosl+1]) temp_rhohist[iosl+1]->SetDirectory(nullptr); // detach from file ownership
         }
       }
@@ -300,7 +300,7 @@ void loadHistograms(bool addtogether,
     // Form the histogram name
     histName = Form("D_%s_ev%d_ch%d_KT%d", frames[iframe], ievt, 1, ikt);
     // Read the histogram (always add the second charge)
-    TH1D* tempHist2 = dynamic_cast<TH1D*>(file->Get(histName));
+    TH1F* tempHist2 = dynamic_cast<TH1F*>(file->Get(histName));
     if(tempHist2) {
       temp_rhohist[0]->Add(tempHist2);
       delete tempHist2;
@@ -318,7 +318,7 @@ void loadHistograms(bool addtogether,
       {
         histName = Form("D_%s_%s_ev%d_ch%d_KT%d", osl_labels[iosl], frames[iframe], ievt, 1, ikt);
         // Always add second charge (it's after the first charge assignment/add, so accumulates correctly)
-        TH1D* tempHist3 = dynamic_cast<TH1D*>(file->Get(histName));
+        TH1F* tempHist3 = dynamic_cast<TH1F*>(file->Get(histName));
         if(tempHist3) {
           temp_rhohist[iosl+1]->Add(tempHist3);
           delete tempHist3;
