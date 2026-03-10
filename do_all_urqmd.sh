@@ -270,22 +270,22 @@ done
 
 
 # These plots only for informative purposes, with error bars showing stddev or sg like that
-mkdir -p $BASEDIR/alphaNR_vs_kt
-for ienergy in "${energies_low[@]}"; do
-  echo "Plotting individual graphs for energy: ${ienergy}"
-  #root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,${nevt_avg_default}\)
-  root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,5000\)
-done
-for ienergy in "${energies_high[@]}"; do
-  echo "Plotting individual graphs for energy: ${ienergy}"
-  root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,${nevt_avg_default}\)
-done
+# mkdir -p $BASEDIR/alphaNR_vs_kt
+# for ienergy in "${energies_low[@]}"; do
+#   echo "Plotting individual graphs for energy: ${ienergy}"
+#   #root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,${nevt_avg_default}\)
+#   root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,5000\)
+# done
+# for ienergy in "${energies_high[@]}"; do
+#   echo "Plotting individual graphs for energy: ${ienergy}"
+#   root.exe -b -q plot_alpha_vs_kt_EbE_or_Eavg.cpp\(\"${ienergy}\",true,5000\)
+# done
 
 # Final summary plots
 # -------------------
 echo "Plotting param vs sqrt(sNN)"
 #root.exe -b -q plot_alphaNR_allcent.cpp\(${nevt_avg_default}\)
-root.exe -b -q plot_alphaNR_allcent.cpp\(5000\) # sort of deprecated with UrQMD
+# root.exe -b -q plot_alphaNR_allcent.cpp\(5000\) # sort of deprecated with UrQMD
 # Calculate & collect all systematics
 root.exe -b -q calc_and_plot_syserr.cpp\(-1\) # -1 for all energies, otherwise int integers to only plot one-one energy on mT vs param plots
 # Plot rhofitmax values vs KT, additionally
