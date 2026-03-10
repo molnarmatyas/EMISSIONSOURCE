@@ -250,12 +250,17 @@ int main(int argc, char** argv)
     {
       for(int iKT = 0; iKT < NKT; iKT++)
       {
-        if(D_lcms[ievent][ich][iKT]->GetEntries() > 0) D_lcms[ievent][ich][iKT]->Write();
-        if(D_out_lcms[ievent][ich][iKT]->GetEntries() > 0) D_out_lcms[ievent][ich][iKT]->Write();
-        if(D_side_lcms[ievent][ich][iKT]->GetEntries() > 0) D_side_lcms[ievent][ich][iKT]->Write();
-        if(D_long_lcms[ievent][ich][iKT]->GetEntries() > 0) D_long_lcms[ievent][ich][iKT]->Write();
-        //if(D_outlong_lcms[ievent][ich][iKT]->GetEntries() > 0) D_outlong_lcms[ievent][ich][iKT]->Write(); // not really used
-        
+        //if(D_lcms[ievent][ich][iKT]->GetEntries() == 0) std::cerr << "Event " << ievent << ", charge " << ich << ", kT bin " << iKT << ": empty histogram." << std::endl;
+        D_lcms[ievent][ich][iKT]->Write();
+        //if(D_out_lcms[ievent][ich][iKT]->GetEntries() == 0) std::cerr << "Event " << ievent << ", out, charge " << ich << ", kT bin " << iKT << ": empty histogram." << std::endl;
+        D_out_lcms[ievent][ich][iKT]->Write();
+        //if(D_side_lcms[ievent][ich][iKT]->GetEntries() == 0) std::cerr << "Event " << ievent << ", side, charge " << ich << ", kT bin " << iKT << ": empty histogram." << std::endl;
+        D_side_lcms[ievent][ich][iKT]->Write();
+        //if(D_long_lcms[ievent][ich][iKT]->GetEntries() == 0) std::cerr << "Event " << ievent << ", long, charge " << ich << ", kT bin " << iKT << ": empty histogram." << std::endl;
+        D_long_lcms[ievent][ich][iKT]->Write();
+        //if(D_outlong_lcms[ievent][ich][iKT]->GetEntries() == 0) std::cerr << "Event " << ievent << ", charge " << ich << ", kT bin " << iKT << ": empty histogram." << std::endl;
+        //D_outlong_lcms[ievent][ich][iKT]->Write(); // not really used
+
         // Free memory immediately
         delete D_lcms[ievent][ich][iKT];
         delete D_out_lcms[ievent][ich][iKT];

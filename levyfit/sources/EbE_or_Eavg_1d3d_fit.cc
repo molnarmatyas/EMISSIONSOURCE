@@ -356,14 +356,15 @@ void loadHistograms(bool addtogether,
         auto ktIt = evtIt->second.find(ikt);
         if(ktIt != evtIt->second.end()) {
           if(addtogether) {
-            if(ktIt->second[0] && ktIt->second[0]->GetEntries() > 0)
+            // Guard: only Add if the target histogram exists
+            if(temp_rhohist[0] && ktIt->second[0] && ktIt->second[0]->GetEntries() > 0)
               temp_rhohist[0]->Add(ktIt->second[0]);
             if(is3Dfit) {
-              if(ktIt->second[1] && ktIt->second[1]->GetEntries() > 0)
+              if(temp_rhohist[1] && ktIt->second[1] && ktIt->second[1]->GetEntries() > 0)
                 temp_rhohist[1]->Add(ktIt->second[1]);
-              if(ktIt->second[2] && ktIt->second[2]->GetEntries() > 0)
+              if(temp_rhohist[2] && ktIt->second[2] && ktIt->second[2]->GetEntries() > 0)
                 temp_rhohist[2]->Add(ktIt->second[2]);
-              if(ktIt->second[3] && ktIt->second[3]->GetEntries() > 0)
+              if(temp_rhohist[3] && ktIt->second[3] && ktIt->second[3]->GetEntries() > 0)
                 temp_rhohist[3]->Add(ktIt->second[3]);
             }
           } else {
@@ -804,11 +805,26 @@ int main(int argc, char *argv[])
           if((globalEventIndex % NEVT_AVG == 0) || NEVT_AVG == 1)
           {
             loadHistograms(false, ifile, ievt, ikt, iframe, file, IsUrQMD, histograms[ikt]); // false: do not add, just load
+            
+            // If the histogram is still nullptr after loading, skip this ikt entirely
+            if(!histograms[ikt][0]) {
+              if(NEVT_AVG == 1) {
+                cerr << "No data for ievt=" << ievt << " ikt=" << ikt << ", skipping." << endl;
+              }
+              continue;
+            }
             if(NEVT_AVG != 1) continue; // if averaging and only first event in avg. block, do not proceed to fitting yet
           }
           else
           {
-            loadHistograms(true, ifile, ievt, ikt, iframe, file, IsUrQMD, histograms[ikt]); // true: add to existing histograms
+            // Only add if the base histogram exists; if it doesn't, we need to load (not add)
+            if(!histograms[ikt][0]) {
+              // Base histogram was nullptr (previous events in this block had no data).
+              // Try to load fresh instead of adding.
+              loadHistograms(false, ifile, ievt, ikt, iframe, file, IsUrQMD, histograms[ikt]);
+            } else {
+              loadHistograms(true, ifile, ievt, ikt, iframe, file, IsUrQMD, histograms[ikt]); // true: add to existing histograms
+            }
             if(globalEventIndex % NEVT_AVG != NEVT_AVG - 1)
             {
               continue; // do until last one of averaging
@@ -816,6 +832,16 @@ int main(int argc, char *argv[])
             averagingComplete = true; // Set when last event of block reached
           }
           
+          // Final null-check before any histogram access — skip this kT bin if still empty
+          if(!histograms[ikt][0]) {
+            cerr << "No data accumulated for ikt=" << ikt << " after averaging block (globalEvt=" << globalEventIndex << "), skipping fit." << endl;
+            continue;
+          }
+          if(is3Dfit && (!histograms[ikt][1] || !histograms[ikt][2] || !histograms[ikt][3])) {
+            cerr << "Missing 3D projection histogram for ikt=" << ikt << " after averaging block, skipping fit." << endl;
+            continue;
+          }
+
           // Print some information about the histogram
           int entries = histograms[ikt][0]->GetEntries();
           std::cout << "If 1D, processed sqrtrho2 histogram with " << entries << " entries (= pairs, I guess)." << std::endl;
@@ -921,6 +947,7 @@ int main(int argc, char *argv[])
           {
             if(!is3Dfit && iosl>0) continue; // for 1D fit, only do the rho proj
             if(is3Dfit && iosl==0) continue; // for 3D fit, skip the rho proj
+            if(!histograms[ikt][iosl]) continue; // skip if histogram is missing
             Drho_from_rhohist(histograms[ikt][iosl], iosl);
           }
 
