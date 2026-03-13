@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # To run this script, simply execute `./do_all_urqmd.sh` from the terminal. It will run the entire analysis chain for all energies and produce the final plots. You can optionally specify a maximum number of concurrent jobs (e.g. `./do_all_urqmd.sh 3`) to limit resource usage during the fitting stage.
-# The analysis part can be skipped via internally setting `do_analysis=false` if you already have the analysed ROOT files and just want to re-run the fitting with different parameters or systematics.
+# Conversion, analysis and fitting parts can be skipped via internally setting these variables to false
 do_analysis=false
 do_conversion=false # whether to convert from .f19 to root tree files
+do_fitting=true # whether to run the Levy fits (can be skipped if you just want to re-plot)
 highstatistics=false # use higher statistics for lower energies if true
 
 # Base directory of this script (absolute)
@@ -142,40 +143,43 @@ if [ "$highstatistics" = true ]; then
   done
 fi
 
-# Fitting for different nevt_avg for systematics
-for avg in "${nevt_avgs[@]}"; do
-  echo "Fitting for nevt_avg: ${avg}"
-  for energy in "${energies_low[@]}"; do
-    echo "Fitting for energy ${energy}"
-    # Run the fit and then move produced AVG images into their folder only after the fit finishes
-    if [ "$highstatistics" = true ]; then
-      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${avg} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}.log"
-    else
-      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${avg} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}.log"
-    fi
-  done
-  for energy in "${energies_high[@]}"; do
-    echo "Fitting for energy ${energy}"
-    run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${avg} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}.log"
-  done
-  wait
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*AVG${avg}*.png" "$BASEDIR/figs/fitting/lcms/AVG${avg}"
-done
-
-if [ "$highstatistics" = true ]; then
-  for avg in "${nevt_avgs_highstat[@]}"; do
-    echo "Fitting for high-statistics nevt_avg: ${avg}"
+if [ "$do_fitting" = true ]; then
+  echo "Starting fitting for all nevt_avg values..."
+  # Fitting for different nevt_avg for systematics
+  for avg in "${nevt_avgs[@]}"; do
+    echo "Fitting for nevt_avg: ${avg}"
     for energy in "${energies_low[@]}"; do
-      echo "Fitting for energy ${energy} with high-statistics nevt_avg: ${avg}"
-      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${avg} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}_highstat.log"
+      echo "Fitting for energy ${energy}"
+      # Run the fit and then move produced AVG images into their folder only after the fit finishes
+      if [ "$highstatistics" = true ]; then
+        run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${avg} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}.log"
+      else
+        run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${avg} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}.log"
+      fi
+    done
+    for energy in "${energies_high[@]}"; do
+      echo "Fitting for energy ${energy}"
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${avg} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}.log"
     done
     wait
     move_matching_png "$BASEDIR/figs/fitting/lcms/*AVG${avg}*.png" "$BASEDIR/figs/fitting/lcms/AVG${avg}"
   done
-fi
 
-# Wait for any remaining background jobs from nevt_avg sweep
-wait
+  if [ "$highstatistics" = true ]; then
+    for avg in "${nevt_avgs_highstat[@]}"; do
+      echo "Fitting for high-statistics nevt_avg: ${avg}"
+      for energy in "${energies_low[@]}"; do
+        echo "Fitting for energy ${energy} with high-statistics nevt_avg: ${avg}"
+        run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${avg} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_nevtavg${avg}_highstat.log"
+      done
+      wait
+      move_matching_png "$BASEDIR/figs/fitting/lcms/*AVG${avg}*.png" "$BASEDIR/figs/fitting/lcms/AVG${avg}"
+    done
+  fi
+
+  # Wait for any remaining background jobs from nevt_avg sweep
+  wait
+fi # end of fitting block (nevt_avg systematics)
 
 cd ..
 
@@ -195,39 +199,42 @@ rm -rf $BASEDIR/figs/fitting/lcms/looseQlcms/
 mkdir -p $BASEDIR/figs/fitting/lcms/defaultQlcms
 mkdir -p $BASEDIR/figs/fitting/lcms/strictQlcms
 mkdir -p $BASEDIR/figs/fitting/lcms/looseQlcms
-for energy in "${energies_low[@]}"; do
-  echo "Fitting for qLCMS systematics, energy ${energy}"
-  # Parallel execution
-  if [ "$highstatistics" = true ]; then
-    run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultqLCMS.log"
-    run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 1 0 1" "$BASEDIR/logfiles/fit_log_${energy}_strictqLCMS.log"
-    run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 2 0 1" "$BASEDIR/logfiles/fit_log_${energy}_looseqLCMS.log"
-  else
+if [ "$do_fitting" = true ]; then
+  echo "Starting fitting for qLCMS systematics..."
+  for energy in "${energies_low[@]}"; do
+    echo "Fitting for qLCMS systematics, energy ${energy}"
+    # Parallel execution
+    if [ "$highstatistics" = true ]; then
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultqLCMS.log"
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 1 0 1" "$BASEDIR/logfiles/fit_log_${energy}_strictqLCMS.log"
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 2 0 1" "$BASEDIR/logfiles/fit_log_${energy}_looseqLCMS.log"
+    else
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultqLCMS.log"
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 1 0 1" "$BASEDIR/logfiles/fit_log_${energy}_strictqLCMS.log"
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 2 0 1" "$BASEDIR/logfiles/fit_log_${energy}_looseqLCMS.log"
+    fi
+    # We started up to 3 jobs here; throttle will keep the overall concurrency <= MAXJOBS
+    # Wait here to ensure all qLCMS systematics for this energy finish before moving on
+    wait
+    #mv $BASEDIR/figs/fitting/lcms/*strictqLCMS*.png $BASEDIR/figs/fitting/lcms/defaultQlcms/
+    #mv $BASEDIR/figs/fitting/lcms/*looseqLCMS*.png $BASEDIR/figs/fitting/lcms/defaultQlcms/
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*strictqLCMS*.png" "$BASEDIR/figs/fitting/lcms/strictQlcms"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*looseqLCMS*.png" "$BASEDIR/figs/fitting/lcms/looseQlcms"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultQlcms" # move remaining default
+    echo "Fitting for qLCMS systematics, energy ${energy} done."
+  done
+  for energy in "${energies_high[@]}"; do
+    echo "Fitting for qLCMS systematics, energy ${energy}"
     run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultqLCMS.log"
     run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 1 0 1" "$BASEDIR/logfiles/fit_log_${energy}_strictqLCMS.log"
     run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 2 0 1" "$BASEDIR/logfiles/fit_log_${energy}_looseqLCMS.log"
-  fi
-  # We started up to 3 jobs here; throttle will keep the overall concurrency <= MAXJOBS
-  # Wait here to ensure all qLCMS systematics for this energy finish before moving on
-  wait
-  #mv $BASEDIR/figs/fitting/lcms/*strictqLCMS*.png $BASEDIR/figs/fitting/lcms/defaultQlcms/
-  #mv $BASEDIR/figs/fitting/lcms/*looseqLCMS*.png $BASEDIR/figs/fitting/lcms/defaultQlcms/
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*strictqLCMS*.png" "$BASEDIR/figs/fitting/lcms/strictQlcms"
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*looseqLCMS*.png" "$BASEDIR/figs/fitting/lcms/looseQlcms"
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultQlcms" # move remaining default
-  echo "Fitting for qLCMS systematics, energy ${energy} done."
-done
-for energy in "${energies_high[@]}"; do
-  echo "Fitting for qLCMS systematics, energy ${energy}"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultqLCMS.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 1 0 1" "$BASEDIR/logfiles/fit_log_${energy}_strictqLCMS.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 2 0 1" "$BASEDIR/logfiles/fit_log_${energy}_looseqLCMS.log"
-  wait
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*strictqLCMS*.png" "$BASEDIR/figs/fitting/lcms/strictQlcms"
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*looseqLCMS*.png" "$BASEDIR/figs/fitting/lcms/looseQlcms"
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultQlcms"
-  echo "Fitting for qLCMS systematics, energy ${energy} done."
-done
+    wait
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*strictqLCMS*.png" "$BASEDIR/figs/fitting/lcms/strictQlcms"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*looseqLCMS*.png" "$BASEDIR/figs/fitting/lcms/looseQlcms"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultQlcms"
+    echo "Fitting for qLCMS systematics, energy ${energy} done."
+  done
+fi # end of qLCMS systematics fitting block
 
 # rhofitmax systematics
 echo "Preparing folders for rhofitmax systematics"
@@ -237,37 +244,39 @@ rm -rf $BASEDIR/figs/fitting/lcms/looserhoFitMax/
 mkdir -p $BASEDIR/figs/fitting/lcms/defaultrhoFitMax
 mkdir -p $BASEDIR/figs/fitting/lcms/strictrhoFitMax
 mkdir -p $BASEDIR/figs/fitting/lcms/looserhoFitMax
-for energy in "${energies_low[@]}"; do
-  echo "Fitting for rhofitmax systematics, energy ${energy}"
-  # Parallel execution
-  if [ "$highstatistics" = true ]; then
-    run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultrhoFitMax.log"
-    run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 0 1 1" "$BASEDIR/logfiles/fit_log_${energy}_strictrhoFitMax.log"
-    run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 0 2 1" "$BASEDIR/logfiles/fit_log_${energy}_looserhoFitMax.log"
-  else
+if [ "$do_fitting" = true ]; then
+  echo "Starting fitting for rhofitmax systematics..."
+  for energy in "${energies_low[@]}"; do
+    echo "Fitting for rhofitmax systematics, energy ${energy}"
+    # Parallel execution
+    if [ "$highstatistics" = true ]; then
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultrhoFitMax.log"
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 0 1 1" "$BASEDIR/logfiles/fit_log_${energy}_strictrhoFitMax.log"
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt_highstat} ${nevt_avg_default} 0 2 1" "$BASEDIR/logfiles/fit_log_${energy}_looserhoFitMax.log"
+    else
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultrhoFitMax.log"
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 1 1" "$BASEDIR/logfiles/fit_log_${energy}_strictrhoFitMax.log"
+      run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 2 1" "$BASEDIR/logfiles/fit_log_${energy}_looserhoFitMax.log"
+    fi
+    wait
+    # Move remaining default
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*strictrhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/strictrhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*looserhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/looserhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultrhoFitMax"
+    echo "Fitting for rhofitmax systematics, energy ${energy} done."
+  done
+  for energy in "${energies_high[@]}"; do
+    echo "Fitting for rhofitmax systematics, energy ${energy}"
     run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultrhoFitMax.log"
     run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 1 1" "$BASEDIR/logfiles/fit_log_${energy}_strictrhoFitMax.log"
     run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 2 1" "$BASEDIR/logfiles/fit_log_${energy}_looserhoFitMax.log"
-  fi
-  wait
-  # Move remaining default
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*strictrhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/strictrhoFitMax"
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*looserhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/looserhoFitMax"
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultrhoFitMax"
-  echo "Fitting for rhofitmax systematics, energy ${energy} done."
-done
-for energy in "${energies_high[@]}"; do
-  echo "Fitting for rhofitmax systematics, energy ${energy}"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 0 1" "$BASEDIR/logfiles/fit_log_${energy}_defaultrhoFitMax.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 1 1" "$BASEDIR/logfiles/fit_log_${energy}_strictrhoFitMax.log"
-  run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 2 1" "$BASEDIR/logfiles/fit_log_${energy}_looserhoFitMax.log"
-  wait
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*strictrhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/strictrhoFitMax"
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*looserhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/looserhoFitMax"
-  move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultrhoFitMax"
-  echo "Fitting for rhofitmax systematics, energy ${energy} done."
-done
-
+    wait
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*strictrhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/strictrhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*looserhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/looserhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultrhoFitMax"
+    echo "Fitting for rhofitmax systematics, energy ${energy} done."
+  done
+fi # end of rhofitmax systematics fitting block
 
 # These plots only for informative purposes, with error bars showing stddev or sg like that
 # mkdir -p $BASEDIR/alphaNR_vs_kt

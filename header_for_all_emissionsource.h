@@ -11,6 +11,7 @@ const int NCENT = 10; // number of centrality classes
 //#include <cstddef>  // std::size_t
 
 const bool is3Dfit = true; // global flag to indicate if 3D fit is being performed
+const bool highstat = true; // global flag to indicate if we are using the higher statistics for the lower energies
 
 // Mass^2 values
 const double Mass2_pi = 0.019479835;
@@ -25,6 +26,8 @@ const double kT_center[NKT] = {0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 
 const char* energies[] = {"3p0","3p2","3p5","3p9","4p5","7p7","9p2","11p5","14p5","19p6","27"};
 const int NENERGIES = static_cast<int>(sizeof(energies) / sizeof(energies[0]));
 const double energydouble[NENERGIES] = {3.0, 3.2, 3.5, 3.9, 4.5, 7.7, 9.2, 11.5, 14.5, 19.6, 27.0};
+const int NENERGIES_highstat = 4; // number of the lowest energies with higher statistics
+                                  // change it if you want to use higher statistics for more or fewer energies
 
 // from pairsource_urqmd.cc (avoid leading underscore in global scope)
 const char* qLCMS_cut[3] = {"default", "strict", "loose"};
@@ -40,6 +43,11 @@ double rfitmax_systlimits[NENERGIES][NKT][3]; // to be calculated in fitting cod
 const int NEVT_AVGsyst[] = {10, 25, 50, 100, 200, 500, 1000, 5000, 10000}; // removed 1, not meaningful for low energies, runs too long
 const int NEVTAVGS = sizeof(NEVT_AVGsyst) / sizeof(int);
 const int NEVT_AVG_DEFAULT[NENERGIES] = {7,7,7,7,7,6,6,6,5,5,4}; // indices in NEVT_AVGsyst corresponding to default
+const int NEVT_AVGsyst_highstat[] = {20000, 25000, 50000, 100000}; // higher statistics, as needed with lower energies
+const int NEVTAVGS_highstat = sizeof(NEVT_AVGsyst_highstat) / sizeof(int);
+const int NEVT_AVG_DEFAULT_highstat[NENERGIES_highstat] = {2, 2, 1, 0}; // indices in NEVT_AVGsyst_highstat corresponding to default
+                                                                        // add more or less if you want to use higher statistics for more or fewer energies
+
 //{60.0, 25.0, 95.0}; // simpler limits for 3D
 //const double rfitmax_systlimits[3] = {100.0, 50.0, 150.0}; // for 1D this unified stuff was sufficient;
 
