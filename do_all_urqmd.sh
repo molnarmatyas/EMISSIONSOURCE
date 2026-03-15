@@ -5,7 +5,7 @@
 do_analysis=false
 do_conversion=false # whether to convert from .f19 to root tree files
 do_fitting=true # whether to run the Levy fits (can be skipped if you just want to re-plot)
-highstatistics=false # use higher statistics for lower energies if true
+highstatistics=true # use higher statistics for lower energies if true
 
 # Base directory of this script (absolute)
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,7 +32,7 @@ set -m
 mkdir -p $BASEDIR/logfiles
 
 # Ensure background children are killed if the script exits or is interrupted
-trap 'echo "Script exiting — terminating background jobs..."; jobs -p | xargs -r kill; wait' EXIT SIGINT SIGTERM
+trap 'echo "Script exiting - terminating background jobs..."; jobs -p | xargs -r kill; wait' EXIT SIGINT SIGTERM
 
 # Simple job limiter: keep at most MAXJOBS background processes in this script
 # Usage: ./do_all_urqmd.sh [MAXJOBS]  (optional). Default is 5 to be safe with memory.
@@ -301,3 +301,4 @@ root.exe -b -q calc_and_plot_syserr.cpp\(-1\) # -1 for all energies, otherwise i
 ~/anaconda3/bin/python3.12 rhofitmax_vs_kt_snn.py
 # or:
 # python3 rhofitmax_vs_kt_snn.py
+
