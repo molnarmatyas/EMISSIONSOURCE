@@ -13,9 +13,9 @@ BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "Base directory: $BASEDIR"
 sleep 10
 
-#energies=("3p0" "3p2" "3p5" "3p9" "4p5" "7p7" "9p2" "11p5" "14p5" "19p6" "27")
-energies_low=("3p0" "3p2" "3p5" "3p9" "4p5") # these may be with higher statistics
-energies_high=("7p7" "9p2" "11p5" "14p5" "19p6" "27")
+# The splitting has to be set in the common header as well!!!
+energies_low=("3p0" "3p2" "3p5" "3p9") # these may be with higher statistics
+energies_high=("4p5" "7p7" "9p2" "11p5" "14p5" "19p6" "27")
 energies=("${energies_low[@]}" "${energies_high[@]}")
 
 mkdir -p analysed
@@ -298,7 +298,7 @@ echo "Plotting param vs sqrt(sNN)"
 # Calculate & collect all systematics
 root.exe -b -q calc_and_plot_syserr.cpp\(-1\) # -1 for all energies, otherwise int integers to only plot one-one energy on mT vs param plots
 # Plot rhofitmax values vs KT, additionally
-~/anaconda3/bin/python3.12 rhofitmax_vs_kt_snn.py
+~/.venvs/jupyter/bin/python3.12 rhofitmax_vs_kt_snn.py
 # or:
-# python3 rhofitmax_vs_kt_snn.py
+#python3 rhofitmax_vs_kt_snn.py
 

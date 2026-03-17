@@ -22,7 +22,7 @@
 #include <iomanip>
 #include <TF1.h>
 
-bool debug = true; // set to true to print parameter results for each systematic variation
+bool debug = false; // set to true to print parameter results for each systematic variation
 
 const char* levy_params[3] = {"alpha","R","N"};
 
@@ -420,18 +420,60 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         {
             // Finding the correct index for the NEVT_AVG variation to read the correct file; this is a bit convoluted due to the way the variations are set up, but we want to make sure we are reading the intended variation files for each energy, especially since the high-stat energies have a different set of variations than the lower-stat ones
             int index = 0;
-            if(highstat == true && ienergy < NENERGIES_highstat)
+            bool changestat = highstat; // the same by default, changes if out of bounds
             {
-                if(in==0) index = NEVT_AVG_DEFAULT_highstat[ienergy]; // default
-                else if(in==1) index = NEVT_AVG_DEFAULT_highstat[ienergy] - 1; // reasonably smaller
-                else if(in==2) index = NEVT_AVG_DEFAULT_highstat[ienergy] + 1; // reasonably larger
-            }else{
-                if(in==0) index = NEVT_AVG_DEFAULT[ienergy]; // default
-                else if(in==1) index = NEVT_AVG_DEFAULT[ienergy] - 1; // reasonably smaller
-                else if(in==2) index = NEVT_AVG_DEFAULT[ienergy] + 1; // reasonably larger
-            }
+                // Default - will be rewritten if !(in==0)
+                if(highstat == true && ienergy < NENERGIES_highstat)
+                {
+                    index = NEVT_AVG_DEFAULT_highstat[ienergy];
+                    if(index==NEVTAVGS_highstat-1)
+                    {
+                        printf("Error: NEVT_AVG_DEFAULT index %d for energy %s is out of range (cannot choose systematic variation) for high-stat energies (max index %d). Check your configuration in the common header!\n", index, energies[ienergy], NEVTAVGS_highstat-1);
+                        continue;
+                    }
+                }else{
+                    index = NEVT_AVG_DEFAULT[ienergy];
+                    if(index<=0)
+                    {
+                        printf("Error: NEVT_AVG_DEFAULT index %d for energy %s is out of range (cannot choose systematic variation) for low-stat energies (min. index 1). Check your configuration in the common header!\n", index, energies[ienergy]);
+                        continue;
+                    }
+                }
+                // Smaller
+                if(in==1)
+                {
+                    if(highstat == true && ienergy < NENERGIES_highstat)
+                    {
+                        index = NEVT_AVG_DEFAULT_highstat[ienergy] - 1;
+                        if(index < 0)
+                        {
+                            index = NEVTAVGS-1; // this can only happen for highstat; go to highest for lowstat
+                            changestat = !changestat;
+                        }
+                    } 
+                    else index=NEVT_AVG_DEFAULT[ienergy] - 1;
+                }
+                else // in==2 -> Larger
+                {
+                    if(highstat == true && ienergy < NENERGIES_highstat)
+                    {
+                        index = NEVT_AVG_DEFAULT_highstat[ienergy] + 1;
+                    }
+                    else
+                    {
+                        index = NEVT_AVG_DEFAULT[ienergy] + 1;
+                        if(index > NEVTAVGS-1 && highstat)
+                        {
+                            index = 0; // this can only happen for lowstat; go to lowest for highstat IF AVAILABLE
+                            changestat = !changestat;
+                        }
+                    }
+                }
+            } // Index selected; now read the file...
+            cout << "Selected NEVT_AVG variation index for energy " << energies[ienergy] << ": " << index << " (changestat: " << changestat << ")" << endl;
+            
             TFile* f_nevtavg;
-            if(highstat == true && ienergy < NENERGIES_highstat)
+            if(highstat == true && changestat == true) //  "&& ienergy < NENERGIES_highstat" is not needed here because changestat will only be true if we are in the highstat energies due to the way we set it up above, so this condition is sufficient to determine which set of variations to read from
             {
                 f_nevtavg = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
                                             energies[ienergy], NEVT_AVGsyst_highstat[index]), "READ");
