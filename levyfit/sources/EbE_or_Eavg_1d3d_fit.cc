@@ -619,12 +619,7 @@ int main(int argc, char *argv[])
     {
       //cerr << "NEVT_AVG must be at least 1!" << endl;
       //return 1;
-      if(highstat == true)
-      {
-        NEVT_AVG = NEVT_AVGsyst_highstat[NEVT_AVG_DEFAULT_highstat[_ienergy]];
-      }else{
-        NEVT_AVG = NEVT_AVGsyst[NEVT_AVG_DEFAULT[_ienergy]];
-      }
+      NEVT_AVG = NEVT_AVGsyst[NEVT_AVG_DEFAULT[_ienergy]];
       cout << "NEVT_AVG set to default value of " << NEVT_AVG << " for energy " << energy << "." << endl;
     }
     qlcms_syst = (int)atoi(argv[6]);

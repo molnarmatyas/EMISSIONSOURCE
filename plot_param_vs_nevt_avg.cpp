@@ -1,26 +1,70 @@
 #include <TFile.h>
 #include <TH2F.h>
+#include <TH1F.h>
 #include <TGraphErrors.h>
 #include <TCanvas.h>
 #include <TLegend.h>
 #include <TColor.h>
+#include <TEllipse.h>
 #include <vector>
 #include <string>
+#include <cmath>
 #include "header_for_all_emissionsource.h"
 
+void circle_defaultnevtavg_point(TGraphErrors* param_vs_nevt_graph, int ienergy)
+{
+    if(!param_vs_nevt_graph || param_vs_nevt_graph->GetN() <= 0) {
+        return;
+    }
+
+    double x = NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]];
+    int ipoint = -1;
+    
+    // Find the default point in the graph
+    for(int i=0; i<param_vs_nevt_graph->GetN(); i++)
+    {
+        if(std::abs(param_vs_nevt_graph->GetX()[i] - x) < 1e-9)
+        {
+            ipoint = i;
+            break;
+        }
+    }
+
+    if(ipoint < 0) {
+        return;
+    }
+
+    double y = param_vs_nevt_graph->GetY()[ipoint];
+    double ymin = y;
+    double ymax = y;
+    for(int i=0; i<param_vs_nevt_graph->GetN(); i++) {
+        double yi = param_vs_nevt_graph->GetY()[i];
+        if(yi < ymin) ymin = yi;
+        if(yi > ymax) ymax = yi;
+    }
+    double yrange = ymax - ymin;
+    if(yrange <= 0) {
+        yrange = std::max(std::abs(y), 1.0);
+    }
+    
+    // Now draw an ellipse around this point with TEllipse
+    double radiusX = 0.08 * x;
+    double radiusY = 0.01 * yrange;
+    TEllipse* ellipse = new TEllipse(x, y, radiusX, radiusY);
+    ellipse->SetLineColor(kGreen-8);
+    ellipse->SetLineWidth(8);
+    ellipse->SetFillStyle(0); // no fill
+    ellipse->Draw("same");
+    
+}
+
+// ------------------ MAIN ------------------------
 void plot_param_vs_nevt_avg(int ikt =-1) {
     // NEVT_AVG values defined in header_for_all_emissionsource.h as NEVT_AVGsyst array and NEVT_AVG_DEFAULT index
     std::vector<int> nevt_avg;
     for(int i=0; i<NEVTAVGS; i++)
     {
         nevt_avg.push_back(NEVT_AVGsyst[i]);
-    }
-    if(highstat == true)
-    {
-        for(int i=0; i<NEVTAVGS_highstat; i++)
-        {
-            nevt_avg.push_back(NEVT_AVGsyst_highstat[i]);
-        }
     }
         
     // Create vectors to store parameters for different energies
@@ -75,13 +119,6 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             double R = h2->GetMean(2);      // Y axis = R
             double RErr = h2->GetRMS(2) / sqrt(h2->GetEntries());
             
-            alphas.push_back(alpha);
-            alphaErrs.push_back(alphaErr);
-            Rs.push_back(R);
-            RErrs.push_back(RErr);
-            nevt_points.push_back(nevt);
-            nevt_errs.push_back(0);
-
             // Same for lambda (in other convention, displayed here as N) and confidence level
             // N is for diff. ikt only
             int ikt_N = ikt;
@@ -115,8 +152,6 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             
             double N = hN->GetMean();
             double NErr = hN->GetRMS() / sqrt(hN->GetEntries());
-            Ns.push_back(N);
-            NErrs.push_back(NErr);
             // Confidence level is stored together and for all kT bins separately as well
             const char* conflev_histname = (ikt>=0) ? Form("confidencehist_ikt%i", ikt) : "confidencehist_all";
             TH1F* hConfLev = (TH1F*)file->Get(conflev_histname);
@@ -132,49 +167,67 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             }
             double conflev = hConfLev->GetMean();
             double conflevErr = hConfLev->GetRMS() / sqrt(hConfLev->GetEntries());
+
+            // Push all quantities only after all required histograms were found.
+            alphas.push_back(alpha);
+            alphaErrs.push_back(alphaErr);
+            Rs.push_back(R);
+            RErrs.push_back(RErr);
+            Ns.push_back(N);
+            NErrs.push_back(NErr);
             conflevs.push_back(conflev);
             conflevErrs.push_back(conflevErr);
+            nevt_points.push_back(nevt);
+            nevt_errs.push_back(0);
             
             file->Close();
         }
         
         // Create graphs
-        TGraphErrors* g_alpha = new TGraphErrors(nevt_points.size(),
-            &nevt_points[0], &alphas[0], &nevt_errs[0], &alphaErrs[0]);
-        TGraphErrors* g_R = new TGraphErrors(nevt_points.size(),
-            &nevt_points[0], &Rs[0], &nevt_errs[0], &RErrs[0]);
-        TGraphErrors* g_N = new TGraphErrors(nevt_points.size(),
-            &nevt_points[0], &Ns[0], &nevt_errs[0], &NErrs[0]);
-        TGraphErrors* g_conflev = new TGraphErrors(nevt_points.size(),
-            &nevt_points[0], &conflevs[0], &nevt_errs[0], &conflevErrs[0]);
+        TGraphErrors* g_alpha = nullptr;
+        TGraphErrors* g_R = nullptr;
+        TGraphErrors* g_N = nullptr;
+        TGraphErrors* g_conflev = nullptr;
+        if(!nevt_points.empty()) {
+            g_alpha = new TGraphErrors(nevt_points.size(),
+                nevt_points.data(), alphas.data(), nevt_errs.data(), alphaErrs.data());
+            g_R = new TGraphErrors(nevt_points.size(),
+                nevt_points.data(), Rs.data(), nevt_errs.data(), RErrs.data());
+            g_N = new TGraphErrors(nevt_points.size(),
+                nevt_points.data(), Ns.data(), nevt_errs.data(), NErrs.data());
+            g_conflev = new TGraphErrors(nevt_points.size(),
+                nevt_points.data(), conflevs.data(), nevt_errs.data(), conflevErrs.data());
+        }
             
         // Use solid markers and slightly transparent, thicker lines to connect points
         int baseCol = colors[e];
         int transCol = TColor::GetColorTransparent(baseCol, 0.4); // 40% opacity
 
-        g_alpha->SetMarkerStyle(20);
-        g_alpha->SetMarkerColor(baseCol);
-        g_alpha->SetMarkerSize(1.0);
-        g_alpha->SetLineColor(transCol);
-        g_alpha->SetLineWidth(3);
+        if(g_alpha) {
+            g_alpha->SetMarkerStyle(20);
+            g_alpha->SetMarkerColor(baseCol);
+            g_alpha->SetMarkerSize(1.0);
+            g_alpha->SetLineColor(transCol);
+            g_alpha->SetLineWidth(3);
 
-        g_R->SetMarkerStyle(20);
-        g_R->SetMarkerColor(baseCol);
-        g_R->SetMarkerSize(1.0);
-        g_R->SetLineColor(transCol);
-        g_R->SetLineWidth(3);
+            g_R->SetMarkerStyle(20);
+            g_R->SetMarkerColor(baseCol);
+            g_R->SetMarkerSize(1.0);
+            g_R->SetLineColor(transCol);
+            g_R->SetLineWidth(3);
 
-        g_N->SetMarkerStyle(20);
-        g_N->SetMarkerColor(baseCol);
-        g_N->SetMarkerSize(1.0);
-        g_N->SetLineColor(transCol);
-        g_N->SetLineWidth(3);
+            g_N->SetMarkerStyle(20);
+            g_N->SetMarkerColor(baseCol);
+            g_N->SetMarkerSize(1.0);
+            g_N->SetLineColor(transCol);
+            g_N->SetLineWidth(3);
 
-        g_conflev->SetMarkerStyle(20);
-        g_conflev->SetMarkerColor(baseCol);
-        g_conflev->SetMarkerSize(1.0);
-        g_conflev->SetLineColor(transCol);
-        g_conflev->SetLineWidth(3);
+            g_conflev->SetMarkerStyle(20);
+            g_conflev->SetMarkerColor(baseCol);
+            g_conflev->SetMarkerSize(1.0);
+            g_conflev->SetLineColor(transCol);
+            g_conflev->SetLineWidth(3);
+        }
         
         alpha_graphs.push_back(g_alpha);
         R_graphs.push_back(g_R);
@@ -191,9 +244,11 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     gPad->SetLogx();
     // Change legend position from (0.65, 0.75, 0.85, 0.85) to bottom left
     TLegend* leg1 = new TLegend(0.7, 0.1, 0.9, 0.4);
+    bool first_alpha_drawn = false;
     
     for(size_t i = 0; i < alpha_graphs.size(); i++) {
-        if(i == 0) {
+        if(!alpha_graphs[i]) continue;
+        if(!first_alpha_drawn) {
             alpha_graphs[i]->SetTitle("Levy #alpha vs NEVT_AVG");
             alpha_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             alpha_graphs[i]->GetYaxis()->SetTitle("#alpha");
@@ -204,10 +259,12 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             alpha_graphs[i]->Draw("APE");
             // overlay a connecting line so points remain visible with error bars
             alpha_graphs[i]->Draw("L same");
+            first_alpha_drawn = true;
         } else {
             alpha_graphs[i]->Draw("PE same");
             alpha_graphs[i]->Draw("L same");
         }
+        circle_defaultnevtavg_point(alpha_graphs[i], i); // circle the default NEVT_AVG point for this energy
         leg1->AddEntry(alpha_graphs[i], Form("%s GeV", energies[i]), "LP");
     }
     leg1->Draw();
@@ -219,9 +276,11 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     //TLegend* leg2 = new TLegend(0.1, 0.1, 0.3, 0.4);
     // Place R legend in the upper-right with same size as alpha legend (width=0.2, height=0.3)
     TLegend* leg2 = new TLegend(0.7, 0.6, 0.9, 0.9);
+    bool first_R_drawn = false;
     
     for(size_t i = 0; i < R_graphs.size(); i++) {
-        if(i == 0) {
+        if(!R_graphs[i]) continue;
+        if(!first_R_drawn) {
             R_graphs[i]->SetTitle("Levy R vs NEVT_AVG");
             R_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             R_graphs[i]->GetYaxis()->SetTitle("R [fm]");
@@ -229,10 +288,12 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             R_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             R_graphs[i]->Draw("APE");
             R_graphs[i]->Draw("L same");
+            first_R_drawn = true;
         } else {
             R_graphs[i]->Draw("PE same");
             R_graphs[i]->Draw("L same");
         }
+        circle_defaultnevtavg_point(R_graphs[i], i); // circle the default NEVT_AVG point for this energy
         leg2->AddEntry(R_graphs[i], Form("%s GeV", energies[i]), "LP");
     }
     leg2->Draw();
@@ -242,9 +303,11 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     gPad->SetLogx();
     // Place N legend in the upper-right with same size as alpha/R legend (width=0.2, height=0.3)
     TLegend* leg3 = new TLegend(0.7, 0.6, 0.9, 0.9);
+    bool first_N_drawn = false;
 
     for(size_t i = 0; i < N_graphs.size(); i++) {
-        if(i == 0) {
+        if(!N_graphs[i]) continue;
+        if(!first_N_drawn) {
             N_graphs[i]->SetTitle("Levy N vs NEVT_AVG");
             N_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             N_graphs[i]->GetYaxis()->SetTitle("N");
@@ -252,10 +315,12 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             N_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             N_graphs[i]->Draw("APE");
             N_graphs[i]->Draw("L same");
+            first_N_drawn = true;
         } else {
             N_graphs[i]->Draw("PE same");
             N_graphs[i]->Draw("L same");
         }
+        circle_defaultnevtavg_point(N_graphs[i], i); // circle the default NEVT_AVG point for this energy
         leg3->AddEntry(N_graphs[i], Form("%s GeV", energies[i]), "LP");
     }
     leg3->Draw();
@@ -265,9 +330,11 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     gPad->SetLogx();
     // Place confidence legend in the upper-right with same size as alpha/R legend
     TLegend* leg4 = new TLegend(0.7, 0.6, 0.9, 0.9);
+    bool first_conflev_drawn = false;
 
     for(size_t i = 0; i < conflev_graphs.size(); i++) {
-        if(i == 0) {
+        if(!conflev_graphs[i]) continue;
+        if(!first_conflev_drawn) {
             conflev_graphs[i]->SetTitle("Fit Confidence Level vs NEVT_AVG");
             conflev_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             conflev_graphs[i]->GetYaxis()->SetTitle("Confidence Level");
@@ -275,10 +342,12 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             conflev_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             conflev_graphs[i]->Draw("APE");
             conflev_graphs[i]->Draw("L same");
+            first_conflev_drawn = true;
         } else {
             conflev_graphs[i]->Draw("PE same");
             conflev_graphs[i]->Draw("L same");
         }
+        circle_defaultnevtavg_point(conflev_graphs[i], i); // circle the default NEVT_AVG point for this energy
         leg4->AddEntry(conflev_graphs[i], Form("%s GeV", energies[i]), "LP");
     }
     leg4->Draw();
