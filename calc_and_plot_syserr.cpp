@@ -25,6 +25,9 @@
 bool debug = false; // set to true to print parameter results for each systematic variation
 bool plot_mtavg = false; // set to true to plot m_T-averaged param vs sNN as well
 
+const int NIKT_SNN_PLOTS = 3;
+int ikt_indices_to_plot[NIKT_SNN_PLOTS] = {0, 2, 9}; // choose which m_T bins are shown on parameter-vs-sNN plots
+
 const char* levy_params[3] = {"alpha","R","N"};
 
 // To be set
@@ -819,7 +822,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     double xerr_low_s[NENERGIES] = {0};
     double xerr_high_s[NENERGIES] = {0};
 
-    // For each parameter make a two-panel canvas: left = mT-averaged, right = ikt=2
+    // For each parameter make a two-panel canvas: left = mT-averaged, right = selected mT bins
     for(int iparam=0; iparam<3; iparam++){
         TCanvas* can = new TCanvas(Form("can_sqrtS_param_%d", iparam), "", 1600, 800);
         can->Divide(2,1);
@@ -921,53 +924,54 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         gavg->SetMarkerSize(0.0); //0.8
         if(plot_mtavg) gavg->Draw("LPX same");
 
-        // Right pad: ikt=2
+        // Right pad: selected mT bins
         can->cd(2);
         //gPad->SetLogx(1); // !!! FIXME uncomment if comparison with STAR not needed
         gPad->SetLeftMargin(0.12);
         gPad->SetBottomMargin(0.12);
         double ymin2 = 1e9, ymax2 = -1e9;
-        double yvals[NENERGIES];
-        double yerrup2[NENERGIES];
-        double yerrdn2[NENERGIES];
-        for(int ie=0; ie<NENERGIES; ie++){
-            double val = (iparam==0)? val_alpha_ikt2[ie] : (iparam==1)? val_R_ikt2[ie] : val_N_ikt2[ie];
-            yvals[ie] = val;
-            // base sys from alpha_syserr (absolute) for ikt=2
-            TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
-            double base_up = 0., base_dn = 0.;
-            if(gsys && gsys->GetN() > 2){ base_up = gsys->GetEYhigh()[2]; base_dn = gsys->GetEYlow()[2]; }
-            // neighbor diffs
-            double neigh_up_sq = 0., neigh_dn_sq = 0.;
-            TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-            if(gdef && gdef->GetN()>2){
-                double center = gdef->GetY()[2];
-                for(int j : {1,3}){
+        std::vector<int> valid_ikts;
+        for(int iktsel=0; iktsel<NIKT_SNN_PLOTS; iktsel++){
+            int ikt = ikt_indices_to_plot[iktsel];
+            if(ikt < 0 || ikt >= NKT){
+                cerr << "Skipping invalid ikt index in ikt_indices_to_plot: " << ikt << endl;
+                continue;
+            }
+            valid_ikts.push_back(ikt);
+
+            for(int ie=0; ie<NENERGIES; ie++){
+                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+                if(!gdef || !gsys || gdef->GetN()<=ikt || gsys->GetN()<=ikt) continue;
+
+                double val = gdef->GetY()[ikt];
+                double base_up = gsys->GetEYhigh()[ikt];
+                double base_dn = gsys->GetEYlow()[ikt];
+
+                double neigh_up_sq = 0., neigh_dn_sq = 0.;
+                double center = gdef->GetY()[ikt];
+                for(int j : {ikt-1, ikt+1}){
                     if(j<0 || j>=gdef->GetN()) continue;
                     double nb = gdef->GetY()[j];
                     double diff = nb - center;
                     if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
                 }
-            }
-            double neigh_up = sqrt(neigh_up_sq);
-            double neigh_dn = sqrt(neigh_dn_sq);
-            // Save m_T choice systematics for further use
-            if(iparam==0)
-            {
-                alpha_mTchoice_syst_up[ie] = neigh_up; alpha_mTchoice_syst_dn[ie] = neigh_dn;
-            }else if(iparam==1)
-            {
-                R_mTchoice_syst_up[ie] = neigh_up; R_mTchoice_syst_dn[ie] = neigh_dn;
-            }else
-            {
-                N_mTchoice_syst_up[ie] = neigh_up; N_mTchoice_syst_dn[ie] = neigh_dn;
-            }
+                double neigh_up = sqrt(neigh_up_sq);
+                double neigh_dn = sqrt(neigh_dn_sq);
 
-            yerrup2[ie] = sqrt(base_up*base_up + neigh_up*neigh_up);
-            yerrdn2[ie] = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
-            if(std::isfinite(yvals[ie])){
-                ymin2 = std::min(ymin2, yvals[ie] - yerrdn2[ie]);
-                ymax2 = std::max(ymax2, yvals[ie] + yerrup2[ie]);
+                // Keep compatibility for averaged-overlay extra mT-choice term
+                if(ikt == ikt_indices_to_plot[0]){
+                    if(iparam==0){ alpha_mTchoice_syst_up[ie] = neigh_up; alpha_mTchoice_syst_dn[ie] = neigh_dn; }
+                    else if(iparam==1){ R_mTchoice_syst_up[ie] = neigh_up; R_mTchoice_syst_dn[ie] = neigh_dn; }
+                    else { N_mTchoice_syst_up[ie] = neigh_up; N_mTchoice_syst_dn[ie] = neigh_dn; }
+                }
+
+                double errup = sqrt(base_up*base_up + neigh_up*neigh_up);
+                double errdn = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
+                if(std::isfinite(val)){
+                    ymin2 = std::min(ymin2, val - errdn);
+                    ymax2 = std::max(ymax2, val + errup);
+                }
             }
         }
         if(ymin2>ymax2){ ymin2=0.; ymax2=1.; }
@@ -988,17 +992,54 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         }
         frame2->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
         frame2->GetYaxis()->SetTitle(ytitle);
-        TGraphAsymmErrors* gikt2 = new TGraphAsymmErrors(NENERGIES, x_energy, yvals, xerr_low_s, xerr_high_s, yerrdn2, yerrup2);
-        int col2 = kRed+1;
-        int fillcol2 = TColor::GetColorTransparent(col2, 0.35);
-        gikt2->SetFillColor(fillcol2);
-        gikt2->SetFillStyle(1001);
-        gikt2->SetLineColor(col2);
-        gikt2->SetLineWidth(3);
-        gikt2->Draw("3 same");
-        gikt2->SetMarkerStyle(21);
-        gikt2->SetMarkerSize(0.0); //0.8
-        gikt2->Draw("LPX same");
+        int ikt_colors[] = {kRed+1, kBlue+1, kGreen+2, kMagenta+1, kOrange+7};
+        int ikt_markers[] = {21, 22, 23, 33, 34};
+        std::vector<TGraphAsymmErrors*> gikt_graphs;
+        std::vector<std::string> gikt_labels;
+        for(size_t ik=0; ik<valid_ikts.size(); ik++){
+            int ikt = valid_ikts[ik];
+            double yvals[NENERGIES] = {0};
+            double yerrup2[NENERGIES] = {0};
+            double yerrdn2[NENERGIES] = {0};
+            for(int ie=0; ie<NENERGIES; ie++){
+                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+                if(!gdef || !gsys || gdef->GetN()<=ikt || gsys->GetN()<=ikt) continue;
+
+                yvals[ie] = gdef->GetY()[ikt];
+                double base_up = gsys->GetEYhigh()[ikt];
+                double base_dn = gsys->GetEYlow()[ikt];
+
+                double neigh_up_sq = 0., neigh_dn_sq = 0.;
+                double center = gdef->GetY()[ikt];
+                for(int j : {ikt-1, ikt+1}){
+                    if(j<0 || j>=gdef->GetN()) continue;
+                    double nb = gdef->GetY()[j];
+                    double diff = nb - center;
+                    if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
+                }
+                double neigh_up = sqrt(neigh_up_sq);
+                double neigh_dn = sqrt(neigh_dn_sq);
+                yerrup2[ie] = sqrt(base_up*base_up + neigh_up*neigh_up);
+                yerrdn2[ie] = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
+            }
+
+            TGraphAsymmErrors* gikt = new TGraphAsymmErrors(NENERGIES, x_energy, yvals, xerr_low_s, xerr_high_s, yerrdn2, yerrup2);
+            int col2 = ikt_colors[ik % (sizeof(ikt_colors)/sizeof(int))];
+            int fillcol2 = TColor::GetColorTransparent(col2, 0.30);
+            gikt->SetFillColor(fillcol2);
+            gikt->SetFillStyle(1001);
+            gikt->SetLineColor(col2);
+            gikt->SetLineWidth(3);
+            gikt->Draw("3 same");
+            gikt->SetMarkerStyle(ikt_markers[ik % (sizeof(ikt_markers)/sizeof(int))]);
+            gikt->SetMarkerSize(0.0);
+            gikt->SetMarkerColor(col2);
+            gikt->Draw("LPX same");
+
+            gikt_graphs.push_back(gikt);
+            gikt_labels.push_back(Form("m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
+        }
 
         // If alpha, draw analytic curve y = 0.85 + x^-0.14 (make thicker and draw as line on top)
         TF1* f = nullptr;
@@ -1069,31 +1110,48 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 leg1->AddEntry(f, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
                 if(plot_mtavg) leg1->Draw("same");
             }
-            // Right pad legend: use ikt=2 positions
+            // Right pad legend: selected mT bins
             {
-                std::tuple<double,double,double,double> pos2 = chooseLegendPos(x_energy, yvals, NENERGIES, xmin, xmax, ymin2, ymax2);
+                double y_for_pos[NENERGIES] = {0};
+                if(!valid_ikts.empty()){
+                    int ikt_pos = valid_ikts[0];
+                    for(int ie=0; ie<NENERGIES; ie++){
+                        TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+                        if(gdef && gdef->GetN()>ikt_pos) y_for_pos[ie] = gdef->GetY()[ikt_pos];
+                    }
+                }
+                std::tuple<double,double,double,double> pos2 = chooseLegendPos(x_energy, y_for_pos, NENERGIES, xmin, xmax, ymin2, ymax2);
                 double lx2 = std::get<0>(pos2);
                 double ytop2 = std::get<1>(pos2);
                 double rx2 = std::get<2>(pos2);
                 double legH2 = 0.12;
+                if(gikt_graphs.size()>2) legH2 = 0.16;
                 double lly2 = ytop2 - legH2;
                 can->cd(2);
                 TLegend* leg2 = new TLegend(lx2, lly2, rx2, ytop2);
                 leg2->SetBorderSize(0);
                 leg2->SetFillStyle(0);
                 leg2->SetTextSize(0.030);
-                leg2->AddEntry(gikt2, "UrQMD (m_{T} bin)", "f");
+                for(size_t ig=0; ig<gikt_graphs.size(); ig++){
+                    leg2->AddEntry(gikt_graphs[ig], gikt_labels[ig].c_str(), "f");
+                }
                 leg2->AddEntry(f, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
                 leg2->Draw("same");
             }
         }
 
-        // Right pad: show m_T bin center (3rd bin) and note about sys. unc. of m_T choice
+        // Right pad: show selected mT bins and note about mT-choice uncertainty
         can->cd(2);
         {
             TLatex t; t.SetNDC(); t.SetTextAlign(22); t.SetTextSize(0.032);
-            double bincenter_mev = mtbin_centers[2]*1000.0;
-            t.DrawLatex(0.5, 0.955, Form("<m_{T}> = %.0f MeV", bincenter_mev));
+            std::ostringstream mtbins;
+            mtbins << "m_{T} bins: ";
+            for(size_t ik=0; ik<valid_ikts.size(); ik++){
+                if(ik>0) mtbins << ", ";
+                mtbins << std::fixed << std::setprecision(0) << mtbin_centers[valid_ikts[ik]]*1000.0;
+            }
+            mtbins << " MeV";
+            t.DrawLatex(0.5, 0.955, mtbins.str().c_str());
             t.SetTextSize(0.030);
             t.DrawLatex(0.5, 0.925, "incl. sys. unc. of m_{T} choice");
         }
@@ -1106,7 +1164,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
     /////////////////////////////////////////////////////
     // Single-panel overlays: each parameter         ////
-    // showing both mT-averaged and ikt=2 together   ////
+    // showing optional mT-averaged and selected mT bins ////
     /////////////////////////////////////////////////////
     
     for(int iparam=0; iparam<3; iparam++){
@@ -1151,30 +1209,36 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             }
         }
         
-        // ikt=2 range
-        for(int ie=0; ie<NENERGIES; ie++){
-            double val = (iparam==0)? val_alpha_ikt2[ie] : (iparam==1)? val_R_ikt2[ie] : val_N_ikt2[ie];
-            TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
-            double base_up = 0., base_dn = 0.;
-            if(gsys && gsys->GetN() > 2){ base_up = gsys->GetEYhigh()[2]; base_dn = gsys->GetEYlow()[2]; }
-            double neigh_up_sq = 0., neigh_dn_sq = 0.;
-            TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-            if(gdef && gdef->GetN()>2){
-                double center = gdef->GetY()[2];
-                for(int j : {1,3}){
+        // selected mT-bin ranges
+        std::vector<int> valid_ikts_overlay;
+        for(int iktsel=0; iktsel<NIKT_SNN_PLOTS; iktsel++){
+            int ikt = ikt_indices_to_plot[iktsel];
+            if(ikt < 0 || ikt >= NKT) continue;
+            valid_ikts_overlay.push_back(ikt);
+            for(int ie=0; ie<NENERGIES; ie++){
+                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+                if(!gdef || !gsys || gdef->GetN()<=ikt || gsys->GetN()<=ikt) continue;
+
+                double val = gdef->GetY()[ikt];
+                double base_up = gsys->GetEYhigh()[ikt];
+                double base_dn = gsys->GetEYlow()[ikt];
+                double neigh_up_sq = 0., neigh_dn_sq = 0.;
+                double center = gdef->GetY()[ikt];
+                for(int j : {ikt-1, ikt+1}){
                     if(j<0 || j>=gdef->GetN()) continue;
                     double nb = gdef->GetY()[j];
                     double diff = nb - center;
                     if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
                 }
-            }
-            double neigh_up = sqrt(neigh_up_sq);
-            double neigh_dn = sqrt(neigh_dn_sq);
-            double errup2 = sqrt(base_up*base_up + neigh_up*neigh_up);
-            double errdn2 = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
-            if(std::isfinite(val)){
-                ymin_both = std::min(ymin_both, val - errdn2);
-                ymax_both = std::max(ymax_both, val + errup2);
+                double neigh_up = sqrt(neigh_up_sq);
+                double neigh_dn = sqrt(neigh_dn_sq);
+                double errup2 = sqrt(base_up*base_up + neigh_up*neigh_up);
+                double errdn2 = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
+                if(std::isfinite(val)){
+                    ymin_both = std::min(ymin_both, val - errdn2);
+                    ymax_both = std::max(ymax_both, val + errup2);
+                }
             }
         }
         
@@ -1273,49 +1337,55 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             if(plot_mtavg) g_avg_overlay->Draw("LPX same"); // FIXME uncomment if averaged whenever needed
         }
         
-        // Draw ikt=2 data
-        TGraphAsymmErrors* g_ikt2_overlay;
+        // Draw selected mT-bin data
+        std::vector<TGraphAsymmErrors*> g_ikt_overlay;
+        std::vector<std::string> g_ikt_overlay_labels;
         {
-            double yikt2_overlay[NENERGIES];
-            double yikt2_errup_overlay[NENERGIES];
-            double yikt2_errdn_overlay[NENERGIES];
-            for(int ie=0; ie<NENERGIES; ie++){
-                double val = (iparam==0)? val_alpha_ikt2[ie] : (iparam==1)? val_R_ikt2[ie] : val_N_ikt2[ie];
-                yikt2_overlay[ie] = val;
-                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
-                double base_up = 0., base_dn = 0.;
-                if(gsys && gsys->GetN() > 2){ base_up = gsys->GetEYhigh()[2]; base_dn = gsys->GetEYlow()[2]; }
-                double neigh_up_sq = 0., neigh_dn_sq = 0.;
-                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-                if(gdef && gdef->GetN()>2){
-                    double center = gdef->GetY()[2];
-                    for(int j : {1,3}){
+            int ikt_colors[] = {kRed+1, kBlue+1, kGreen+2, kMagenta+1, kOrange+7};
+            int ikt_markers[] = {21, 22, 23, 33, 34};
+            for(size_t ik=0; ik<valid_ikts_overlay.size(); ik++){
+                int ikt = valid_ikts_overlay[ik];
+                double y_overlay[NENERGIES] = {0};
+                double yerrup_overlay[NENERGIES] = {0};
+                double yerrdn_overlay[NENERGIES] = {0};
+                for(int ie=0; ie<NENERGIES; ie++){
+                    TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+                    TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+                    if(!gdef || !gsys || gdef->GetN()<=ikt || gsys->GetN()<=ikt) continue;
+
+                    y_overlay[ie] = gdef->GetY()[ikt];
+                    double base_up = gsys->GetEYhigh()[ikt];
+                    double base_dn = gsys->GetEYlow()[ikt];
+                    double neigh_up_sq = 0., neigh_dn_sq = 0.;
+                    double center = gdef->GetY()[ikt];
+                    for(int j : {ikt-1, ikt+1}){
                         if(j<0 || j>=gdef->GetN()) continue;
                         double nb = gdef->GetY()[j];
                         double diff = nb - center;
                         if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
                     }
+                    double neigh_up = sqrt(neigh_up_sq);
+                    double neigh_dn = sqrt(neigh_dn_sq);
+                    yerrup_overlay[ie] = sqrt(base_up*base_up + neigh_up*neigh_up);
+                    yerrdn_overlay[ie] = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
                 }
-                double neigh_up = sqrt(neigh_up_sq);
-                double neigh_dn = sqrt(neigh_dn_sq);
-                yikt2_errup_overlay[ie] = sqrt(base_up*base_up + neigh_up*neigh_up);
-                yikt2_errdn_overlay[ie] = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
+
+                TGraphAsymmErrors* g_ikt = new TGraphAsymmErrors(NENERGIES, x_energy, y_overlay, xerr_low_s, xerr_high_s, yerrdn_overlay, yerrup_overlay);
+                int col_ikt = ikt_colors[ik % (sizeof(ikt_colors)/sizeof(int))];
+                int fillcol_ikt = TColor::GetColorTransparent(col_ikt, 0.35);
+                g_ikt->SetFillColor(fillcol_ikt);
+                g_ikt->SetFillStyle(1001);
+                g_ikt->SetLineColor(col_ikt);
+                g_ikt->SetLineWidth(3);
+                g_ikt->Draw("3 same");
+                g_ikt->SetMarkerStyle(ikt_markers[ik % (sizeof(ikt_markers)/sizeof(int))]);
+                g_ikt->SetMarkerSize(0.0);
+                g_ikt->SetMarkerColor(col_ikt);
+                g_ikt->Draw("LPX same");
+
+                g_ikt_overlay.push_back(g_ikt);
+                g_ikt_overlay_labels.push_back(Form("UrQMD m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
             }
-            g_ikt2_overlay = new TGraphAsymmErrors(NENERGIES, x_energy, yikt2_overlay, xerr_low_s, xerr_high_s, yikt2_errdn_overlay, yikt2_errup_overlay);
-            int col_ikt2 = kRed+1;
-            int fillcol_ikt2 = TColor::GetColorTransparent(col_ikt2, 0.35);
-            g_ikt2_overlay->SetFillColor(fillcol_ikt2);
-            g_ikt2_overlay->SetFillStyle(1001);
-            g_ikt2_overlay->SetLineColor(col_ikt2);
-            g_ikt2_overlay->SetLineWidth(3);
-            g_ikt2_overlay->Draw("3 same");
-            g_ikt2_overlay->SetMarkerStyle(21);
-            g_ikt2_overlay->SetMarkerSize(0.0);
-            if(iparam==2)
-            {
-                //g_ikt2_overlay->GetYaxis()->SetRangeUser(0.9,1.1);
-            }
-            g_ikt2_overlay->Draw("LPX same");
         }
         
         // For alpha, draw analytic curve
@@ -1337,7 +1407,9 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         leg_overlay->SetFillStyle(0);
         leg_overlay->SetTextSize(0.025);
         if(plot_mtavg) leg_overlay->AddEntry(g_avg_overlay, "UrQMD <m_{T}>, incl. m_{T} choice sys.unc.", "f");
-        leg_overlay->AddEntry(g_ikt2_overlay, "UrQMD single m_{T} = 331 MeV bin", "f");
+        for(size_t ig=0; ig<g_ikt_overlay.size(); ig++){
+            leg_overlay->AddEntry(g_ikt_overlay[ig], g_ikt_overlay_labels[ig].c_str(), "f");
+        }
         if(iparam==0){
             leg_overlay->AddEntry(f_analytic, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
         }
