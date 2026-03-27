@@ -23,6 +23,7 @@
 #include <TF1.h>
 
 bool debug = false; // set to true to print parameter results for each systematic variation
+bool plot_mtavg = false; // set to true to plot m_T-averaged param vs sNN as well
 
 const char* levy_params[3] = {"alpha","R","N"};
 
@@ -915,10 +916,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         gavg->SetFillStyle(1001);
         gavg->SetLineColor(col);
         gavg->SetLineWidth(3);
-        gavg->Draw("3 same");
+        if(plot_mtavg) gavg->Draw("3 same");
         gavg->SetMarkerStyle(21);
         gavg->SetMarkerSize(0.0); //0.8
-        gavg->Draw("LPX same");
+        if(plot_mtavg) gavg->Draw("LPX same");
 
         // Right pad: ikt=2
         can->cd(2);
@@ -1064,9 +1065,9 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 leg1->SetBorderSize(0);
                 leg1->SetFillStyle(0);
                 leg1->SetTextSize(0.032);
-                leg1->AddEntry(gavg, "UrQMD (m_{T}-averaged)", "f");
+                if(plot_mtavg) leg1->AddEntry(gavg, "UrQMD (m_{T}-averaged)", "f");
                 leg1->AddEntry(f, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
-                leg1->Draw("same");
+                if(plot_mtavg) leg1->Draw("same");
             }
             // Right pad legend: use ikt=2 positions
             {
@@ -1262,14 +1263,14 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             g_avg_overlay->SetFillStyle(1001);
             g_avg_overlay->SetLineColor(col_avg);
             g_avg_overlay->SetLineWidth(3);
-            g_avg_overlay->Draw("3 same");
+            if(plot_mtavg) g_avg_overlay->Draw("3 same");
             g_avg_overlay->SetMarkerStyle(21);
             g_avg_overlay->SetMarkerSize(0.0);
             if(iparam==2)
             {
                 //g_avg_overlay->GetYaxis()->SetRangeUser(0.9,1.1);
             }
-            g_avg_overlay->Draw("LPX same");
+            if(plot_mtavg) g_avg_overlay->Draw("LPX same"); // FIXME uncomment if averaged whenever needed
         }
         
         // Draw ikt=2 data
@@ -1335,7 +1336,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
         leg_overlay->SetTextSize(0.025);
-        leg_overlay->AddEntry(g_avg_overlay, "UrQMD <m_{T}>, incl. m_{T} choice sys.unc.", "f");
+        if(plot_mtavg) leg_overlay->AddEntry(g_avg_overlay, "UrQMD <m_{T}>, incl. m_{T} choice sys.unc.", "f");
         leg_overlay->AddEntry(g_ikt2_overlay, "UrQMD single m_{T} = 331 MeV bin", "f");
         if(iparam==0){
             leg_overlay->AddEntry(f_analytic, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
