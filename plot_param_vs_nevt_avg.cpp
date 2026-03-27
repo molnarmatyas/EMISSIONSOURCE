@@ -5,7 +5,7 @@
 #include <TCanvas.h>
 #include <TLegend.h>
 #include <TColor.h>
-#include <TEllipse.h>
+#include <TMarker.h>
 #include <vector>
 #include <string>
 #include <cmath>
@@ -35,26 +35,12 @@ void circle_defaultnevtavg_point(TGraphErrors* param_vs_nevt_graph, int ienergy)
     }
 
     double y = param_vs_nevt_graph->GetY()[ipoint];
-    double ymin = y;
-    double ymax = y;
-    for(int i=0; i<param_vs_nevt_graph->GetN(); i++) {
-        double yi = param_vs_nevt_graph->GetY()[i];
-        if(yi < ymin) ymin = yi;
-        if(yi > ymax) ymax = yi;
-    }
-    double yrange = ymax - ymin;
-    if(yrange <= 0) {
-        yrange = std::max(std::abs(y), 1.0);
-    }
-    
-    // Now draw an ellipse around this point with TEllipse
-    double radiusX = 0.08 * x;
-    double radiusY = 0.01 * yrange;
-    TEllipse* ellipse = new TEllipse(x, y, radiusX, radiusY);
-    ellipse->SetLineColor(kGreen-8);
-    ellipse->SetLineWidth(8);
-    ellipse->SetFillStyle(0); // no fill
-    ellipse->Draw("same");
+
+    // Open-circle marker size is in screen space, so it stays circular on linear/log axes.
+    TMarker* marker = new TMarker(x, y, 107); // 107 is an open circle marker, thicker
+    marker->SetMarkerColor(kGreen-8);
+    marker->SetMarkerSize(2.8);
+    marker->Draw("same");
     
 }
 
@@ -338,8 +324,10 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             conflev_graphs[i]->SetTitle("Fit Confidence Level vs NEVT_AVG");
             conflev_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             conflev_graphs[i]->GetYaxis()->SetTitle("Confidence Level");
-            conflev_graphs[i]->GetYaxis()->SetRangeUser(0, 1.05); // Confidence level between 0 and 1
+            conflev_graphs[i]->GetYaxis()->SetRangeUser(1e-15, 1.05); // Confidence level between 0 and 1
             conflev_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
+            // Set log scale for y-axis
+            gPad->SetLogy();
             conflev_graphs[i]->Draw("APE");
             conflev_graphs[i]->Draw("L same");
             first_conflev_drawn = true;

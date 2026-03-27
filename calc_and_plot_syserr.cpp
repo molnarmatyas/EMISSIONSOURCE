@@ -538,26 +538,25 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         }
         
         // Average with calc_syst_contribution
-        
-        // Median, might make more sense
-        double alpha_qlcms_percent_up = calc_syst_contrib_median(alpha_default[ienergy], alpha_qlcms_up, alpha_qlcms_dn);
-        double alpha_rhofitmax_percent_up = calc_syst_contrib_median(alpha_default[ienergy], alpha_rhofitmax_up, alpha_rhofitmax_dn);
-        double alpha_nevtavg_percent_up = calc_syst_contrib_median(alpha_default[ienergy], alpha_nevtavg_up, alpha_nevtavg_dn);
-        double R_qlcms_percent_up = calc_syst_contrib_median(R_default[ienergy], R_qlcms_up, R_qlcms_dn);
-        double R_rhofitmax_percent_up = calc_syst_contrib_median(R_default[ienergy], R_rhofitmax_up, R_rhofitmax_dn);
-        double R_nevtavg_percent_up = calc_syst_contrib_median(R_default[ienergy], R_nevtavg_up, R_nevtavg_dn);
-        double N_qlcms_percent_up = calc_syst_contrib_median(N_default[ienergy], N_qlcms_up, N_qlcms_dn);
-        double N_rhofitmax_percent_up = calc_syst_contrib_median(N_default[ienergy], N_rhofitmax_up, N_rhofitmax_dn);
-        double N_nevtavg_percent_up = calc_syst_contrib_median(N_default[ienergy], N_nevtavg_up, N_nevtavg_dn);
-        double alpha_qlcms_percent_dn = calc_syst_contrib_median(alpha_default[ienergy], alpha_qlcms_up, alpha_qlcms_dn, 0);
-        double alpha_rhofitmax_percent_dn = calc_syst_contrib_median(alpha_default[ienergy], alpha_rhofitmax_up, alpha_rhofitmax_dn, 0);
-        double alpha_nevtavg_percent_dn = calc_syst_contrib_median(alpha_default[ienergy], alpha_nevtavg_up, alpha_nevtavg_dn, 0);
-        double R_qlcms_percent_dn = calc_syst_contrib_median(R_default[ienergy], R_qlcms_up, R_qlcms_dn, 0);
-        double R_rhofitmax_percent_dn = calc_syst_contrib_median(R_default[ienergy], R_rhofitmax_up, R_rhofitmax_dn, 0);
-        double R_nevtavg_percent_dn = calc_syst_contrib_median(R_default[ienergy], R_nevtavg_up, R_nevtavg_dn, 0);
-        double N_qlcms_percent_dn = calc_syst_contrib_median(N_default[ienergy], N_qlcms_up, N_qlcms_dn, 0);
-        double N_rhofitmax_percent_dn = calc_syst_contrib_median(N_default[ienergy], N_rhofitmax_up, N_rhofitmax_dn, 0);
-        double N_nevtavg_percent_dn = calc_syst_contrib_median(N_default[ienergy], N_nevtavg_up, N_nevtavg_dn, 0);
+        // Median with calc_syst_contrib_median, might make more sense?
+        double alpha_qlcms_percent_up = calc_syst_contribution(alpha_default[ienergy], alpha_qlcms_up, alpha_qlcms_dn);
+        double alpha_rhofitmax_percent_up = calc_syst_contribution(alpha_default[ienergy], alpha_rhofitmax_up, alpha_rhofitmax_dn);
+        double alpha_nevtavg_percent_up = calc_syst_contribution(alpha_default[ienergy], alpha_nevtavg_up, alpha_nevtavg_dn);
+        double R_qlcms_percent_up = calc_syst_contribution(R_default[ienergy], R_qlcms_up, R_qlcms_dn);
+        double R_rhofitmax_percent_up = calc_syst_contribution(R_default[ienergy], R_rhofitmax_up, R_rhofitmax_dn);
+        double R_nevtavg_percent_up = calc_syst_contribution(R_default[ienergy], R_nevtavg_up, R_nevtavg_dn);
+        double N_qlcms_percent_up = calc_syst_contribution(N_default[ienergy], N_qlcms_up, N_qlcms_dn);
+        double N_rhofitmax_percent_up = calc_syst_contribution(N_default[ienergy], N_rhofitmax_up, N_rhofitmax_dn);
+        double N_nevtavg_percent_up = calc_syst_contribution(N_default[ienergy], N_nevtavg_up, N_nevtavg_dn);
+        double alpha_qlcms_percent_dn = calc_syst_contribution(alpha_default[ienergy], alpha_qlcms_up, alpha_qlcms_dn, 0);
+        double alpha_rhofitmax_percent_dn = calc_syst_contribution(alpha_default[ienergy], alpha_rhofitmax_up, alpha_rhofitmax_dn, 0);
+        double alpha_nevtavg_percent_dn = calc_syst_contribution(alpha_default[ienergy], alpha_nevtavg_up, alpha_nevtavg_dn, 0);
+        double R_qlcms_percent_dn = calc_syst_contribution(R_default[ienergy], R_qlcms_up, R_qlcms_dn, 0);
+        double R_rhofitmax_percent_dn = calc_syst_contribution(R_default[ienergy], R_rhofitmax_up, R_rhofitmax_dn, 0);
+        double R_nevtavg_percent_dn = calc_syst_contribution(R_default[ienergy], R_nevtavg_up, R_nevtavg_dn, 0);
+        double N_qlcms_percent_dn = calc_syst_contribution(N_default[ienergy], N_qlcms_up, N_qlcms_dn, 0);
+        double N_rhofitmax_percent_dn = calc_syst_contribution(N_default[ienergy], N_rhofitmax_up, N_rhofitmax_dn, 0);
+        double N_nevtavg_percent_dn = calc_syst_contribution(N_default[ienergy], N_nevtavg_up, N_nevtavg_dn, 0);
 
         // Append CSV block lines: energy header, parameter sub-header, then lines for alpha,R,N
         std::ostringstream h1;
@@ -566,19 +565,19 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
         csv_lines.push_back("Levy parameter,qlcms cut [%],rhofitmax [%],nevtavg [%]");
         std::ostringstream arow;
-        arow << "alpha," << std::fixed << std::setprecision(3)
+        arow << "alpha," << std::fixed << std::setprecision(6)
             << " +" << alpha_qlcms_percent_up << " / -" << alpha_qlcms_percent_dn << ","
             << " +" << alpha_rhofitmax_percent_up << " / -" << alpha_rhofitmax_percent_dn << ","
             << " +" << alpha_nevtavg_percent_up << " / -" << alpha_nevtavg_percent_dn;
         csv_lines.push_back(arow.str());
         std::ostringstream rrow;
-        rrow << "R," << std::fixed << std::setprecision(3)
+        rrow << "R," << std::fixed << std::setprecision(6)
             << " +" << R_qlcms_percent_up << " / -" << R_qlcms_percent_dn << ","
             << " +" << R_rhofitmax_percent_up << " / -" << R_rhofitmax_percent_dn << ","
             << " +" << R_nevtavg_percent_up << " / -" << R_nevtavg_percent_dn;
         csv_lines.push_back(rrow.str());
         std::ostringstream nrow;
-        nrow << "N," << std::fixed << std::setprecision(3)
+        nrow << "N," << std::fixed << std::setprecision(6)
             << " +" << N_qlcms_percent_up << " / -" << N_qlcms_percent_dn << ","
             << " +" << N_rhofitmax_percent_up << " / -" << N_rhofitmax_percent_dn << ","
             << " +" << N_nevtavg_percent_up << " / -" << N_nevtavg_percent_dn;
@@ -623,7 +622,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         
         // Data line with energy and percentages
         std::ostringstream mtline;
-        mtline << energies[ienergy] << "," << std::fixed << std::setprecision(3)
+        mtline << energies[ienergy] << "," << std::fixed << std::setprecision(6)
                << " +" << mt_pct_up << " / -" << mt_pct_dn;
         csv_lines.push_back(mtline.str());
         
