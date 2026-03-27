@@ -24,6 +24,7 @@
 
 bool debug = false; // set to true to print parameter results for each systematic variation
 bool plot_mtavg = false; // set to true to plot m_T-averaged param vs sNN as well
+bool mtchoice_syst = false;
 
 const int NIKT_SNN_PLOTS = 3;
 int ikt_indices_to_plot[NIKT_SNN_PLOTS] = {0, 2, 9}; // choose which m_T bins are shown on parameter-vs-sNN plots
@@ -607,8 +608,9 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             double neigh_up = sqrt(neigh_up_sq);
             double neigh_dn = sqrt(neigh_dn_sq);
             if(std::isfinite(center) && center != 0.){
-                mt_pct_up = 100.0 * neigh_up / fabs(center);
-                mt_pct_dn = 100.0 * neigh_dn / fabs(center);
+                // Leaves mT choice uncertainty zero if turned off via mtchoice_syst=false
+                if(mtchoice_syst) mt_pct_up = 100.0 * neigh_up / fabs(center);
+                if(mtchoice_syst) mt_pct_dn = 100.0 * neigh_dn / fabs(center);
             }
         }
         
@@ -960,7 +962,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 double neigh_dn = sqrt(neigh_dn_sq);
 
                 // Keep compatibility for averaged-overlay extra mT-choice term
-                if(ikt == ikt_indices_to_plot[0]){
+                if(ikt == ikt_indices_to_plot[0] && mtchoice_syst){
                     if(iparam==0){ alpha_mTchoice_syst_up[ie] = neigh_up; alpha_mTchoice_syst_dn[ie] = neigh_dn; }
                     else if(iparam==1){ R_mTchoice_syst_up[ie] = neigh_up; R_mTchoice_syst_dn[ie] = neigh_dn; }
                     else { N_mTchoice_syst_up[ie] = neigh_up; N_mTchoice_syst_dn[ie] = neigh_dn; }
