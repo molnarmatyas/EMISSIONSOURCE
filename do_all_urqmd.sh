@@ -133,6 +133,7 @@ for avg in "${nevt_avgs[@]}"; do
   echo "Preparing folders for nevt_avg: ${avg}"
   rm -rf $BASEDIR/figs/fitting/lcms/AVG${avg}/
   mkdir -p $BASEDIR/figs/fitting/lcms/AVG${avg}/
+done
 for avg in "${nevt_avgs_highstat[@]}"; do
   echo "Preparing folders for high-statistics nevt_avg: ${avg}"
   rm -rf $BASEDIR/figs/fitting/lcms/AVG${avg}/

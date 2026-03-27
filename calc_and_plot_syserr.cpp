@@ -215,16 +215,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         if(debug) cout << "Processing energy: " << energies[ienergy] << endl;
         // Default
         TFile* f_default;
-        if(highstat == true && ienergy < NENERGIES_highstat)
-        {
-            f_default = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
-                                        energies[ienergy], NEVT_AVGsyst_highstat[NEVT_AVG_DEFAULT_highstat[ienergy]]), "READ");
-        }
-        else
-        {
-            f_default = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
+        f_default = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
                                         energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]]), "READ");
-        }
         if(!f_default || f_default->IsZombie())
         {
             printf("Could not open default file for energy %s: %s\n", energies[ienergy], f_default ? f_default->GetName() : "NULL");
@@ -295,16 +287,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         for(int iq=0; iq<3; iq++)
         {
             TFile* f_qlcms;
-            if(highstat == true && ienergy < NENERGIES_highstat)
-            {
-                f_qlcms = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
-                                        energies[ienergy], NEVT_AVGsyst_highstat[NEVT_AVG_DEFAULT_highstat[ienergy]], qlcms_labels[iq]), "READ");
-            }
-            else
-            {
-                f_qlcms = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
+            f_qlcms = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
                                         energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]], qlcms_labels[iq]), "READ");
-            }
             if(!f_qlcms || f_qlcms->IsZombie())
             {
                 printf("Could not open qLCMS file for energy %s: %s\n", energies[ienergy], f_qlcms ? f_qlcms->GetName() : "NULL");
@@ -358,16 +342,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         for(int ir=0; ir<3; ir++)
         {
             TFile* f_rhofitmax;
-            if(highstat == true && ienergy < NENERGIES_highstat)
-            {
-                f_rhofitmax = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
-                                            energies[ienergy], NEVT_AVGsyst_highstat[NEVT_AVG_DEFAULT_highstat[ienergy]], rhofitmax_labels[ir]), "READ");
-            }
-            else
-            {
-                f_rhofitmax = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
+            f_rhofitmax = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d%s.root", 
                                             energies[ienergy], NEVT_AVGsyst[NEVT_AVG_DEFAULT[ienergy]], rhofitmax_labels[ir]), "READ");
-            }
             if(!f_rhofitmax || f_rhofitmax->IsZombie())
             {
                 printf("Could not open rhofitmax file for energy %s: %s\n", energies[ienergy], f_rhofitmax ? f_rhofitmax->GetName() : "NULL");
@@ -420,69 +396,30 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         {
             // Finding the correct index for the NEVT_AVG variation to read the correct file; this is a bit convoluted due to the way the variations are set up, but we want to make sure we are reading the intended variation files for each energy, especially since the high-stat energies have a different set of variations than the lower-stat ones
             int index = 0;
-            bool changestat = highstat; // the same by default, changes if out of bounds
             {
-                // Default - will be rewritten if !(in==0)
-                if(highstat == true && ienergy < NENERGIES_highstat)
+                // Default
+                index = NEVT_AVG_DEFAULT[ienergy];
+                // too low || too high || too high for lowstat (as there the highest is 10000 FIXME if that changes)
+                if(index<=0 || index > NEVTAVGS-1 || (ienergy > NENERGIES_highstat && NEVT_AVGsyst[index] > 5000))
                 {
-                    index = NEVT_AVG_DEFAULT_highstat[ienergy];
-                    if(index==NEVTAVGS_highstat-1)
-                    {
-                        printf("Error: NEVT_AVG_DEFAULT index %d for energy %s is out of range (cannot choose systematic variation) for high-stat energies (max index %d). Check your configuration in the common header!\n", index, energies[ienergy], NEVTAVGS_highstat-1);
-                        continue;
-                    }
-                }else{
-                    index = NEVT_AVG_DEFAULT[ienergy];
-                    if(index<=0)
-                    {
-                        printf("Error: NEVT_AVG_DEFAULT index %d for energy %s is out of range (cannot choose systematic variation) for low-stat energies (min. index 1). Check your configuration in the common header!\n", index, energies[ienergy]);
-                        continue;
-                    }
+                    printf("Error: NEVT_AVG_DEFAULT index %d for energy %s is out of range (cannot choose systematic variation) for low-stat energies (min. index 1). Check your configuration in the common header!\n", index, energies[ienergy]);
+                    continue;
                 }
                 // Smaller
                 if(in==1)
                 {
-                    if(highstat == true && ienergy < NENERGIES_highstat)
-                    {
-                        index = NEVT_AVG_DEFAULT_highstat[ienergy] - 1;
-                        if(index < 0)
-                        {
-                            index = NEVTAVGS-1; // this can only happen for highstat; go to highest for lowstat
-                            changestat = !changestat;
-                        }
-                    } 
-                    else index=NEVT_AVG_DEFAULT[ienergy] - 1;
+                    index=NEVT_AVG_DEFAULT[ienergy] - 1;
                 }
-                else // in==2 -> Larger
+                else if(in==2) // in==2 -> Larger
                 {
-                    if(highstat == true && ienergy < NENERGIES_highstat)
-                    {
-                        index = NEVT_AVG_DEFAULT_highstat[ienergy] + 1;
-                    }
-                    else
-                    {
-                        index = NEVT_AVG_DEFAULT[ienergy] + 1;
-                        if(index > NEVTAVGS-1 && highstat)
-                        {
-                            index = 0; // this can only happen for lowstat; go to lowest for highstat IF AVAILABLE
-                            changestat = !changestat;
-                        }
-                    }
+                    index = NEVT_AVG_DEFAULT[ienergy] + 1;
                 }
             } // Index selected; now read the file...
-            cout << "Selected NEVT_AVG variation index for energy " << energies[ienergy] << ": " << index << " (changestat: " << changestat << ")" << endl;
+            cout << "Selected NEVT_AVG variation index for energy " << energies[ienergy] << ": index " << index << endl;
             
             TFile* f_nevtavg;
-            if(highstat == true && changestat == true) //  "&& ienergy < NENERGIES_highstat" is not needed here because changestat will only be true if we are in the highstat energies due to the way we set it up above, so this condition is sufficient to determine which set of variations to read from
-            {
-                f_nevtavg = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
-                                            energies[ienergy], NEVT_AVGsyst_highstat[index]), "READ");
-            }
-            else
-            {
-                f_nevtavg = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
+            f_nevtavg = new TFile(Form("levyfit/results/UrQMD_onedfitresults_lcms_cent0-10_%s_AVG%d.root", 
                                             energies[ienergy], NEVT_AVGsyst[index]), "READ");
-            }
             if(!f_nevtavg || f_nevtavg->IsZombie())
             {
                 printf("Could not open nevt_avg file for energy %s: %s\n", energies[ienergy], f_nevtavg ? f_nevtavg->GetName() : "NULL");
