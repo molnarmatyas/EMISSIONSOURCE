@@ -668,23 +668,18 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     
     
     ////////////////////////////////////////////////////
-    ////////  PLOTTING mT vs parameter with sys bands  
+    ////////  PLOTTING mT vs parameter with sys bands (single panel)  
     ////////////////////////////////////////////////////
-    // Use `energydouble[]` from header_for_all_emissionsource.h for numeric energies
+    // One combined panel per parameter across all energies.
 
     // Helper: Find the least-crowded quadrant for legend placement (NDC coords)
-    // Uses `energydouble[]` from header_for_all_emissionsource.h
-    auto findBestLegendPos = [](const std::vector<TGraphAsymmErrors*>& graphs, double xmin, double xmax, double ymin, double ymax,
-                                             int iparam, double cutoff, int NENERGIES, int side) 
+    auto findBestLegendPos = [](const std::vector<TGraphAsymmErrors*>& graphs, double xmin, double xmax, double ymin, double ymax)
         -> std::tuple<double,double,double,double> {
         double xmid = 0.5*(xmin + xmax);
         double ymid = 0.5*(ymin + ymax);
         int count[4] = {0,0,0,0}; // TL,TR,BL,BR
         
-        for(int ie=0; ie<NENERGIES; ie++) {
-            double e = energydouble[ie];
-            if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
-            //if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff DOES NOT WORK  
+        for(size_t ie=0; ie<graphs.size(); ie++) {
             TGraphAsymmErrors* g = graphs[ie];
             if(!g) continue;
             for(int i=0; i<g->GetN(); i++) {
@@ -710,149 +705,104 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         return std::make_tuple(anchorX, anchorYlow, anchorX+0.10, anchorYlow+0.10);
     };
 
-    double cutoff = 4.5; // GeV dividing low/high energies; treat 7.7 as LOW side
-
     // Parameter loop: 0=alpha,1=R,2=N
     // ensure output dir exists
     gSystem->mkdir("figs/syserr", kTRUE);
 
     for(int iparam=0; iparam<3; iparam++)
     {
-        TCanvas* can = new TCanvas(Form("can_param_%d", iparam), "", 2800, 1400);
-        can->Divide(2,1);
+        TCanvas* can = new TCanvas(Form("can_param_%d", iparam), "", 1600, 1200);
+        gPad->SetLeftMargin(0.12);
+        gPad->SetBottomMargin(0.12);
 
-        // Compute a global y-range for this parameter so left/right panels are directly comparable
-        double global_ymin = 1e9, global_ymax = -1e9;
-        for(int ie=0; ie<NENERGIES; ie++) {
-            TGraphAsymmErrors* gdef_tmp = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-            TGraphAsymmErrors* gsys_tmp = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
-            if(!gdef_tmp || !gsys_tmp) continue;
-            for(int i=0;i<gdef_tmp->GetN();i++){
-                double y = gdef_tmp->GetY()[i];
-                double errup = gsys_tmp->GetEYhigh()[i];
-                double errdn = gsys_tmp->GetEYlow()[i];
-                global_ymin = std::min(global_ymin, y - errdn);
-                global_ymax = std::max(global_ymax, y + errup);
-            }
+        double ymins[] = {1.3, 3, 0.5};
+        double ymaxs[] = {2.1, 8., 1.2};
+        double ymin = ymins[iparam];
+        double ymax = ymaxs[iparam];
+
+        // Draw an empty frame with axis titles
+        double xmin = mtbin_centers[0]-0.05;
+        double xmax = mtbin_centers[NKT-1]+0.05;
+        TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
+        const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda"; // N
+        frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
+        frame->GetYaxis()->SetTitle(ytitle);
+
+        // Legend: auto-position in least-crowded quadrant, with dynamic sizing
+        auto [leg_x1, leg_y2, leg_x2, leg_y1] = findBestLegendPos(
+            (iparam==0)? std::vector<TGraphAsymmErrors*>(alpha_default, alpha_default+NENERGIES) :
+            (iparam==1)? std::vector<TGraphAsymmErrors*>(R_default, R_default+NENERGIES) :
+                     std::vector<TGraphAsymmErrors*>(N_default, N_default+NENERGIES),
+            xmin, xmax, ymin, ymax);
+
+        int nEntries = 0;
+        for(int ie=0; ie<NENERGIES; ie++){
+            if(energy_to_plot>-1 && ie!=energy_to_plot) continue;
+            TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+            TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+            if(!gdef || !gsys) continue;
+            nEntries++;
         }
-        if(global_ymin > global_ymax){ global_ymin = 0.; global_ymax = 1.; }
+        int nCols = (nEntries>14)? 3 : (nEntries>7)? 2 : 1;
+        int nRows = (nEntries==0)? 0 : ( (nEntries + nCols - 1) / nCols );
+        double lineH = 0.038;
+        double vPad = 0.012;
+        double legH = std::max(0.06, nRows*lineH + 2*vPad);
+        double colW = (nCols==1)? 0.24 : (nCols==2)? 0.42 : 0.58;
+        double legW = colW;
+        double maxX2 = 0.98, maxY2 = 0.96;
+        double x1 = leg_x1;
+        double y1 = leg_y2;
+        double x2 = x1 + legW;
+        double y2 = y1 + legH;
+        if(x2 > maxX2){ x1 = std::max(0.10, maxX2 - legW); x2 = x1 + legW; }
+        if(y2 > maxY2){ y1 = std::max(0.12, maxY2 - legH); y2 = y1 + legH; }
+        TLegend* leg = new TLegend(x1, y1, x2, y2);
+        leg->SetNColumns(nCols);
+        leg->SetFillColor(0);
+        leg->SetBorderSize(1);
+        leg->SetTextSize(0.028);
+        leg->SetMargin(0.20);
+        leg->SetEntrySeparation(0.005);
+        leg->SetColumnSeparation(0.02);
 
-        for(int side=0; side<2; side++) // 0: low, 1: high
+        // Colors
+        int colors[] = {kBlack,kBlue+2,kRed+1,kGreen+2,kMagenta+2,kOrange+7,kViolet+1,kCyan+1};
+
+        int colorIdx=0;
+        for(int ie=0; ie<NENERGIES; ie++)
         {
-            can->cd(side+1);
-            gPad->SetLeftMargin(0.12);
-            gPad->SetBottomMargin(0.12);
-            // Use global y-range computed above
-            double ymins[] = {1.3, 3, 0.5}; // {0.5, 0, 0.90};
-            double ymaxs[] = {2.1, 8., 1.2}; // {2., 10., 1.13};
-            double ymin = ymins[iparam];//global_ymin;
-            double ymax = ymaxs[iparam];//global_ymax;
-            double ypad = 0.12*(ymax - ymin);
-            //ymin -= ypad; ymax += ypad;
+            if(energy_to_plot>-1 && ie!=energy_to_plot) continue; // plot only selected energy if specified
+            TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
+            TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+            if(!gdef || !gsys) continue;
+            int col = colors[colorIdx % (sizeof(colors)/sizeof(int))];
+            // filled band: use sys graph draw option 3
+            int fillcol = TColor::GetColorTransparent(col, 0.25); // 25-35% transparent fill of line color
+            gsys->SetFillColor(fillcol);
+            gsys->SetFillStyle(1001);
+            gsys->SetLineColor(col);
+            gsys->SetLineWidth(1);
+            gsys->Draw("3 same");
 
-            // Draw an empty frame with axis titles
-            double xmin = mtbin_centers[0]-0.05;
-            double xmax = mtbin_centers[NKT-1]+0.05;
-            TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
-            const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda"; // N
-            frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
-            frame->GetYaxis()->SetTitle(ytitle);
+            gsys->SetLineColor(col);
+            gsys->SetLineWidth(3);
+            gsys->SetMarkerStyle(20+colorIdx); // differentiate points
+            gsys->SetMarkerSize(2.0); // instead of 0.0, points needed for better visibility in case of mT vs param
+            gsys->SetMarkerColor(col);
+            gsys->Draw("LPX same");
 
-            // Legend: auto-position in least-crowded quadrant, with dynamic sizing
-            auto [leg_x1, leg_y2, leg_x2, leg_y1] = findBestLegendPos(
-                (iparam==0)? std::vector<TGraphAsymmErrors*>(alpha_default, alpha_default+NENERGIES) :
-                (iparam==1)? std::vector<TGraphAsymmErrors*>(R_default, R_default+NENERGIES) :
-                         std::vector<TGraphAsymmErrors*>(N_default, N_default+NENERGIES),
-                xmin, xmax, ymin, ymax, iparam, cutoff, NENERGIES, side);
-            // Count entries and choose columns
-            int nEntries = 0;
-            for(int ie=0; ie<NENERGIES; ie++){
-                if(energy_to_plot>-1 && ie!=energy_to_plot) continue;
-                double e = energydouble[ie];
-                if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
-                //if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff DOES NOT WORK
-                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
-                if(!gdef || !gsys) continue;
-                nEntries++;
-            }
-            int nCols = (nEntries>14)? 3 : (nEntries>7)? 2 : 1;
-            int nRows = (nEntries==0)? 0 : ( (nEntries + nCols - 1) / nCols );
-            // Derive legend height/width in NDC
-            double lineH = 0.038; // per-entry height
-            double vPad = 0.012;  // top/bottom padding
-            double legH = std::max(0.06, nRows*lineH + 2*vPad);
-            double colW = (nCols==1)? 0.24 : (nCols==2)? 0.42 : 0.58; // per total width for 1/2/3 cols
-            double legW = colW;
-            // Clamp to pad bounds
-            double maxX2 = 0.98, maxY2 = 0.96;
-            double x1 = leg_x1;
-            double y1 = leg_y2; // lower y
-            double x2 = x1 + legW;
-            double y2 = y1 + legH;
-            if(x2 > maxX2){ x1 = std::max(0.10, maxX2 - legW); x2 = x1 + legW; }
-            if(y2 > maxY2){ y1 = std::max(0.12, maxY2 - legH); y2 = y1 + legH; }
-            TLegend* leg = new TLegend(x1, y1, x2, y2);
-            leg->SetNColumns(nCols);
-            leg->SetFillColor(0);
-            leg->SetBorderSize(1);
-            leg->SetTextSize(0.028);
-            leg->SetMargin(0.20);
-            leg->SetEntrySeparation(0.005);
-            leg->SetColumnSeparation(0.02);
-
-            // Colors
-            int colors[] = {kBlack,kBlue+2,kRed+1,kGreen+2,kMagenta+2,kOrange+7,kViolet+1,kCyan+1};
-
-            int colorIdx=0;
-            for(int ie=0; ie<NENERGIES; ie++)
-            {
-                if(energy_to_plot>-1 && ie!=energy_to_plot) continue; // plot only selected energy if specified
-                double e = energydouble[ie];
-                // treat 7.7 as LOW side: low = e <= cutoff, high = e > cutoff
-                if((side==0 && e>cutoff) || (side==1 && e<=cutoff)) continue;
-                //if((side==0 && e>=cutoff) || (side==1 && e<cutoff)) continue; // overlap at cutoff DOES NOT WORK
-                // graphs
-                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
-                if(!gdef || !gsys) continue;
-                int col = colors[colorIdx % (sizeof(colors)/sizeof(int))];
-                // filled band: use sys graph draw option 3
-                int fillcol = TColor::GetColorTransparent(col, 0.25); // 25-35% transparent fill of line color
-                gsys->SetFillColor(fillcol);
-                gsys->SetFillStyle(1001);
-                gsys->SetLineColor(col);
-                gsys->SetLineWidth(1);
-                gsys->Draw("3 same");
-                // thin connecting line for central values
-                // gdef->SetLineColor(col);
-                // gdef->SetLineWidth(3);
-                // gdef->SetMarkerStyle(20);
-                // gdef->SetMarkerSize(0.0);
-                // gdef->Draw("LP same");
-                gsys->SetLineColor(col);
-                gsys->SetLineWidth(3);
-                gsys->SetMarkerStyle(20+colorIdx); // differentiate points
-                gsys->SetMarkerSize(2.0); // instead of 0.0, points needed for better visibility in case of mT vs param
-                gsys->SetMarkerColor(col);
-                gsys->Draw("LPX same");
-                //gStyle->SetLegendTextSize(0.015);
-
-                std::stringstream label;
-                //label.precision(2);
-                label << std::fixed << std::setprecision(1) << energydouble[ie];//energies[ie];
-                // leg->AddEntry(gdef, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "l");
-                leg->AddEntry(gsys, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "lpx"); // changed from "l", let the marker show in legend
-                colorIdx++;
-            }
-            leg->Draw();
+            std::stringstream label;
+            label << std::fixed << std::setprecision(1) << energydouble[ie];
+            leg->AddEntry(gsys, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "lpx"); // changed from "l", let the marker show in legend
+            colorIdx++;
         }
+        leg->Draw();
 
-        // Save canvas
+        // Save canvas (single-panel figure)
         const char* energyplotted = (energy_to_plot>-1)? Form("_energy_%s", energies[energy_to_plot]) : "_allenergies";
         can->SetTitle(Form("m_{T} vs %s systematic uncertainties%s",
                             (iparam==0)?"#alpha":(iparam==1)?"R":"#lambda", energyplotted));
-        //can->SaveAs(Form("figs/syserr/mT_vs_param_%d%s.png", iparam, energyplotted));
         can->SaveAs(Form("figs/syserr/mT_vs_param_%s%s.png", levy_params[iparam], energyplotted));
         delete can;
     }
