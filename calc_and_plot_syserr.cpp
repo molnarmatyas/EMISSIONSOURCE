@@ -22,7 +22,7 @@
 #include <iomanip>
 #include <TF1.h>
 
-bool debug = false; // set to true to print parameter results for each systematic variation
+bool debug = true; // set to true to print parameter results for each systematic variation
 bool plot_mtavg = false; // set to true to plot m_T-averaged param vs sNN as well
 bool mtchoice_syst = false;
 
@@ -124,6 +124,7 @@ double calc_syst_contribution(TGraphAsymmErrors* defaultgraph, double* errups, d
             points++;
         }
     }
+    if(points == 0) return 0.;
     percent /= points;
     percent *= 100.; // to percent
     return percent;
@@ -152,7 +153,10 @@ double calc_syst_contrib_median(TGraphAsymmErrors* defaultgraph, double* errups,
     return 0.5 * (vals[n/2 - 1] + vals[n/2]);
 }
 
-Double_t myfunc(double x){return 0.85+pow(x,-0.14);}
+Double_t starfunc(double x)
+{
+    return 0.85+pow(x,-0.14);
+}
 
 
 // -------- MAIN FUNCTION --------
@@ -169,6 +173,29 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     // x-error arrays (half-bin widths) - set to zero for now
     double xerr_low[NKT] = {0};
     double xerr_high[NKT] = {0};
+
+    // Build m_T-choice uncertainty from neighboring bins around a chosen center bin.
+    auto calc_neighbor_uncert = [](TGraphAsymmErrors* g, int center_idx, double& up, double& dn)
+    {
+        up = 0.;
+        dn = 0.;
+        if(!g) return;
+        if(center_idx < 0 || center_idx >= g->GetN()) return;
+        double center = g->GetY()[center_idx];
+        if(!std::isfinite(center)) return;
+        double up_sq = 0., dn_sq = 0.;
+        for(int j : {center_idx-1, center_idx+1})
+        {
+            if(j < 0 || j >= g->GetN()) continue;
+            double nb = g->GetY()[j];
+            if(!std::isfinite(nb)) continue;
+            double diff = nb - center;
+            if(diff >= 0.) up_sq += diff*diff;
+            else dn_sq += diff*diff;
+        }
+        up = sqrt(up_sq);
+        dn = sqrt(dn_sq);
+    };
 
     // CONTAINERS
     // Default systematics -> Lévy params
@@ -196,7 +223,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     // CSV lines to collect percent breakdown per energy
     std::vector<std::string> csv_lines;
 
-    // Arrays to store per-energy percent contributions (median) for reuse in sqrt(sNN) plots
+    // Arrays to store per-energy percent contributions (average/median) for reuse in sqrt(sNN) plots
     double alpha_qlcms_pct_up_arr[NENERGIES] = {0}, alpha_qlcms_pct_dn_arr[NENERGIES] = {0};
     double alpha_rhofit_pct_up_arr[NENERGIES] = {0}, alpha_rhofit_pct_dn_arr[NENERGIES] = {0};
     double alpha_nevt_pct_up_arr[NENERGIES] = {0}, alpha_nevt_pct_dn_arr[NENERGIES] = {0};
@@ -207,7 +234,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     double N_rhofit_pct_up_arr[NENERGIES] = {0}, N_rhofit_pct_dn_arr[NENERGIES] = {0};
     double N_nevt_pct_up_arr[NENERGIES] = {0}, N_nevt_pct_dn_arr[NENERGIES] = {0};
 
-    // Also store mT-averaged default values and the ikt=2 default points per energy
+    // Also store mT-averaged default values and the ikt=2 etc. default points per energy
     double avg_alpha[NENERGIES] = {0}, avg_R[NENERGIES] = {0}, avg_N[NENERGIES] = {0};
     double val_alpha_ikt2[NENERGIES] = {0}, val_R_ikt2[NENERGIES] = {0}, val_N_ikt2[NENERGIES] = {0};
     // And the m_T choice syst uncert
@@ -268,7 +295,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 cout << "Default." << endl;
                 cout << Form("ikt %i: alpha = %g +%g -%g; R = %g +%g -%g; N = %g +%g -%g", ikt, alpha_vals[ikt], alpha_errup[ikt], alpha_errdn[ikt], R_vals[ikt], R_errup[ikt], R_errdn[ikt], N_vals[ikt], N_errup[ikt], N_errdn[ikt]) << endl;
             }
-        }        
+        }
         alpha_default[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
         R_default[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, R_vals, xerr_low, xerr_high, R_errdn, R_errup);
         N_default[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, N_vals, xerr_low, xerr_high, N_errdn, N_errup);
@@ -520,7 +547,6 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         R_syserr[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, R_default[ienergy]->GetY(), xerr_low, xerr_high, R_syserr_dn, R_syserr_up);
         N_syserr[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, N_default[ienergy]->GetY(), xerr_low, xerr_high, N_syserr_dn, N_syserr_up);
 
-        // FIXME all of these use the full syst. unc., not the individual contributions, but that would be needed for this to make sense
         // Give one-one number about the systematic uncertainty contributions from each source
 
         // Firstly, extract the individual contributions as well
@@ -535,6 +561,31 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             correct_syserr_direction(N_qlcms_up, N_qlcms_dn, N_qlcms[ienergy][1], N_qlcms[ienergy][2], N_default[ienergy], ikt);
             correct_syserr_direction(N_rhofitmax_up, N_rhofitmax_dn, N_rhofitmax[ienergy][1], N_rhofitmax[ienergy][2], N_default[ienergy], ikt);
             correct_syserr_direction(N_nevtavg_up, N_nevtavg_dn, N_nevtavg[ienergy][1], N_nevtavg[ienergy][2], N_default[ienergy], ikt);
+        }
+
+        // Individual source arrays hold summed squares; convert to magnitudes before percent conversion.
+        for(int ikt=0; ikt<NKT; ikt++)
+        {
+            alpha_qlcms_up[ikt] = sqrt(alpha_qlcms_up[ikt]);
+            alpha_qlcms_dn[ikt] = sqrt(alpha_qlcms_dn[ikt]);
+            alpha_rhofitmax_up[ikt] = sqrt(alpha_rhofitmax_up[ikt]);
+            alpha_rhofitmax_dn[ikt] = sqrt(alpha_rhofitmax_dn[ikt]);
+            alpha_nevtavg_up[ikt] = sqrt(alpha_nevtavg_up[ikt]);
+            alpha_nevtavg_dn[ikt] = sqrt(alpha_nevtavg_dn[ikt]);
+
+            R_qlcms_up[ikt] = sqrt(R_qlcms_up[ikt]);
+            R_qlcms_dn[ikt] = sqrt(R_qlcms_dn[ikt]);
+            R_rhofitmax_up[ikt] = sqrt(R_rhofitmax_up[ikt]);
+            R_rhofitmax_dn[ikt] = sqrt(R_rhofitmax_dn[ikt]);
+            R_nevtavg_up[ikt] = sqrt(R_nevtavg_up[ikt]);
+            R_nevtavg_dn[ikt] = sqrt(R_nevtavg_dn[ikt]);
+
+            N_qlcms_up[ikt] = sqrt(N_qlcms_up[ikt]);
+            N_qlcms_dn[ikt] = sqrt(N_qlcms_dn[ikt]);
+            N_rhofitmax_up[ikt] = sqrt(N_rhofitmax_up[ikt]);
+            N_rhofitmax_dn[ikt] = sqrt(N_rhofitmax_dn[ikt]);
+            N_nevtavg_up[ikt] = sqrt(N_nevtavg_up[ikt]);
+            N_nevtavg_dn[ikt] = sqrt(N_nevtavg_dn[ikt]);
         }
         
         // Average with calc_syst_contribution
@@ -597,15 +648,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         TGraphAsymmErrors* gdef_mt = alpha_default[ienergy];
         if(gdef_mt && gdef_mt->GetN() > 2){
             double center = gdef_mt->GetY()[2];
-            double neigh_up_sq = 0., neigh_dn_sq = 0.;
-            for(int j : {1,3}){
-                if(j<0 || j>=gdef_mt->GetN()) continue;
-                double nb = gdef_mt->GetY()[j];
-                double diff = nb - center;
-                if(diff >= 0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
-            }
-            double neigh_up = sqrt(neigh_up_sq);
-            double neigh_dn = sqrt(neigh_dn_sq);
+            double neigh_up = 0., neigh_dn = 0.;
+            calc_neighbor_uncert(gdef_mt, 2, neigh_up, neigh_dn);
             if(std::isfinite(center) && center != 0.){
                 // Leaves mT choice uncertainty zero if turned off via mtchoice_syst=false
                 if(mtchoice_syst) mt_pct_up = 100.0 * neigh_up / fabs(center);
@@ -626,7 +670,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                << " +" << mt_pct_up << " / -" << mt_pct_dn;
         csv_lines.push_back(mtline.str());
         
-        // Store per-energy percent medians for later sqrt(sNN) plotting
+        // Store per-energy percent averages/medians for later sqrt(sNN) plotting
         alpha_qlcms_pct_up_arr[ienergy] = alpha_qlcms_percent_up;
         alpha_qlcms_pct_dn_arr[ienergy] = alpha_qlcms_percent_dn;
         alpha_rhofit_pct_up_arr[ienergy] = alpha_rhofitmax_percent_up;
@@ -661,6 +705,14 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         if(cnt>0){ avg_alpha[ienergy] = sum_a / cnt; avg_R[ienergy] = sum_R / cnt; avg_N[ienergy] = sum_Nv / cnt; }
         // store ikt=2 (3rd mT bin) default values if available
         if(NKT>2){ val_alpha_ikt2[ienergy] = alpha_default[ienergy]->GetY()[2]; val_R_ikt2[ienergy] = R_default[ienergy]->GetY()[2]; val_N_ikt2[ienergy] = N_default[ienergy]->GetY()[2]; }
+
+        // Populate m_T-choice source arrays in active code path for optional overlay usage.
+        if(mtchoice_syst && NKT>2)
+        {
+            calc_neighbor_uncert(alpha_default[ienergy], 2, alpha_mTchoice_syst_up[ienergy], alpha_mTchoice_syst_dn[ienergy]);
+            calc_neighbor_uncert(R_default[ienergy], 2, R_mTchoice_syst_up[ienergy], R_mTchoice_syst_dn[ienergy]);
+            calc_neighbor_uncert(N_default[ienergy], 2, N_mTchoice_syst_up[ienergy], N_mTchoice_syst_dn[ienergy]);
+        }
         
          
     } // end energy loop
@@ -823,6 +875,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     double xerr_low_s[NENERGIES] = {0};
     double xerr_high_s[NENERGIES] = {0};
 
+    // NOT NEEDED FROM NOW ON
+    /*
     // For each parameter make a two-panel canvas: left = mT-averaged, right = selected mT bins
     for(int iparam=0; iparam<3; iparam++){
         TCanvas* can = new TCanvas(Form("can_sqrtS_param_%d", iparam), "", 1600, 800);
@@ -851,7 +905,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         for(int ie=0; ie<NENERGIES; ie++){
             double avg = (iparam==0)? avg_alpha[ie] : (iparam==1)? avg_R[ie] : avg_N[ie];
             yavg[ie] = avg;
-            // compute sys contributions from stored percent medians
+            // compute sys contributions from stored percent averages/medians
             double up_sq = 0., dn_sq = 0.;
             if(iparam==0){
                 up_sq += pow(alpha_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
@@ -860,6 +914,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 dn_sq += pow(alpha_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(alpha_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(alpha_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+                if(mtchoice_syst){
+                    up_sq += pow(alpha_mTchoice_syst_up[ie], 2);
+                    dn_sq += pow(alpha_mTchoice_syst_dn[ie], 2);
+                }
             } else if(iparam==1){
                 up_sq += pow(R_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
                 up_sq += pow(R_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
@@ -867,6 +925,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 dn_sq += pow(R_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(R_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(R_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+                if(mtchoice_syst){
+                    up_sq += pow(R_mTchoice_syst_up[ie], 2);
+                    dn_sq += pow(R_mTchoice_syst_dn[ie], 2);
+                }
             } else {
                 up_sq += pow(N_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
                 up_sq += pow(N_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
@@ -874,6 +936,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 dn_sq += pow(N_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(N_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(N_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+                if(mtchoice_syst){
+                    up_sq += pow(N_mTchoice_syst_up[ie], 2);
+                    dn_sq += pow(N_mTchoice_syst_dn[ie], 2);
+                }
             }
             yavg_errup[ie] = sqrt(up_sq);
             yavg_errdn[ie] = sqrt(dn_sq);
@@ -1047,7 +1113,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         if(iparam==0){
             double xminf = x_energy[0];
             double xmaxf = x_energy[NENERGIES-1];
-            f = new TF1("alpha_curve", "myfunc(x)", xminf, xmaxf);
+            f = new TF1("alpha_curve", "starfunc(x)", xminf, xmaxf);
             f->SetLineColor(TColor::GetColorTransparent(kBlack,0.4));
             f->SetLineStyle(1);
             f->SetLineWidth(3);
@@ -1162,15 +1228,16 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         can->SaveAs(Form("figs/syserr/sqrtS_vs_%s.png", levy_params[iparam]));
         delete can;
     }
+    */
 
-    /////////////////////////////////////////////////////
-    // Single-panel overlays: each parameter         ////
-    // showing optional mT-averaged and selected mT bins ////
-    /////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////
+    // Single-panel overlays: each parameter                ////
+    // showing optional mT-averaged, and selected mT bins   ////
+    ////////////////////////////////////////////////////////////
     
     for(int iparam=0; iparam<3; iparam++){
         TCanvas* can_overlay = new TCanvas(Form("can_overlay_param_%d", iparam), "", 1200, 800);
-        //can_overlay->SetLogx(1); // !!! FIXME if not needed to compare with STAR data
+        can_overlay->SetLogx(1); // !!! FIXME if not needed to compare with STAR data
 
         
         // Precompute y-range for both datasets
@@ -1187,6 +1254,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 dn_sq += pow(alpha_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(alpha_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(alpha_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+                if(mtchoice_syst){
+                    up_sq += pow(alpha_mTchoice_syst_up[ie], 2);
+                    dn_sq += pow(alpha_mTchoice_syst_dn[ie], 2);
+                }
             } else if(iparam==1){
                 up_sq += pow(R_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
                 up_sq += pow(R_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
@@ -1194,6 +1265,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 dn_sq += pow(R_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(R_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(R_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+                if(mtchoice_syst){
+                    up_sq += pow(R_mTchoice_syst_up[ie], 2);
+                    dn_sq += pow(R_mTchoice_syst_dn[ie], 2);
+                }
             } else {
                 up_sq += pow(N_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
                 up_sq += pow(N_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
@@ -1201,6 +1276,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 dn_sq += pow(N_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(N_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
                 dn_sq += pow(N_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
+                if(mtchoice_syst){
+                    up_sq += pow(N_mTchoice_syst_up[ie], 2);
+                    dn_sq += pow(N_mTchoice_syst_dn[ie], 2);
+                }
             }
             double errup = sqrt(up_sq);
             double errdn = sqrt(dn_sq);
@@ -1234,8 +1313,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 }
                 double neigh_up = sqrt(neigh_up_sq);
                 double neigh_dn = sqrt(neigh_dn_sq);
-                double errup2 = sqrt(base_up*base_up + neigh_up*neigh_up);
-                double errdn2 = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
+                double extra_up = mtchoice_syst ? neigh_up : 0.;
+                double extra_dn = mtchoice_syst ? neigh_dn : 0.;
+                double errup2 = sqrt(base_up*base_up + extra_up*extra_up);
+                double errdn2 = sqrt(base_dn*base_dn + extra_dn*extra_dn);
                 if(std::isfinite(val)){
                     ymin_both = std::min(ymin_both, val - errdn2);
                     ymax_both = std::max(ymax_both, val + errup2);
@@ -1297,8 +1378,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                     dn_sq += pow(alpha_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
                     dn_sq += pow(alpha_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
                     // also add m_T choice sys uncert
-                    up_sq += pow(alpha_mTchoice_syst_up[ie], 2);
-                    dn_sq += pow(alpha_mTchoice_syst_dn[ie], 2);
+                    if(mtchoice_syst){
+                        up_sq += pow(alpha_mTchoice_syst_up[ie], 2);
+                        dn_sq += pow(alpha_mTchoice_syst_dn[ie], 2);
+                    }
                 } else if(iparam==1){
                     up_sq += pow(R_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
                     up_sq += pow(R_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
@@ -1306,8 +1389,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                     dn_sq += pow(R_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
                     dn_sq += pow(R_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
                     dn_sq += pow(R_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                    up_sq += pow(R_mTchoice_syst_up[ie], 2);
-                    dn_sq += pow(R_mTchoice_syst_dn[ie], 2);
+                    if(mtchoice_syst){
+                        up_sq += pow(R_mTchoice_syst_up[ie], 2);
+                        dn_sq += pow(R_mTchoice_syst_dn[ie], 2);
+                    }
                 } else {
                     up_sq += pow(N_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
                     up_sq += pow(N_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
@@ -1315,8 +1400,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                     dn_sq += pow(N_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
                     dn_sq += pow(N_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
                     dn_sq += pow(N_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                    up_sq += pow(N_mTchoice_syst_up[ie], 2);
-                    dn_sq += pow(N_mTchoice_syst_dn[ie], 2);
+                    if(mtchoice_syst){
+                        up_sq += pow(N_mTchoice_syst_up[ie], 2);
+                        dn_sq += pow(N_mTchoice_syst_dn[ie], 2);
+                    }
                 }
                 yavg_errup_overlay[ie] = sqrt(up_sq);
                 yavg_errdn_overlay[ie] = sqrt(dn_sq);
@@ -1367,8 +1454,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                     }
                     double neigh_up = sqrt(neigh_up_sq);
                     double neigh_dn = sqrt(neigh_dn_sq);
-                    yerrup_overlay[ie] = sqrt(base_up*base_up + neigh_up*neigh_up);
-                    yerrdn_overlay[ie] = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
+                    double extra_up = mtchoice_syst ? neigh_up : 0.;
+                    double extra_dn = mtchoice_syst ? neigh_dn : 0.;
+                    yerrup_overlay[ie] = sqrt(base_up*base_up + extra_up*extra_up);
+                    yerrdn_overlay[ie] = sqrt(base_dn*base_dn + extra_dn*extra_dn);
                 }
 
                 TGraphAsymmErrors* g_ikt = new TGraphAsymmErrors(NENERGIES, x_energy, y_overlay, xerr_low_s, xerr_high_s, yerrdn_overlay, yerrup_overlay);
@@ -1407,7 +1496,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
         leg_overlay->SetTextSize(0.025);
-        if(plot_mtavg) leg_overlay->AddEntry(g_avg_overlay, "UrQMD <m_{T}>, incl. m_{T} choice sys.unc.", "f");
+        if(plot_mtavg) leg_overlay->AddEntry(g_avg_overlay, mtchoice_syst ? "UrQMD <m_{T}>, incl. m_{T} choice sys.unc." : "UrQMD <m_{T}>", "f");
         for(size_t ig=0; ig<g_ikt_overlay.size(); ig++){
             leg_overlay->AddEntry(g_ikt_overlay[ig], g_ikt_overlay_labels[ig].c_str(), "f");
         }
