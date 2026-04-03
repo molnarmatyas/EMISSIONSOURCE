@@ -1437,9 +1437,19 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 double yerrup_overlay[NENERGIES] = {0};
                 double yerrdn_overlay[NENERGIES] = {0};
                 for(int ie=0; ie<NENERGIES; ie++){
+                    // FIXME? the syserr graph should have the same points as the default graph, only the errors differ - gdef could be omitted at this point if stat err not plotted
                     TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-                    TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
+                    //TGraphAsymmErrors* gdef = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie]; // like that...
+                    TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie]; // still, can be left like this for sanity check
                     if(!gdef || !gsys || gdef->GetN()<=ikt || gsys->GetN()<=ikt) continue;
+                    if(debug)
+                    {
+                        // Print out the values and errors for this point for debugging
+                        double val = gdef->GetY()[ikt];
+                        double errup = gsys->GetEYhigh()[ikt];
+                        double errdn = gsys->GetEYlow()[ikt];
+                        cerr << "Debug gdef/gsys: ie=" << ie << ", ikt=" << ikt << ", val=" << val << ", errup=" << errup << ", errdn=" << errdn << endl;
+                    }
 
                     y_overlay[ie] = gdef->GetY()[ikt];
                     double base_up = gsys->GetEYhigh()[ikt];
