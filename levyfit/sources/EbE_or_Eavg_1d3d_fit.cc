@@ -668,6 +668,8 @@ int main(int argc, char *argv[])
   // Per-ikt confidence histograms and one collecting all kT bins
   TH1* confidencehist[NKT];
   TH1* confidencehist_all = new TH1F("confidencehist_all","",100,0.,1.);
+  TH1* chi2ndfhist[NKT];
+  TH1* chi2ndfhist_all = new TH1F("chi2ndfhist_all","",200,0.,10.);
   // Temporary storages
   // For writing the vectors into TGraphAsymmErrors
   Double_t ktbin_centers[NKT], xLow[NKT], xHigh[NKT];//, binWidths[NKT];
@@ -701,6 +703,7 @@ int main(int argc, char *argv[])
     // per-ikt src range: increase Y max to cover larger R at low energies
     alpha_vs_R[ikt] = new TH2F(Form("alpha_vs_R_ikt%i",ikt),"",100,0.,2.,100,2.5,15.);
     confidencehist[ikt] = new TH1F(Form("confidencehist_ikt%i",ikt),"",100,0.,1.);
+    chi2ndfhist[ikt] = new TH1F(Form("chi2ndfhist_ikt%i",ikt),"",200,0.,10.);
   }
   // Initialize histogram pointers to nullptr to avoid accidental dereference
   for(int iosl = 0; iosl < NOSL + 1; iosl++) // +1 for rho proj histograms
@@ -929,9 +932,9 @@ int main(int argc, char *argv[])
           int fitStatus = minimizer->Status();
           cout << "CovMatrixStatus: " << fitCovStatus << " (" << covstatuses[fitCovStatus] << ")"<< endl;
           cout << "Status: " << fitStatus << " (" << statuses[fitStatus] << ")"<< endl;
-          double confidence = chi2val / NDF;
+          double chi2ndf = chi2val / NDF;
           double conflev = TMath::Prob(chi2val, NDF); // this gives the p-value TODO check if correct
-          cout << "Confidence: " << confidence << endl;
+          cout << "chi2/NDF: " << chi2ndf << endl;
           
           const char* fitQuality = "GOODFIT";
           if(fitCovStatus != 3) fitQuality = covstatuses[fitCovStatus]; // && fitCovStatus != 1 "approximated" looks also good
@@ -939,7 +942,7 @@ int main(int argc, char *argv[])
           if(results[0] < 0.55 || results[0] > 1.95) fitQuality = "alpha_out_of_bounds";
           if(results[1] < 0.05 || results[1] > 14.95) fitQuality = "R_out_of_bounds"; // TODO check but probably enough for one rho
           if(results[NPARS-1] < 0.5 || results[NPARS-1] > 1.5) fitQuality = "N_out_of_bounds";
-          if(NEVT_AVG==1 && confidence < 0.01) fitQuality = "conf_too_low"; // confidence < 0.01 should not be checked when averaged
+          if(NEVT_AVG==1 && conflev < 0.01) fitQuality = "conf_too_low"; // confidence level < 0.01 should not be checked when averaged
           if(static_cast<Double_t>(binsInRange) * 0.5 > hitsInRange) fitQuality = "too_few_hits";
         
           // Here, among others, creating D(rho) from rho hists (normalising to 1)
@@ -1196,6 +1199,9 @@ int main(int argc, char *argv[])
           // Fill per-ikt and the global confidence histograms
           confidencehist[ikt]->Fill(conflev);
           confidencehist_all->Fill(conflev);
+          // Fill chi2/ndf histograms
+          chi2ndfhist[ikt]->Fill(chi2ndf);
+          chi2ndfhist_all->Fill(chi2ndf);
           //canvas->Clear();
         } // end of ikt loop
         
@@ -1326,11 +1332,13 @@ int main(int argc, char *argv[])
     alpha_vs_R[ikt]->Write();
     Nhist[ikt]->Write(); // I could put this with alpha and R together in TH3, but stick with this for now
     confidencehist[ikt]->Write();
-    delete alphahist[ikt]; delete Rhist[ikt]; delete alpha_vs_R[ikt]; delete Nhist[ikt]; delete confidencehist[ikt];
+    chi2ndfhist[ikt]->Write();
+    delete alphahist[ikt]; delete Rhist[ikt]; delete alpha_vs_R[ikt]; delete Nhist[ikt]; delete confidencehist[ikt]; delete chi2ndfhist[ikt];
   }
   alpha_vs_R_all->Write();
   confidencehist_all->Write();
-  delete alpha_vs_R_all; delete confidencehist_all;
+  chi2ndfhist_all->Write();
+  delete alpha_vs_R_all; delete confidencehist_all; delete chi2ndfhist_all;
   cout << "histograms written." << endl;
 
   /*

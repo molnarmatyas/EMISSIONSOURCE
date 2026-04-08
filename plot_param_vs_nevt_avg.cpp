@@ -58,6 +58,10 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     std::vector<TGraphErrors*> R_graphs;
     std::vector<TGraphErrors*> N_graphs;
     std::vector<TGraphErrors*> conflev_graphs;
+    std::vector<TGraphErrors*> R_out_graphs;
+    std::vector<TGraphErrors*> R_side_graphs;
+    std::vector<TGraphErrors*> R_long_graphs;
+    std::vector<TGraphErrors*> chi2ndf_graphs;
     
     // Colors for different energies
     int colors[NENERGIES] = {kRed, kBlue, kTeal+3, kMagenta, kOrange+7, kGreen+2, kCyan+2, kViolet+2, kPink+7, kGray+2, kAzure+7};
@@ -68,6 +72,11 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
         std::vector<double> Ns, NErrs;
         std::vector<double> conflevs, conflevErrs;
         std::vector<double> nevt_points, nevt_errs;
+        std::vector<double> R_outs, R_outErrs;
+        std::vector<double> R_sides, R_sideErrs;
+        std::vector<double> R_longs, R_longErrs;
+        std::vector<double> chi2ndfs, chi2ndfErrs;
+        std::vector<double> nevt_points_3d, nevt_errs_3d;
         
         for(int nevt : nevt_avg) {
             // Construct filename
@@ -154,6 +163,57 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             double conflev = hConfLev->GetMean();
             double conflevErr = hConfLev->GetRMS() / sqrt(hConfLev->GetEntries());
 
+            // 3D parameters and chi2/NDF for a second 4-panel plot.
+            bool has_all_3d_inputs = true;
+
+            int ikt_3d = ikt;
+            if(ikt_3d < 0) ikt_3d = 0;
+
+            TH1F* hRout = (TH1F*)file->Get(Form("R_out_hist_ikt%i", ikt_3d));
+            TH1F* hRside = (TH1F*)file->Get(Form("R_side_hist_ikt%i", ikt_3d));
+            TH1F* hRlong = (TH1F*)file->Get(Form("R_long_hist_ikt%i", ikt_3d));
+
+            if(hRout && hRside && hRlong && ikt < 0) {
+                for(int ikt_add = 1; ikt_add < NKT; ikt_add++) {
+                    TH1F* hRout_add = (TH1F*)file->Get(Form("R_out_hist_ikt%i", ikt_add));
+                    TH1F* hRside_add = (TH1F*)file->Get(Form("R_side_hist_ikt%i", ikt_add));
+                    TH1F* hRlong_add = (TH1F*)file->Get(Form("R_long_hist_ikt%i", ikt_add));
+                    if(hRout_add && hRside_add && hRlong_add) {
+                        hRout->Add(hRout_add);
+                        hRside->Add(hRside_add);
+                        hRlong->Add(hRlong_add);
+                    }
+                }
+            }
+
+            if(!hRout || !hRside || !hRlong) {
+                has_all_3d_inputs = false;
+            }
+
+            if(has_all_3d_inputs) {
+                if(hRout->GetEntries() == 0 || hRside->GetEntries() == 0 || hRlong->GetEntries() == 0) {
+                    has_all_3d_inputs = false;
+                }
+            }
+
+            const char* chi2ndf_histname = (ikt>=0) ? Form("chi2ndfhist_ikt%i", ikt) : "chi2ndfhist_all";
+            TH1F* hChi2Ndf = (TH1F*)file->Get(chi2ndf_histname);
+            if(!hChi2Ndf && ikt < 0) {
+                hChi2Ndf = (TH1F*)file->Get("chi2ndfhist_ikt0");
+                if(hChi2Ndf) {
+                    for(int ikt_add = 1; ikt_add < NKT; ikt_add++) {
+                        TH1F* hChi2Ndf_add = (TH1F*)file->Get(Form("chi2ndfhist_ikt%i", ikt_add));
+                        if(hChi2Ndf_add) {
+                            hChi2Ndf->Add(hChi2Ndf_add);
+                        }
+                    }
+                }
+            }
+
+            if(!hChi2Ndf || hChi2Ndf->GetEntries() == 0) {
+                has_all_3d_inputs = false;
+            }
+
             // Push all quantities only after all required histograms were found.
             alphas.push_back(alpha);
             alphaErrs.push_back(alphaErr);
@@ -165,6 +225,28 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             conflevErrs.push_back(conflevErr);
             nevt_points.push_back(nevt);
             nevt_errs.push_back(0);
+
+            if(has_all_3d_inputs) {
+                double R_out = hRout->GetMean();
+                double R_outErr = hRout->GetRMS() / sqrt(hRout->GetEntries());
+                double R_side = hRside->GetMean();
+                double R_sideErr = hRside->GetRMS() / sqrt(hRside->GetEntries());
+                double R_long = hRlong->GetMean();
+                double R_longErr = hRlong->GetRMS() / sqrt(hRlong->GetEntries());
+                double chi2ndf = hChi2Ndf->GetMean();
+                double chi2ndfErr = hChi2Ndf->GetRMS() / sqrt(hChi2Ndf->GetEntries());
+
+                R_outs.push_back(R_out);
+                R_outErrs.push_back(R_outErr);
+                R_sides.push_back(R_side);
+                R_sideErrs.push_back(R_sideErr);
+                R_longs.push_back(R_long);
+                R_longErrs.push_back(R_longErr);
+                chi2ndfs.push_back(chi2ndf);
+                chi2ndfErrs.push_back(chi2ndfErr);
+                nevt_points_3d.push_back(nevt);
+                nevt_errs_3d.push_back(0);
+            }
             
             file->Close();
         }
@@ -174,6 +256,10 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
         TGraphErrors* g_R = nullptr;
         TGraphErrors* g_N = nullptr;
         TGraphErrors* g_conflev = nullptr;
+        TGraphErrors* g_R_out = nullptr;
+        TGraphErrors* g_R_side = nullptr;
+        TGraphErrors* g_R_long = nullptr;
+        TGraphErrors* g_chi2ndf = nullptr;
         if(!nevt_points.empty()) {
             g_alpha = new TGraphErrors(nevt_points.size(),
                 nevt_points.data(), alphas.data(), nevt_errs.data(), alphaErrs.data());
@@ -183,6 +269,16 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
                 nevt_points.data(), Ns.data(), nevt_errs.data(), NErrs.data());
             g_conflev = new TGraphErrors(nevt_points.size(),
                 nevt_points.data(), conflevs.data(), nevt_errs.data(), conflevErrs.data());
+        }
+        if(!nevt_points_3d.empty()) {
+            g_R_out = new TGraphErrors(nevt_points_3d.size(),
+                nevt_points_3d.data(), R_outs.data(), nevt_errs_3d.data(), R_outErrs.data());
+            g_R_side = new TGraphErrors(nevt_points_3d.size(),
+                nevt_points_3d.data(), R_sides.data(), nevt_errs_3d.data(), R_sideErrs.data());
+            g_R_long = new TGraphErrors(nevt_points_3d.size(),
+                nevt_points_3d.data(), R_longs.data(), nevt_errs_3d.data(), R_longErrs.data());
+            g_chi2ndf = new TGraphErrors(nevt_points_3d.size(),
+                nevt_points_3d.data(), chi2ndfs.data(), nevt_errs_3d.data(), chi2ndfErrs.data());
         }
             
         // Use solid markers and slightly transparent, thicker lines to connect points
@@ -214,11 +310,40 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             g_conflev->SetLineColor(transCol);
             g_conflev->SetLineWidth(3);
         }
+        if(g_R_out) {
+            g_R_out->SetMarkerStyle(20);
+            g_R_out->SetMarkerColor(baseCol);
+            g_R_out->SetMarkerSize(1.0);
+            g_R_out->SetLineColor(transCol);
+            g_R_out->SetLineWidth(3);
+
+            g_R_side->SetMarkerStyle(20);
+            g_R_side->SetMarkerColor(baseCol);
+            g_R_side->SetMarkerSize(1.0);
+            g_R_side->SetLineColor(transCol);
+            g_R_side->SetLineWidth(3);
+
+            g_R_long->SetMarkerStyle(20);
+            g_R_long->SetMarkerColor(baseCol);
+            g_R_long->SetMarkerSize(1.0);
+            g_R_long->SetLineColor(transCol);
+            g_R_long->SetLineWidth(3);
+
+            g_chi2ndf->SetMarkerStyle(20);
+            g_chi2ndf->SetMarkerColor(baseCol);
+            g_chi2ndf->SetMarkerSize(1.0);
+            g_chi2ndf->SetLineColor(transCol);
+            g_chi2ndf->SetLineWidth(3);
+        }
         
         alpha_graphs.push_back(g_alpha);
         R_graphs.push_back(g_R);
         N_graphs.push_back(g_N);
         conflev_graphs.push_back(g_conflev);
+        R_out_graphs.push_back(g_R_out);
+        R_side_graphs.push_back(g_R_side);
+        R_long_graphs.push_back(g_R_long);
+        chi2ndf_graphs.push_back(g_chi2ndf);
     }
     
     // Create and divide canvas
@@ -343,4 +468,156 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     // Final, save
     const char* ikt_suffix = (ikt>=0) ? Form("_ikt%i", ikt) : "_allkt";
     c1->SaveAs(Form("figs/levy_params_vs_nevt_avg%s.png", ikt_suffix));
+
+    {
+        // Auto-tuned y-ranges for the second canvas.
+        double rmin = 1e99, rmax = -1e99;
+        for(size_t i = 0; i < R_out_graphs.size(); i++) {
+            TGraphErrors* gset[3] = {R_out_graphs[i], R_side_graphs[i], R_long_graphs[i]};
+            for(int ig = 0; ig < 3; ig++) {
+                if(!gset[ig]) continue;
+                for(int ip = 0; ip < gset[ig]->GetN(); ip++) {
+                    double y = gset[ig]->GetY()[ip];
+                    double ey = gset[ig]->GetEY()[ip];
+                    if(y - ey < rmin) rmin = y - ey;
+                    if(y + ey > rmax) rmax = y + ey;
+                }
+            }
+        }
+        if(rmax <= rmin) {
+            rmin = 2.5;
+            rmax = 10.0;
+        } else {
+            double rpad = 0.08 * (rmax - rmin);
+            rmin -= rpad;
+            rmax += rpad;
+            if(rmin < 0.0) rmin = 0.0;
+        }
+
+        double cmin = 1e99, cmax = -1e99;
+        for(size_t i = 0; i < chi2ndf_graphs.size(); i++) {
+            if(!chi2ndf_graphs[i]) continue;
+            for(int ip = 0; ip < chi2ndf_graphs[i]->GetN(); ip++) {
+                double y = chi2ndf_graphs[i]->GetY()[ip];
+                double ey = chi2ndf_graphs[i]->GetEY()[ip];
+                if(y - ey < cmin) cmin = y - ey;
+                if(y + ey > cmax) cmax = y + ey;
+            }
+        }
+        if(cmax <= cmin) {
+            cmin = 0.0;
+            cmax = 5.0;
+        } else {
+            double cpad = 0.10 * (cmax - cmin);
+            cmin -= cpad;
+            cmax += cpad;
+            if(cmin < 0.0) cmin = 0.0;
+        }
+    }
+
+    // Second 4-panel plot: R_out, R_side, R_long, chi2/NDF.
+    TCanvas* c2 = new TCanvas("c2", "3D Levy Parameters vs NEVT_AVG", 2400, 2400);
+    c2->Divide(2,2);
+
+    // Plot R_out
+    c2->cd(1);
+    gPad->SetLogx();
+    TLegend* leg5 = new TLegend(0.7, 0.6, 0.9, 0.9);
+    bool first_Rout_drawn = false;
+    for(size_t i = 0; i < R_out_graphs.size(); i++) {
+        if(!R_out_graphs[i]) continue;
+        if(!first_Rout_drawn) {
+            R_out_graphs[i]->SetTitle("Levy R_{out} vs NEVT_AVG");
+            R_out_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
+            R_out_graphs[i]->GetYaxis()->SetTitle("R_{out} [fm]");
+            R_out_graphs[i]->GetYaxis()->SetRangeUser(rmin, rmax);
+            R_out_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
+            R_out_graphs[i]->Draw("APE");
+            R_out_graphs[i]->Draw("L same");
+            first_Rout_drawn = true;
+        } else {
+            R_out_graphs[i]->Draw("PE same");
+            R_out_graphs[i]->Draw("L same");
+        }
+        circle_defaultnevtavg_point(R_out_graphs[i], i);
+        leg5->AddEntry(R_out_graphs[i], Form("%s GeV", energies[i]), "LP");
+    }
+    leg5->Draw();
+
+    // Plot R_side
+    c2->cd(2);
+    gPad->SetLogx();
+    TLegend* leg6 = new TLegend(0.7, 0.6, 0.9, 0.9);
+    bool first_Rside_drawn = false;
+    for(size_t i = 0; i < R_side_graphs.size(); i++) {
+        if(!R_side_graphs[i]) continue;
+        if(!first_Rside_drawn) {
+            R_side_graphs[i]->SetTitle("Levy R_{side} vs NEVT_AVG");
+            R_side_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
+            R_side_graphs[i]->GetYaxis()->SetTitle("R_{side} [fm]");
+            R_side_graphs[i]->GetYaxis()->SetRangeUser(rmin, rmax);
+            R_side_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
+            R_side_graphs[i]->Draw("APE");
+            R_side_graphs[i]->Draw("L same");
+            first_Rside_drawn = true;
+        } else {
+            R_side_graphs[i]->Draw("PE same");
+            R_side_graphs[i]->Draw("L same");
+        }
+        circle_defaultnevtavg_point(R_side_graphs[i], i);
+        leg6->AddEntry(R_side_graphs[i], Form("%s GeV", energies[i]), "LP");
+    }
+    leg6->Draw();
+
+    // Plot R_long
+    c2->cd(3);
+    gPad->SetLogx();
+    TLegend* leg7 = new TLegend(0.7, 0.6, 0.9, 0.9);
+    bool first_Rlong_drawn = false;
+    for(size_t i = 0; i < R_long_graphs.size(); i++) {
+        if(!R_long_graphs[i]) continue;
+        if(!first_Rlong_drawn) {
+            R_long_graphs[i]->SetTitle("Levy R_{long} vs NEVT_AVG");
+            R_long_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
+            R_long_graphs[i]->GetYaxis()->SetTitle("R_{long} [fm]");
+            R_long_graphs[i]->GetYaxis()->SetRangeUser(rmin, rmax);
+            R_long_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
+            R_long_graphs[i]->Draw("APE");
+            R_long_graphs[i]->Draw("L same");
+            first_Rlong_drawn = true;
+        } else {
+            R_long_graphs[i]->Draw("PE same");
+            R_long_graphs[i]->Draw("L same");
+        }
+        circle_defaultnevtavg_point(R_long_graphs[i], i);
+        leg7->AddEntry(R_long_graphs[i], Form("%s GeV", energies[i]), "LP");
+    }
+    leg7->Draw();
+
+    // Plot chi2/NDF
+    c2->cd(4);
+    gPad->SetLogx();
+    TLegend* leg8 = new TLegend(0.7, 0.6, 0.9, 0.9);
+    bool first_chi2ndf_drawn = false;
+    for(size_t i = 0; i < chi2ndf_graphs.size(); i++) {
+        if(!chi2ndf_graphs[i]) continue;
+        if(!first_chi2ndf_drawn) {
+            chi2ndf_graphs[i]->SetTitle("Fit #chi^{2}/NDF vs NEVT_AVG");
+            chi2ndf_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
+            chi2ndf_graphs[i]->GetYaxis()->SetTitle("#chi^{2}/NDF");
+            chi2ndf_graphs[i]->GetYaxis()->SetRangeUser(cmin, cmax);
+            chi2ndf_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
+            chi2ndf_graphs[i]->Draw("APE");
+            chi2ndf_graphs[i]->Draw("L same");
+            first_chi2ndf_drawn = true;
+        } else {
+            chi2ndf_graphs[i]->Draw("PE same");
+            chi2ndf_graphs[i]->Draw("L same");
+        }
+        circle_defaultnevtavg_point(chi2ndf_graphs[i], i);
+        leg8->AddEntry(chi2ndf_graphs[i], Form("%s GeV", energies[i]), "LP");
+    }
+    leg8->Draw();
+
+    c2->SaveAs(Form("figs/levy_3dparams_vs_nevt_avg%s.png", ikt_suffix));
 }
