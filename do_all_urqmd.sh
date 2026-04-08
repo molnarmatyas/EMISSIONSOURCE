@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Example, if ~40--60 GB RAM & >3 cores available: TODO optimize fitting code to be less memory hungry, while not sacrificing speed
+# time ./do_all_urqmd.sh 3 &> logdoall.log &
+
 # To run this script, simply execute `./do_all_urqmd.sh` from the terminal. It will run the entire analysis chain for all energies and produce the final plots. You can optionally specify a maximum number of concurrent jobs (e.g. `./do_all_urqmd.sh 3`) to limit resource usage during the fitting stage.
 # Conversion, analysis and fitting parts can be skipped via internally setting these variables to false
 do_analysis=false

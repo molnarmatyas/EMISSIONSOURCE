@@ -41,7 +41,7 @@ double rfitmax_systlimits[NENERGIES][NKT][3]; // to be calculated in fitting cod
 // Default number of events to be averaged over for each fit, for each energy; indices correspond to NEVT_AVGsyst array below
 const int NEVT_AVGsyst[] = {10, 25, 50, 100, 200, 500, 1000, 5000, 10000, 20000, 25000, 50000, 100000}; // removed 1, not meaningful for low energies, runs too long. Above 10k: highstat
 const int NEVTAVGS = sizeof(NEVT_AVGsyst) / sizeof(int);
-const int NEVT_AVG_DEFAULT[NENERGIES] = {11,11,10,9,8,6,6,6,5,5,4}; // indices in NEVT_AVGsyst corresponding to default
+const int NEVT_AVG_DEFAULT[NENERGIES] = {9,8,7,7,6,5,4,4,4,3,3}; // indices in NEVT_AVGsyst corresponding to default
 
 //{60.0, 25.0, 95.0}; // simpler limits for 3D
 //const double rfitmax_systlimits[3] = {100.0, 50.0, 150.0}; // for 1D this unified stuff was sufficient;
