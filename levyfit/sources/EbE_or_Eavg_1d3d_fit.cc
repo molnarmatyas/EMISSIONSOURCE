@@ -664,7 +664,7 @@ int main(int argc, char *argv[])
   TH1* Nhist[NKT];
   TH2* alpha_vs_R[NKT];
   // widened ranges to avoid under/overflow for low-energy fits
-  TH2F* alpha_vs_R_all = new TH2F("alpha_vs_R_all","",100,0.0,2.0,100,2.5,15.);
+  TH2F* alpha_vs_R_all = new TH2F("alpha_vs_R_all","",100,0.0,2.0,100,1.5,11.);
   // Per-ikt confidence histograms and one collecting all kT bins
   TH1* confidencehist[NKT];
   TH1* confidencehist_all = new TH1F("confidencehist_all","",100,0.,1.);
@@ -695,13 +695,13 @@ int main(int argc, char *argv[])
   for(int ikt = 0; ikt < NKT; ikt++)
   {
     alphahist[ikt] = new TH1F(Form("alphahist_ikt%i",ikt),"",100,0.,2.);
-    Rhist[ikt] = new TH1F(Form("Rhist_ikt%i",ikt),"",100,2.5,15.);
-    R_out_hist[ikt] = new TH1F(Form("R_out_hist_ikt%i",ikt),"",100,2.5,15.);
-    R_side_hist[ikt] = new TH1F(Form("R_side_hist_ikt%i",ikt),"",100,2.5,15.);
-    R_long_hist[ikt] = new TH1F(Form("R_long_hist_ikt%i",ikt),"",100,2.5,15.);
+    Rhist[ikt] = new TH1F(Form("Rhist_ikt%i",ikt),"",100,1.5,11.);
+    R_out_hist[ikt] = new TH1F(Form("R_out_hist_ikt%i",ikt),"",100,1.5,11.);
+    R_side_hist[ikt] = new TH1F(Form("R_side_hist_ikt%i",ikt),"",100,1.5,11.);
+    R_long_hist[ikt] = new TH1F(Form("R_long_hist_ikt%i",ikt),"",100,1.5,11.);
     Nhist[ikt] = new TH1F(Form("Nhist_ikt%i",ikt),"",100,0.85,1.15);
     // per-ikt src range: increase Y max to cover larger R at low energies
-    alpha_vs_R[ikt] = new TH2F(Form("alpha_vs_R_ikt%i",ikt),"",100,0.,2.,100,2.5,15.);
+    alpha_vs_R[ikt] = new TH2F(Form("alpha_vs_R_ikt%i",ikt),"",100,0.,2.,100,1.5,11.);
     confidencehist[ikt] = new TH1F(Form("confidencehist_ikt%i",ikt),"",100,0.,1.);
     chi2ndfhist[ikt] = new TH1F(Form("chi2ndfhist_ikt%i",ikt),"",200,0.,10.);
   }

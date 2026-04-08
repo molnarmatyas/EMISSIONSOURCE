@@ -25,6 +25,7 @@
 bool debug = true; // set to true to print parameter results for each systematic variation
 bool plot_mtavg = false; // set to true to plot m_T-averaged param vs sNN as well
 bool mtchoice_syst = false;
+bool use_larger_same_side_shift = false; // if true, use max(|diff1|,|diff2|) when both variations are on the same side of default
 
 const int NIKT_SNN_PLOTS = 3;
 int ikt_indices_to_plot[NIKT_SNN_PLOTS] = {0, 2, 9}; // choose which m_T bins are shown on parameter-vs-sNN plots
@@ -44,38 +45,61 @@ void correct_syserr_direction(double* param_uncert_up, double* param_uncert_dn,
     // If both systcheck points are on the same side, then add the average of the two differences.
     // Sample:
     // func(*param*_syserr_up[ikt], *param*_syserr_dn[ikt], *param*_*systcheck1[ienergy][1], *param*_*systcheck*[ienergy][2], *param*_default[ienergy])
-    double diff1 = systcheckgraph1->GetY()[ikt] - defaultgraph->GetY()[ikt];
-    double diff2 = systcheckgraph2->GetY()[ikt] - defaultgraph->GetY()[ikt];
+    double def = defaultgraph->GetY()[ikt];
+    double y1 = systcheckgraph1->GetY()[ikt];
+    double y2 = systcheckgraph2->GetY()[ikt];
     
     // Taking care of potential zero or near-zero default values to avoid misleading large percent differences; if default is zero, we cannot determine the direction, so we skip this point
-    if(defaultgraph->GetY()[ikt] < 1e-12)
+    if(def < 1e-12)
     {
         // skip tiny/invalid points
         cerr << "Zero value in default graph! ikt: " << ikt << endl;
         return;
     }
-    if(systcheckgraph1->GetY()[ikt] < 1e-12)
+
+    bool valid1 = std::isfinite(y1) && (y1 >= 1e-12);
+    bool valid2 = std::isfinite(y2) && (y2 >= 1e-12);
+    if(!valid1) cerr << "Invalid/tiny value in systcheckgraph1! Skipping this variation. ikt: " << ikt << endl;
+    if(!valid2) cerr << "Invalid/tiny value in systcheckgraph2! Skipping this variation. ikt: " << ikt << endl;
+    if(!valid1 && !valid2)
     {
-        cerr << "Zero value in systcheckgraph1! Setting diff1 to zero. ikt: " << ikt << endl;
-        diff1 = 0.0;
-    }
-    if(systcheckgraph2->GetY()[ikt] < 1e-12)
-    {
-        cerr << "Zero value in systcheckgraph2! Setting diff2 to zero. ikt: " << ikt << endl;
-        diff2 = 0.0;
+        return;
     }
 
-    double diffavg = 0.5 * (diff1 + diff2); // average of two differences
+    if(valid1 && !valid2)
+    {
+        double diff1 = y1 - def;
+        if(diff1 >= 0.) param_uncert_up[ikt] += pow(diff1, 2);
+        else param_uncert_dn[ikt] += pow(diff1, 2);
+        return;
+    }
+    if(!valid1 && valid2)
+    {
+        double diff2 = y2 - def;
+        if(diff2 >= 0.) param_uncert_up[ikt] += pow(diff2, 2);
+        else param_uncert_dn[ikt] += pow(diff2, 2);
+        return;
+    }
+
+    // Both valid from here
+    double diff1 = y1 - def;
+    double diff2 = y2 - def;
+    double same_side_shift = 0.5 * (diff1 + diff2); // default behavior: average
+    if(use_larger_same_side_shift)
+    {
+        same_side_shift = (fabs(diff1) >= fabs(diff2)) ? diff1 : diff2;
+    }
+
     if((diff1 >= 0. && diff2 >= 0.) || (diff1 < 0. && diff2 < 0.))
     {
-        // both differences on the same side -> use average
-        if(diffavg >= 0.)
+        // both differences on the same side -> use average or larger-shift mode
+        if(same_side_shift >= 0.)
         {
-            param_uncert_up[ikt] += pow(diffavg, 2);
+            param_uncert_up[ikt] += pow(same_side_shift, 2);
         }
         else
         {
-            param_uncert_dn[ikt] += pow(diffavg, 2);
+            param_uncert_dn[ikt] += pow(same_side_shift, 2);
         }
     }
     else
@@ -386,6 +410,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             {
                 cout << "Default." << endl;
                 cout << Form("ikt %i: alpha = %g +%g -%g; R = %g +%g -%g; N = %g +%g -%g", ikt, alpha_vals[ikt], alpha_errup[ikt], alpha_errdn[ikt], R_vals[ikt], R_errup[ikt], R_errdn[ikt], N_vals[ikt], N_errup[ikt], N_errdn[ikt]) << endl;
+                cout << Form("       R_out = %g +%g -%g; R_side = %g +%g -%g; R_long = %g +%g -%g", 
+                                R_out_vals[ikt], R_out_errup[ikt], R_out_errdn[ikt],
+                                R_side_vals[ikt], R_side_errup[ikt], R_side_errdn[ikt],
+                                R_long_vals[ikt], R_long_errup[ikt], R_long_errdn[ikt]) << endl;
             }
         }
         alpha_default[ienergy] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
@@ -470,6 +498,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 {
                     cout << "qLCMS variation: " << qlcms_labels[iq] << endl;
                     cout << Form("ikt %i: alpha = %g +%g -%g; R = %g +%g -%g; N = %g +%g -%g", ikt, alpha_vals[ikt], alpha_errup[ikt], alpha_errdn[ikt], R_vals[ikt], R_errup[ikt], R_errdn[ikt], N_vals[ikt], N_errup[ikt], N_errdn[ikt]) << endl;
+                    cout << Form("       R_out = %g +%g -%g; R_side = %g +%g -%g; R_long = %g +%g -%g", 
+                                    R_out_vals[ikt], R_out_errup[ikt], R_out_errdn[ikt],
+                                    R_side_vals[ikt], R_side_errup[ikt], R_side_errdn[ikt],
+                                    R_long_vals[ikt], R_long_errup[ikt], R_long_errdn[ikt]) << endl;
                 }
             }
             alpha_qlcms[ienergy][iq] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
@@ -554,6 +586,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 {
                     cout << "rhofitmax variation: " << rhofitmax_labels[ir] << endl;
                     cout << Form("ikt %i: alpha = %g +%g -%g; R = %g +%g -%g; N = %g +%g -%g", ikt, alpha_vals[ikt], alpha_errup[ikt], alpha_errdn[ikt], R_vals[ikt], R_errup[ikt], R_errdn[ikt], N_vals[ikt], N_errup[ikt], N_errdn[ikt]) << endl;
+                    cout << Form("       R_out = %g +%g -%g; R_side = %g +%g -%g; R_long = %g +%g -%g", 
+                                    R_out_vals[ikt], R_out_errup[ikt], R_out_errdn[ikt],
+                                    R_side_vals[ikt], R_side_errup[ikt], R_side_errdn[ikt],
+                                    R_long_vals[ikt], R_long_errup[ikt], R_long_errdn[ikt]) << endl;
                 }
             }
             alpha_rhofitmax[ienergy][ir] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
@@ -661,6 +697,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 {
                     cout << "nevt_avg variation: " << (in==0 ? "default" : (in==1 ? "smaller" : "larger")) << endl;
                     cout << Form("ikt %i: alpha = %g +%g -%g; R = %g +%g -%g; N = %g +%g -%g", ikt, alpha_vals[ikt], alpha_errup[ikt], alpha_errdn[ikt], R_vals[ikt], R_errup[ikt], R_errdn[ikt], N_vals[ikt], N_errup[ikt], N_errdn[ikt]) << endl;
+                    cout << Form("       R_out = %g +%g -%g; R_side = %g +%g -%g; R_long = %g +%g -%g", 
+                                    R_out_vals[ikt], R_out_errup[ikt], R_out_errdn[ikt],
+                                    R_side_vals[ikt], R_side_errup[ikt], R_side_errdn[ikt],
+                                    R_long_vals[ikt], R_long_errup[ikt], R_long_errdn[ikt]) << endl;
                 }
             }
             alpha_nevtavg[ienergy][in] = new TGraphAsymmErrors(NKT, mtbin_centers, alpha_vals, xerr_low, xerr_high, alpha_errdn, alpha_errup);
@@ -1330,360 +1370,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     double xerr_low_s[NENERGIES] = {0};
     double xerr_high_s[NENERGIES] = {0};
 
-    // NOT NEEDED FROM NOW ON
-    /*
-    // For each parameter make a two-panel canvas: left = mT-averaged, right = selected mT bins
-    for(int iparam=0; iparam<3; iparam++){
-        TCanvas* can = new TCanvas(Form("can_sqrtS_param_%d", iparam), "", 1600, 800);
-        can->Divide(2,1);
-
-        // If alpha analytic curve will be drawn, precompute its y-range over the plotted x-range
-        double func_min = 1e99, func_max = -1e99;
-        if(iparam==0){
-            double fxmin = x_energy[0];
-            double fxmax = x_energy[NENERGIES-1];
-            int Nsample = 500;
-            for(int is=0; is<=Nsample; ++is){
-                double x = fxmin + (fxmax - fxmin) * (double)is / (double)Nsample;
-                double y = 0.85 + pow(x, -0.14);
-                if(std::isfinite(y)){
-                    func_min = std::min(func_min, y);
-                    func_max = std::max(func_max, y);
-                }
-            }
-        }
-
-        // Build arrays for left panel (mT-averaged)
-        double yavg[NENERGIES];
-        double yavg_errup[NENERGIES];
-        double yavg_errdn[NENERGIES];
-        for(int ie=0; ie<NENERGIES; ie++){
-            double avg = (iparam==0)? avg_alpha[ie] : (iparam==1)? avg_R[ie] : avg_N[ie];
-            yavg[ie] = avg;
-            // compute sys contributions from stored percent averages/medians
-            double up_sq = 0., dn_sq = 0.;
-            if(iparam==0){
-                up_sq += pow(alpha_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(alpha_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(alpha_nevt_pct_up_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(alpha_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(alpha_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(alpha_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                if(mtchoice_syst){
-                    up_sq += pow(alpha_mTchoice_syst_up[ie], 2);
-                    dn_sq += pow(alpha_mTchoice_syst_dn[ie], 2);
-                }
-            } else if(iparam==1){
-                up_sq += pow(R_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(R_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(R_nevt_pct_up_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                if(mtchoice_syst){
-                    up_sq += pow(R_mTchoice_syst_up[ie], 2);
-                    dn_sq += pow(R_mTchoice_syst_dn[ie], 2);
-                }
-            } else {
-                up_sq += pow(N_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(N_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(N_nevt_pct_up_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(N_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(N_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(N_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                if(mtchoice_syst){
-                    up_sq += pow(N_mTchoice_syst_up[ie], 2);
-                    dn_sq += pow(N_mTchoice_syst_dn[ie], 2);
-                }
-            }
-            yavg_errup[ie] = sqrt(up_sq);
-            yavg_errdn[ie] = sqrt(dn_sq);
-        }
-
-        // Left pad: mT-averaged
-        can->cd(1);
-        //gPad->SetLogx(1); // !!! FIXME uncomment if comparison with STAR not needed
-        gPad->SetLeftMargin(0.12);
-        gPad->SetBottomMargin(0.12);
-        double xmin = x_energy[0] - 1.0;
-        double xmax = x_energy[NENERGIES-1] + 1.0;
-        double ymin = 1e9, ymax = -1e9;
-        for(int ie=0; ie<NENERGIES; ie++){
-            if(!std::isfinite(yavg[ie])) continue;
-            ymin = std::min(ymin, yavg[ie] - yavg_errdn[ie]);
-            ymax = std::max(ymax, yavg[ie] + yavg_errup[ie]);
-        }
-        if(ymin>ymax){ ymin = 0.; ymax = 1.; }
-        // Ensure analytic function (if computed) fits into the pad range
-        if(iparam==0 && std::isfinite(func_min) && std::isfinite(func_max)){
-            ymin = std::min(ymin, func_min);
-            ymax = std::max(ymax, func_max);
-            double yrange = ymax - ymin;
-            if(yrange==0) yrange = fabs(ymax)>0? fabs(ymax)*0.1 : 1.0;
-            double padMargin = 0.06 * yrange;
-            ymin -= padMargin;
-            ymax += padMargin;
-        }
-        TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
-        if(iparam==0)
-        {
-            //frame = gPad->DrawFrame(1., 0.1, 10000., 2.1); // !!! FIXME uncomment if comparison with STAR not needed
-        }
-        frame->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
-        const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda";
-        frame->GetYaxis()->SetTitle(ytitle);
-
-        // sys band graph
-        TGraphAsymmErrors* gavg = new TGraphAsymmErrors(NENERGIES, x_energy, yavg, xerr_low_s, xerr_high_s, yavg_errdn, yavg_errup);
-        int col = kBlue+2;
-        int fillcol = TColor::GetColorTransparent(col, 0.35);
-        gavg->SetFillColor(fillcol);
-        gavg->SetFillStyle(1001);
-        gavg->SetLineColor(col);
-        gavg->SetLineWidth(3);
-        if(plot_mtavg) gavg->Draw("3 same");
-        gavg->SetMarkerStyle(21);
-        gavg->SetMarkerSize(0.0); //0.8
-        if(plot_mtavg) gavg->Draw("LPX same");
-
-        // Right pad: selected mT bins
-        can->cd(2);
-        //gPad->SetLogx(1); // !!! FIXME uncomment if comparison with STAR not needed
-        gPad->SetLeftMargin(0.12);
-        gPad->SetBottomMargin(0.12);
-        double ymin2 = 1e9, ymax2 = -1e9;
-        std::vector<int> valid_ikts;
-        for(int iktsel=0; iktsel<NIKT_SNN_PLOTS; iktsel++){
-            int ikt = ikt_indices_to_plot[iktsel];
-            if(ikt < 0 || ikt >= NKT){
-                cerr << "Skipping invalid ikt index in ikt_indices_to_plot: " << ikt << endl;
-                continue;
-            }
-            valid_ikts.push_back(ikt);
-
-            for(int ie=0; ie<NENERGIES; ie++){
-                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
-                if(!gdef || !gsys || gdef->GetN()<=ikt || gsys->GetN()<=ikt) continue;
-
-                double val = gdef->GetY()[ikt];
-                double base_up = gsys->GetEYhigh()[ikt];
-                double base_dn = gsys->GetEYlow()[ikt];
-
-                double neigh_up_sq = 0., neigh_dn_sq = 0.;
-                double center = gdef->GetY()[ikt];
-                for(int j : {ikt-1, ikt+1}){
-                    if(j<0 || j>=gdef->GetN()) continue;
-                    double nb = gdef->GetY()[j];
-                    double diff = nb - center;
-                    if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
-                }
-                double neigh_up = sqrt(neigh_up_sq);
-                double neigh_dn = sqrt(neigh_dn_sq);
-
-                // Keep compatibility for averaged-overlay extra mT-choice term
-                if(ikt == ikt_indices_to_plot[0] && mtchoice_syst){
-                    if(iparam==0){ alpha_mTchoice_syst_up[ie] = neigh_up; alpha_mTchoice_syst_dn[ie] = neigh_dn; }
-                    else if(iparam==1){ R_mTchoice_syst_up[ie] = neigh_up; R_mTchoice_syst_dn[ie] = neigh_dn; }
-                    else { N_mTchoice_syst_up[ie] = neigh_up; N_mTchoice_syst_dn[ie] = neigh_dn; }
-                }
-
-                double errup = sqrt(base_up*base_up + neigh_up*neigh_up);
-                double errdn = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
-                if(std::isfinite(val)){
-                    ymin2 = std::min(ymin2, val - errdn);
-                    ymax2 = std::max(ymax2, val + errup);
-                }
-            }
-        }
-        if(ymin2>ymax2){ ymin2=0.; ymax2=1.; }
-        // Ensure analytic function (if computed) fits into the right pad range as well
-        if(iparam==0 && std::isfinite(func_min) && std::isfinite(func_max)){
-            ymin2 = std::min(ymin2, func_min);
-            ymax2 = std::max(ymax2, func_max);
-            double yrange2 = ymax2 - ymin2;
-            if(yrange2==0) yrange2 = fabs(ymax2)>0? fabs(ymax2)*0.1 : 1.0;
-            double padMargin2 = 0.06 * yrange2;
-            ymin2 -= padMargin2;
-            ymax2 += padMargin2;
-        }
-        TH1F* frame2 = gPad->DrawFrame(xmin, ymin2, xmax, ymax2);
-        if(iparam==0)
-        {
-            //frame2 = gPad->DrawFrame(1., 0.1, 10000., 2.1); // !!! FIXME uncomment if comparison with STAR not needed
-        }
-        frame2->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
-        frame2->GetYaxis()->SetTitle(ytitle);
-        int ikt_colors[] = {kRed+1, kBlue+1, kGreen+2, kMagenta+1, kOrange+7};
-        int ikt_markers[] = {21, 22, 23, 33, 34};
-        std::vector<TGraphAsymmErrors*> gikt_graphs;
-        std::vector<std::string> gikt_labels;
-        for(size_t ik=0; ik<valid_ikts.size(); ik++){
-            int ikt = valid_ikts[ik];
-            double yvals[NENERGIES] = {0};
-            double yerrup2[NENERGIES] = {0};
-            double yerrdn2[NENERGIES] = {0};
-            for(int ie=0; ie<NENERGIES; ie++){
-                TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-                TGraphAsymmErrors* gsys = (iparam==0)? alpha_syserr[ie] : (iparam==1)? R_syserr[ie] : N_syserr[ie];
-                if(!gdef || !gsys || gdef->GetN()<=ikt || gsys->GetN()<=ikt) continue;
-
-                yvals[ie] = gdef->GetY()[ikt];
-                double base_up = gsys->GetEYhigh()[ikt];
-                double base_dn = gsys->GetEYlow()[ikt];
-
-                double neigh_up_sq = 0., neigh_dn_sq = 0.;
-                double center = gdef->GetY()[ikt];
-                for(int j : {ikt-1, ikt+1}){
-                    if(j<0 || j>=gdef->GetN()) continue;
-                    double nb = gdef->GetY()[j];
-                    double diff = nb - center;
-                    if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
-                }
-                double neigh_up = sqrt(neigh_up_sq);
-                double neigh_dn = sqrt(neigh_dn_sq);
-                yerrup2[ie] = sqrt(base_up*base_up + neigh_up*neigh_up);
-                yerrdn2[ie] = sqrt(base_dn*base_dn + neigh_dn*neigh_dn);
-            }
-
-            TGraphAsymmErrors* gikt = new TGraphAsymmErrors(NENERGIES, x_energy, yvals, xerr_low_s, xerr_high_s, yerrdn2, yerrup2);
-            int col2 = ikt_colors[ik % (sizeof(ikt_colors)/sizeof(int))];
-            int fillcol2 = TColor::GetColorTransparent(col2, 0.30);
-            gikt->SetFillColor(fillcol2);
-            gikt->SetFillStyle(1001);
-            gikt->SetLineColor(col2);
-            gikt->SetLineWidth(3);
-            gikt->Draw("3 same");
-            gikt->SetMarkerStyle(ikt_markers[ik % (sizeof(ikt_markers)/sizeof(int))]);
-            gikt->SetMarkerSize(0.0);
-            gikt->SetMarkerColor(col2);
-            gikt->Draw("LPX same");
-
-            gikt_graphs.push_back(gikt);
-            gikt_labels.push_back(Form("m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
-        }
-
-        // If alpha, draw analytic curve y = 0.85 + x^-0.14 (make thicker and draw as line on top)
-        TF1* f = nullptr;
-        if(iparam==0){
-            double xminf = x_energy[0];
-            double xmaxf = x_energy[NENERGIES-1];
-            f = new TF1("alpha_curve", "starfunc(x)", xminf, xmaxf);
-            f->SetLineColor(TColor::GetColorTransparent(kBlack,0.4));
-            f->SetLineStyle(1);
-            f->SetLineWidth(3);
-            f->SetNpx(500);
-            // draw on left pad
-            can->cd(1);
-            f->Draw("L same");
-            // draw on right pad
-            can->cd(2);
-            f->Draw("L same");
-        }
-
-        // Smart legend placement helper (counts points by quadrant)
-        auto chooseLegendPos = [](const double xs[], const double ys[], int n, double xmin, double xmax, double ymin, double ymax)
-            -> std::tuple<double,double,double,double> {
-            double xmid = 0.5*(xmin + xmax);
-            double ymid = 0.5*(ymin + ymax);
-            int count[4] = {0,0,0,0}; // TL,TR,BL,BR
-            for(int i=0;i<n;i++){
-                double x = xs[i];
-                double y = ys[i];
-                if(!std::isfinite(x) || !std::isfinite(y)) continue;
-                int quad = (x < xmid ? 0 : 1) + (y > ymid ? 0 : 2); // 0=TL,1=TR,2=BL,3=BR
-                count[quad]++;
-            }
-            int minQuad = 0, minCount = count[0];
-            for(int q=1;q<4;q++) if(count[q] < minCount){ minQuad = q; minCount = count[q]; }
-            double legW = 0.20, legH = 0.12;
-            double x1,y2;
-            if(minQuad==0){ x1=0.15; y2=0.78; }
-            else if(minQuad==1){ x1=0.65; y2=0.78; }
-            else if(minQuad==2){ x1=0.15; y2=0.35; }
-            else { x1=0.65; y2=0.35; }
-            return std::make_tuple(x1,y2,x1+legW,y2+legH);
-        };
-
-        // Put requested texts in pad title area instead of legends
-        // Left pad: just "<m_T>"
-        can->cd(1);
-        {
-            TLatex t; t.SetNDC(); t.SetTextAlign(22); t.SetTextSize(0.035);
-            t.DrawLatex(0.5, 0.94, "<m_{T}>");
-        }
-
-        // Add auto-placed legends for alpha (both pads) so user can identify analytic curve vs UrQMD
-        if(iparam==0){
-            // Left pad legend: use mT-averaged positions
-            {
-                std::tuple<double,double,double,double> pos = chooseLegendPos(x_energy, yavg, NENERGIES, xmin, xmax, ymin, ymax);
-                double lx = std::get<0>(pos);
-                double ytop = std::get<1>(pos);
-                double rx = std::get<2>(pos);
-                double legH = 0.12; // must match helper
-                double lly = ytop - legH;
-                can->cd(1);
-                TLegend* leg1 = new TLegend(lx, lly, rx, ytop);
-                leg1->SetBorderSize(0);
-                leg1->SetFillStyle(0);
-                leg1->SetTextSize(0.032);
-                if(plot_mtavg) leg1->AddEntry(gavg, "UrQMD (m_{T}-averaged)", "f");
-                leg1->AddEntry(f, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
-                if(plot_mtavg) leg1->Draw("same");
-            }
-            // Right pad legend: selected mT bins
-            {
-                double y_for_pos[NENERGIES] = {0};
-                if(!valid_ikts.empty()){
-                    int ikt_pos = valid_ikts[0];
-                    for(int ie=0; ie<NENERGIES; ie++){
-                        TGraphAsymmErrors* gdef = (iparam==0)? alpha_default[ie] : (iparam==1)? R_default[ie] : N_default[ie];
-                        if(gdef && gdef->GetN()>ikt_pos) y_for_pos[ie] = gdef->GetY()[ikt_pos];
-                    }
-                }
-                std::tuple<double,double,double,double> pos2 = chooseLegendPos(x_energy, y_for_pos, NENERGIES, xmin, xmax, ymin2, ymax2);
-                double lx2 = std::get<0>(pos2);
-                double ytop2 = std::get<1>(pos2);
-                double rx2 = std::get<2>(pos2);
-                double legH2 = 0.12;
-                if(gikt_graphs.size()>2) legH2 = 0.16;
-                double lly2 = ytop2 - legH2;
-                can->cd(2);
-                TLegend* leg2 = new TLegend(lx2, lly2, rx2, ytop2);
-                leg2->SetBorderSize(0);
-                leg2->SetFillStyle(0);
-                leg2->SetTextSize(0.030);
-                for(size_t ig=0; ig<gikt_graphs.size(); ig++){
-                    leg2->AddEntry(gikt_graphs[ig], gikt_labels[ig].c_str(), "f");
-                }
-                leg2->AddEntry(f, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
-                leg2->Draw("same");
-            }
-        }
-
-        // Right pad: show selected mT bins and note about mT-choice uncertainty
-        can->cd(2);
-        {
-            TLatex t; t.SetNDC(); t.SetTextAlign(22); t.SetTextSize(0.032);
-            std::ostringstream mtbins;
-            mtbins << "m_{T} bins: ";
-            for(size_t ik=0; ik<valid_ikts.size(); ik++){
-                if(ik>0) mtbins << ", ";
-                mtbins << std::fixed << std::setprecision(0) << mtbin_centers[valid_ikts[ik]]*1000.0;
-            }
-            mtbins << " MeV";
-            t.DrawLatex(0.5, 0.955, mtbins.str().c_str());
-            t.SetTextSize(0.030);
-            t.DrawLatex(0.5, 0.925, "incl. sys. unc. of m_{T} choice");
-        }
-
-        // Save
-        can->SetTitle(Form("sqrtS vs %s systematic uncertainties", (iparam==0)?"#alpha":(iparam==1)?"R":"N"));
-        can->SaveAs(Form("figs/syserr/sqrtS_vs_%s.png", levy_params[iparam]));
-        delete can;
-    }
-    */
+    
 
     ////////////////////////////////////////////////////////////
     // Single-panel overlays: each parameter                ////
@@ -1903,7 +1590,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                         double val = gdef->GetY()[ikt];
                         double errup = gsys->GetEYhigh()[ikt];
                         double errdn = gsys->GetEYlow()[ikt];
-                        cerr << "Debug gdef/gsys: ie=" << ie << ", ikt=" << ikt << ", val=" << val << ", errup=" << errup << ", errdn=" << errdn << endl;
+                        cerr << "Debug gdef/gsys: param=" << iparam << ", ie=" << ie << ", ikt=" << ikt << ", val=" << val << ", errup=" << errup << ", errdn=" << errdn << endl;
                     }
 
                     y_overlay[ie] = gdef->GetY()[ikt];
@@ -2039,6 +1726,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 double val = gdef->GetY()[ikt];
                 double base_up = gsys->GetEYhigh()[ikt];
                 double base_dn = gsys->GetEYlow()[ikt];
+                if(debug)
+                {
+                    // Print out the values and errors for this point for debugging
+                    cerr << "Debug gdef/gsys R_osl: param=" << iparam << ", ie=" << ie << ", ikt=" << ikt << ", val=" << val << ", errup=" << base_up << ", errdn=" << base_dn << endl;
+                }
                 double neigh_up_sq = 0., neigh_dn_sq = 0.;
                 double center = gdef->GetY()[ikt];
                 for(int j : {ikt-1, ikt+1}){
@@ -2194,6 +1886,275 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         leg_overlay->Draw("L same");
 
         can_overlay->SaveAs(Form("figs/syserr/sqrtS_overlay_%s.png", levy_params_3d[iparam]));
+        delete can_overlay;
+    }
+
+    // Derived sqrt(sNN) overlays from 3D radii:
+    //   0 -> R_out / R_side
+    //   1 -> R_out^{2} - R_side^{2}
+    auto build_total_err_for_3davg = [&](int ie, double Rout, double Rside,
+                                         double& dRout_up, double& dRout_dn,
+                                         double& dRside_up, double& dRside_dn)
+    {
+        dRout_up = 0.; dRout_dn = 0.;
+        dRside_up = 0.; dRside_dn = 0.;
+
+        double up_sq_out = 0., dn_sq_out = 0.;
+        up_sq_out += pow(R_out_qlcms_pct_up_arr[ie]/100.0 * Rout, 2);
+        up_sq_out += pow(R_out_rhofit_pct_up_arr[ie]/100.0 * Rout, 2);
+        up_sq_out += pow(R_out_nevt_pct_up_arr[ie]/100.0 * Rout, 2);
+        dn_sq_out += pow(R_out_qlcms_pct_dn_arr[ie]/100.0 * Rout, 2);
+        dn_sq_out += pow(R_out_rhofit_pct_dn_arr[ie]/100.0 * Rout, 2);
+        dn_sq_out += pow(R_out_nevt_pct_dn_arr[ie]/100.0 * Rout, 2);
+        if(mtchoice_syst){
+            up_sq_out += pow(R_out_mTchoice_syst_up[ie], 2);
+            dn_sq_out += pow(R_out_mTchoice_syst_dn[ie], 2);
+        }
+
+        double up_sq_side = 0., dn_sq_side = 0.;
+        up_sq_side += pow(R_side_qlcms_pct_up_arr[ie]/100.0 * Rside, 2);
+        up_sq_side += pow(R_side_rhofit_pct_up_arr[ie]/100.0 * Rside, 2);
+        up_sq_side += pow(R_side_nevt_pct_up_arr[ie]/100.0 * Rside, 2);
+        dn_sq_side += pow(R_side_qlcms_pct_dn_arr[ie]/100.0 * Rside, 2);
+        dn_sq_side += pow(R_side_rhofit_pct_dn_arr[ie]/100.0 * Rside, 2);
+        dn_sq_side += pow(R_side_nevt_pct_dn_arr[ie]/100.0 * Rside, 2);
+        if(mtchoice_syst){
+            up_sq_side += pow(R_side_mTchoice_syst_up[ie], 2);
+            dn_sq_side += pow(R_side_mTchoice_syst_dn[ie], 2);
+        }
+
+        dRout_up = sqrt(up_sq_out);
+        dRout_dn = sqrt(dn_sq_out);
+        dRside_up = sqrt(up_sq_side);
+        dRside_dn = sqrt(dn_sq_side);
+    };
+
+    auto build_total_err_for_3d_ikt = [&](int ie, int ikt,
+                                          double& Rout, double& Rside,
+                                          double& dRout_up, double& dRout_dn,
+                                          double& dRside_up, double& dRside_dn) -> bool
+    {
+        TGraphAsymmErrors* gout_def = R_out_default[ie];
+        TGraphAsymmErrors* gside_def = R_side_default[ie];
+        TGraphAsymmErrors* gout_sys = R_out_syserr[ie];
+        TGraphAsymmErrors* gside_sys = R_side_syserr[ie];
+        if(!gout_def || !gside_def || !gout_sys || !gside_sys) return false;
+        if(gout_def->GetN()<=ikt || gside_def->GetN()<=ikt || gout_sys->GetN()<=ikt || gside_sys->GetN()<=ikt) return false;
+
+        Rout = gout_def->GetY()[ikt];
+        Rside = gside_def->GetY()[ikt];
+
+        double base_out_up = gout_sys->GetEYhigh()[ikt];
+        double base_out_dn = gout_sys->GetEYlow()[ikt];
+        double base_side_up = gside_sys->GetEYhigh()[ikt];
+        double base_side_dn = gside_sys->GetEYlow()[ikt];
+
+        double neigh_out_up_sq = 0., neigh_out_dn_sq = 0.;
+        double neigh_side_up_sq = 0., neigh_side_dn_sq = 0.;
+        if(mtchoice_syst)
+        {
+            for(int j : {ikt-1, ikt+1})
+            {
+                if(j>=0 && j<gout_def->GetN())
+                {
+                    double diff = gout_def->GetY()[j] - Rout;
+                    if(diff>=0.) neigh_out_up_sq += diff*diff;
+                    else neigh_out_dn_sq += diff*diff;
+                }
+                if(j>=0 && j<gside_def->GetN())
+                {
+                    double diff = gside_def->GetY()[j] - Rside;
+                    if(diff>=0.) neigh_side_up_sq += diff*diff;
+                    else neigh_side_dn_sq += diff*diff;
+                }
+            }
+        }
+
+        dRout_up = sqrt(base_out_up*base_out_up + neigh_out_up_sq);
+        dRout_dn = sqrt(base_out_dn*base_out_dn + neigh_out_dn_sq);
+        dRside_up = sqrt(base_side_up*base_side_up + neigh_side_up_sq);
+        dRside_dn = sqrt(base_side_dn*base_side_dn + neigh_side_dn_sq);
+        return std::isfinite(Rout) && std::isfinite(Rside);
+    };
+
+    auto propagate_ratio_err = [](double Rout, double Rside, double dRout, double dRside) -> double
+    {
+        if(!std::isfinite(Rout) || !std::isfinite(Rside) || !std::isfinite(dRout) || !std::isfinite(dRside)) return 0.;
+        if(fabs(Rout) < 1e-12 || fabs(Rside) < 1e-12) return 0.;
+        double ratio = Rout / Rside;
+        return fabs(ratio) * sqrt(pow(dRout / Rout, 2) + pow(dRside / Rside, 2));
+    };
+
+    auto propagate_diff2_err = [](double Rout, double Rside, double dRout, double dRside) -> double
+    {
+        if(!std::isfinite(Rout) || !std::isfinite(Rside) || !std::isfinite(dRout) || !std::isfinite(dRside)) return 0.;
+        return sqrt(pow(2.0 * Rout * dRout, 2) + pow(2.0 * Rside * dRside, 2));
+    };
+
+    for(int ider=0; ider<2; ider++)
+    {
+        TCanvas* can_overlay = new TCanvas(Form("can_overlay_derived_3d_%d", ider), "", 1200, 800);
+        can_overlay->SetLogx(1);
+
+        double ymin_both = 1e9, ymax_both = -1e9;
+
+        // Optional mT-averaged trend
+        for(int ie=0; ie<NENERGIES; ie++)
+        {
+            double Rout = avg_R_out[ie];
+            double Rside = avg_R_side[ie];
+            if(!std::isfinite(Rout) || !std::isfinite(Rside) || fabs(Rside) < 1e-12) continue;
+
+            double dRout_up=0., dRout_dn=0., dRside_up=0., dRside_dn=0.;
+            build_total_err_for_3davg(ie, Rout, Rside, dRout_up, dRout_dn, dRside_up, dRside_dn);
+
+            double y = (ider==0) ? (Rout / Rside) : (Rout*Rout - Rside*Rside);
+            double errup = (ider==0) ? propagate_ratio_err(Rout, Rside, dRout_up, dRside_up)
+                                     : propagate_diff2_err(Rout, Rside, dRout_up, dRside_up);
+            double errdn = (ider==0) ? propagate_ratio_err(Rout, Rside, dRout_dn, dRside_dn)
+                                     : propagate_diff2_err(Rout, Rside, dRout_dn, dRside_dn);
+            if(std::isfinite(y))
+            {
+                ymin_both = std::min(ymin_both, y - errdn);
+                ymax_both = std::max(ymax_both, y + errup);
+            }
+        }
+
+        std::vector<int> valid_ikts_overlay;
+        for(int iktsel=0; iktsel<NIKT_SNN_PLOTS; iktsel++)
+        {
+            int ikt = ikt_indices_to_plot[iktsel];
+            if(ikt < 0 || ikt >= NKT) continue;
+            valid_ikts_overlay.push_back(ikt);
+
+            for(int ie=0; ie<NENERGIES; ie++)
+            {
+                double Rout=0., Rside=0.;
+                double dRout_up=0., dRout_dn=0., dRside_up=0., dRside_dn=0.;
+                if(!build_total_err_for_3d_ikt(ie, ikt, Rout, Rside, dRout_up, dRout_dn, dRside_up, dRside_dn)) continue;
+                if(fabs(Rside) < 1e-12) continue;
+
+                double y = (ider==0) ? (Rout / Rside) : (Rout*Rout - Rside*Rside);
+                double errup = (ider==0) ? propagate_ratio_err(Rout, Rside, dRout_up, dRside_up)
+                                         : propagate_diff2_err(Rout, Rside, dRout_up, dRside_up);
+                double errdn = (ider==0) ? propagate_ratio_err(Rout, Rside, dRout_dn, dRside_dn)
+                                         : propagate_diff2_err(Rout, Rside, dRout_dn, dRside_dn);
+
+                if(std::isfinite(y))
+                {
+                    ymin_both = std::min(ymin_both, y - errdn);
+                    ymax_both = std::max(ymax_both, y + errup);
+                }
+            }
+        }
+
+        if(ymin_both > ymax_both)
+        {
+            ymin_both = (ider==0) ? 0.8 : -5.0;
+            ymax_both = (ider==0) ? 1.8 : 15.0;
+        }
+        double ypadmargin = 0.06 * (ymax_both - ymin_both);
+        ymin_both -= ypadmargin;
+        ymax_both += ypadmargin;
+
+        double xmin = x_energy[0] - 1.0;
+        double xmax = x_energy[NENERGIES-1] + 1.0;
+        TH1F* frame_overlay = gPad->DrawFrame(xmin, ymin_both, xmax, ymax_both);
+        frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
+        const char* ytitle_overlay = (ider==0) ? "R_{out}/R_{side}" : "R_{out}^{2}-R_{side}^{2} [fm^{2}]";
+        frame_overlay->GetYaxis()->SetTitle(ytitle_overlay);
+
+        TGraphAsymmErrors* g_avg_overlay = nullptr;
+        {
+            double yavg_overlay[NENERGIES] = {0};
+            double yavg_errup_overlay[NENERGIES] = {0};
+            double yavg_errdn_overlay[NENERGIES] = {0};
+            for(int ie=0; ie<NENERGIES; ie++)
+            {
+                double Rout = avg_R_out[ie];
+                double Rside = avg_R_side[ie];
+                if(!std::isfinite(Rout) || !std::isfinite(Rside) || fabs(Rside) < 1e-12) continue;
+
+                double dRout_up=0., dRout_dn=0., dRside_up=0., dRside_dn=0.;
+                build_total_err_for_3davg(ie, Rout, Rside, dRout_up, dRout_dn, dRside_up, dRside_dn);
+
+                yavg_overlay[ie] = (ider==0) ? (Rout / Rside) : (Rout*Rout - Rside*Rside);
+                yavg_errup_overlay[ie] = (ider==0) ? propagate_ratio_err(Rout, Rside, dRout_up, dRside_up)
+                                                   : propagate_diff2_err(Rout, Rside, dRout_up, dRside_up);
+                yavg_errdn_overlay[ie] = (ider==0) ? propagate_ratio_err(Rout, Rside, dRout_dn, dRside_dn)
+                                                   : propagate_diff2_err(Rout, Rside, dRout_dn, dRside_dn);
+            }
+
+            g_avg_overlay = new TGraphAsymmErrors(NENERGIES, x_energy, yavg_overlay, xerr_low_s, xerr_high_s, yavg_errdn_overlay, yavg_errup_overlay);
+            int col_avg = kBlue+2;
+            int fillcol_avg = TColor::GetColorTransparent(col_avg, 0.35);
+            g_avg_overlay->SetFillColor(fillcol_avg);
+            g_avg_overlay->SetFillStyle(1001);
+            g_avg_overlay->SetLineColor(col_avg);
+            g_avg_overlay->SetLineWidth(3);
+            if(plot_mtavg) g_avg_overlay->Draw("3 same");
+            g_avg_overlay->SetMarkerStyle(21);
+            g_avg_overlay->SetMarkerSize(0.0);
+            if(plot_mtavg) g_avg_overlay->Draw("LPX same");
+        }
+
+        std::vector<TGraphAsymmErrors*> g_ikt_overlay;
+        std::vector<std::string> g_ikt_overlay_labels;
+        {
+            int ikt_colors[] = {kRed+1, kBlue+1, kGreen+2, kMagenta+1, kOrange+7};
+            int ikt_markers[] = {21, 22, 23, 33, 34};
+            for(size_t ik=0; ik<valid_ikts_overlay.size(); ik++)
+            {
+                int ikt = valid_ikts_overlay[ik];
+                double y_overlay[NENERGIES] = {0};
+                double yerrup_overlay[NENERGIES] = {0};
+                double yerrdn_overlay[NENERGIES] = {0};
+
+                for(int ie=0; ie<NENERGIES; ie++)
+                {
+                    double Rout=0., Rside=0.;
+                    double dRout_up=0., dRout_dn=0., dRside_up=0., dRside_dn=0.;
+                    if(!build_total_err_for_3d_ikt(ie, ikt, Rout, Rside, dRout_up, dRout_dn, dRside_up, dRside_dn)) continue;
+                    if(fabs(Rside) < 1e-12) continue;
+
+                    y_overlay[ie] = (ider==0) ? (Rout / Rside) : (Rout*Rout - Rside*Rside);
+                    yerrup_overlay[ie] = (ider==0) ? propagate_ratio_err(Rout, Rside, dRout_up, dRside_up)
+                                                   : propagate_diff2_err(Rout, Rside, dRout_up, dRside_up);
+                    yerrdn_overlay[ie] = (ider==0) ? propagate_ratio_err(Rout, Rside, dRout_dn, dRside_dn)
+                                                   : propagate_diff2_err(Rout, Rside, dRout_dn, dRside_dn);
+                }
+
+                TGraphAsymmErrors* g_ikt = new TGraphAsymmErrors(NENERGIES, x_energy, y_overlay, xerr_low_s, xerr_high_s, yerrdn_overlay, yerrup_overlay);
+                int col_ikt = ikt_colors[ik % (sizeof(ikt_colors)/sizeof(int))];
+                int fillcol_ikt = TColor::GetColorTransparent(col_ikt, 0.35);
+                g_ikt->SetFillColor(fillcol_ikt);
+                g_ikt->SetFillStyle(1001);
+                g_ikt->SetLineColor(col_ikt);
+                g_ikt->SetLineWidth(3);
+                g_ikt->Draw("3 same");
+                g_ikt->SetMarkerStyle(ikt_markers[ik % (sizeof(ikt_markers)/sizeof(int))]);
+                g_ikt->SetMarkerSize(0.0);
+                g_ikt->SetMarkerColor(col_ikt);
+                g_ikt->Draw("LPX same");
+
+                g_ikt_overlay.push_back(g_ikt);
+                g_ikt_overlay_labels.push_back(Form("UrQMD m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
+            }
+        }
+
+        TLegend* leg_overlay = new TLegend(0.30, 0.71, 0.55, 0.91);
+        leg_overlay->SetBorderSize(0);
+        leg_overlay->SetFillStyle(0);
+        leg_overlay->SetTextSize(0.025);
+        if(plot_mtavg) leg_overlay->AddEntry(g_avg_overlay, mtchoice_syst ? "UrQMD <m_{T}>, incl. m_{T} choice sys.unc." : "UrQMD <m_{T}>", "f");
+        for(size_t ig=0; ig<g_ikt_overlay.size(); ig++)
+        {
+            leg_overlay->AddEntry(g_ikt_overlay[ig], g_ikt_overlay_labels[ig].c_str(), "f");
+        }
+        leg_overlay->Draw("L same");
+
+        if(ider==0) can_overlay->SaveAs("figs/syserr/sqrtS_overlay_Rout_over_Rside.png");
+        else can_overlay->SaveAs("figs/syserr/sqrtS_overlay_Rout2_minus_Rside2.png");
         delete can_overlay;
     }
 

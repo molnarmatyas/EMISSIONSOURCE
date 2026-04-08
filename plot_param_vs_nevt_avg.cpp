@@ -469,50 +469,48 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     const char* ikt_suffix = (ikt>=0) ? Form("_ikt%i", ikt) : "_allkt";
     c1->SaveAs(Form("figs/levy_params_vs_nevt_avg%s.png", ikt_suffix));
 
-    {
-        // Auto-tuned y-ranges for the second canvas.
-        double rmin = 1e99, rmax = -1e99;
-        for(size_t i = 0; i < R_out_graphs.size(); i++) {
-            TGraphErrors* gset[3] = {R_out_graphs[i], R_side_graphs[i], R_long_graphs[i]};
-            for(int ig = 0; ig < 3; ig++) {
-                if(!gset[ig]) continue;
-                for(int ip = 0; ip < gset[ig]->GetN(); ip++) {
-                    double y = gset[ig]->GetY()[ip];
-                    double ey = gset[ig]->GetEY()[ip];
-                    if(y - ey < rmin) rmin = y - ey;
-                    if(y + ey > rmax) rmax = y + ey;
-                }
+    // Auto-tuned y-ranges for the second canvas.
+    double rmin = 1e99, rmax = -1e99;
+    for(size_t i = 0; i < R_out_graphs.size(); i++) {
+        TGraphErrors* gset[3] = {R_out_graphs[i], R_side_graphs[i], R_long_graphs[i]};
+        for(int ig = 0; ig < 3; ig++) {
+            if(!gset[ig]) continue;
+            for(int ip = 0; ip < gset[ig]->GetN(); ip++) {
+                double y = gset[ig]->GetY()[ip];
+                double ey = gset[ig]->GetEY()[ip];
+                if(y - ey < rmin) rmin = y - ey;
+                if(y + ey > rmax) rmax = y + ey;
             }
         }
-        if(rmax <= rmin) {
-            rmin = 2.5;
-            rmax = 10.0;
-        } else {
-            double rpad = 0.08 * (rmax - rmin);
-            rmin -= rpad;
-            rmax += rpad;
-            if(rmin < 0.0) rmin = 0.0;
-        }
+    }
+    if(rmax <= rmin) {
+        rmin = 2.5;
+        rmax = 10.0;
+    } else {
+        double rpad = 0.08 * (rmax - rmin);
+        rmin -= rpad;
+        rmax += rpad;
+        if(rmin < 0.0) rmin = 0.0;
+    }
 
-        double cmin = 1e99, cmax = -1e99;
-        for(size_t i = 0; i < chi2ndf_graphs.size(); i++) {
-            if(!chi2ndf_graphs[i]) continue;
-            for(int ip = 0; ip < chi2ndf_graphs[i]->GetN(); ip++) {
-                double y = chi2ndf_graphs[i]->GetY()[ip];
-                double ey = chi2ndf_graphs[i]->GetEY()[ip];
-                if(y - ey < cmin) cmin = y - ey;
-                if(y + ey > cmax) cmax = y + ey;
-            }
+    double cmin = 1e99, cmax = -1e99;
+    for(size_t i = 0; i < chi2ndf_graphs.size(); i++) {
+        if(!chi2ndf_graphs[i]) continue;
+        for(int ip = 0; ip < chi2ndf_graphs[i]->GetN(); ip++) {
+            double y = chi2ndf_graphs[i]->GetY()[ip];
+            double ey = chi2ndf_graphs[i]->GetEY()[ip];
+            if(y - ey < cmin) cmin = y - ey;
+            if(y + ey > cmax) cmax = y + ey;
         }
-        if(cmax <= cmin) {
-            cmin = 0.0;
-            cmax = 5.0;
-        } else {
-            double cpad = 0.10 * (cmax - cmin);
-            cmin -= cpad;
-            cmax += cpad;
-            if(cmin < 0.0) cmin = 0.0;
-        }
+    }
+    if(cmax <= cmin) {
+        cmin = 0.0;
+        cmax = 5.0;
+    } else {
+        double cpad = 0.10 * (cmax - cmin);
+        cmin -= cpad;
+        cmax += cpad;
+        if(cmin < 0.0) cmin = 0.0;
     }
 
     // Second 4-panel plot: R_out, R_side, R_long, chi2/NDF.
