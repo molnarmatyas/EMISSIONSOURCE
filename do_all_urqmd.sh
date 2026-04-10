@@ -280,7 +280,7 @@ echo "Plotting param vs sqrt(sNN)"
 # Calculate & collect all systematics
 root.exe -b -q calc_and_plot_syserr.cpp\(-1\) # -1 for all energies, otherwise int integers to only plot one-one energy on mT vs param plots
 # Plot rhofitmax values vs KT, additionally
-~/.venvs/jupyter/bin/python3.12 rhofitmax_vs_kt_snn.py
+#~/.venvs/jupyter/bin/python3.12 rhofitmax_vs_kt_snn.py
 # or:
-#python3 rhofitmax_vs_kt_snn.py
+python3 rhofitmax_vs_kt_snn.py
 

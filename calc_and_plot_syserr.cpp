@@ -21,14 +21,15 @@
 #include <fstream>
 #include <iomanip>
 #include <TF1.h>
+#include <TLatex.h>
 
 bool debug = true; // set to true to print parameter results for each systematic variation
 bool plot_mtavg = false; // set to true to plot m_T-averaged param vs sNN as well
 bool mtchoice_syst = false;
 bool use_larger_same_side_shift = false; // if true, use max(|diff1|,|diff2|) when both variations are on the same side of default
 
-const int NIKT_SNN_PLOTS = 3;
-int ikt_indices_to_plot[NIKT_SNN_PLOTS] = {0, 2, 9}; // choose which m_T bins are shown on parameter-vs-sNN plots
+const int NIKT_SNN_PLOTS = 2;
+int ikt_indices_to_plot[NIKT_SNN_PLOTS] = {0, 4}; // choose which m_T bins are shown on parameter-vs-sNN plots
 
 const char* levy_params[3] = {"alpha","R","N"};
 const char* levy_params_3d[3] = {"R_out","R_side","R_long"};
@@ -1661,231 +1662,202 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         delete can_overlay;
     }
 
-    // Additional sqrt(sNN) overlays for R_out, R_side, R_long
-    for(int iparam=0; iparam<3; iparam++){
-        TCanvas* can_overlay = new TCanvas(Form("can_overlay_param_3d_%d", iparam), "", 1200, 800);
+    // Transposed sqrt(sNN) overlays:
+    // one panel per selected mT bin, each showing R (mT-averaged), R_out, R_side, R_long.
+    auto get_Ravg_point = [&](int ie, double& val, double& errup, double& errdn) -> bool
+    {
+        val = avg_R[ie];
+        if(!std::isfinite(val)) return false;
+        double up_sq = 0., dn_sq = 0.;
+        up_sq += pow(R_qlcms_pct_up_arr[ie]/100.0 * val, 2);
+        up_sq += pow(R_rhofit_pct_up_arr[ie]/100.0 * val, 2);
+        up_sq += pow(R_nevt_pct_up_arr[ie]/100.0 * val, 2);
+        dn_sq += pow(R_qlcms_pct_dn_arr[ie]/100.0 * val, 2);
+        dn_sq += pow(R_rhofit_pct_dn_arr[ie]/100.0 * val, 2);
+        dn_sq += pow(R_nevt_pct_dn_arr[ie]/100.0 * val, 2);
+        if(mtchoice_syst)
+        {
+            up_sq += pow(R_mTchoice_syst_up[ie], 2);
+            dn_sq += pow(R_mTchoice_syst_dn[ie], 2);
+        }
+        errup = sqrt(up_sq);
+        errdn = sqrt(dn_sq);
+        return true;
+    };
+
+    auto get_ikt_point_from_graphs = [&](TGraphAsymmErrors* gdef, TGraphAsymmErrors* gsys, int ikt,
+                                         double& val, double& errup, double& errdn) -> bool
+    {
+        if(!gdef || !gsys) return false;
+        if(gdef->GetN()<=ikt || gsys->GetN()<=ikt) return false;
+        val = gdef->GetY()[ikt];
+        if(!std::isfinite(val)) return false;
+
+        double base_up = gsys->GetEYhigh()[ikt];
+        double base_dn = gsys->GetEYlow()[ikt];
+        double neigh_up_sq = 0., neigh_dn_sq = 0.;
+        if(mtchoice_syst)
+        {
+            double center = gdef->GetY()[ikt];
+            for(int j : {ikt-1, ikt+1})
+            {
+                if(j<0 || j>=gdef->GetN()) continue;
+                double nb = gdef->GetY()[j];
+                double diff = nb - center;
+                if(diff>=0.) neigh_up_sq += diff*diff;
+                else neigh_dn_sq += diff*diff;
+            }
+        }
+        errup = sqrt(base_up*base_up + neigh_up_sq);
+        errdn = sqrt(base_dn*base_dn + neigh_dn_sq);
+        return true;
+    };
+
+    std::vector<int> valid_ikts_overlay;
+    for(int iktsel=0; iktsel<NIKT_SNN_PLOTS; iktsel++)
+    {
+        int ikt = ikt_indices_to_plot[iktsel];
+        if(ikt >= 0 && ikt < NKT) valid_ikts_overlay.push_back(ikt);
+    }
+
+    // Use a shared y-range for all transposed panels so they are directly comparable.
+    double global_ymin = 1e9, global_ymax = -1e9;
+    for(size_t ik=0; ik<valid_ikts_overlay.size(); ik++)
+    {
+        int ikt = valid_ikts_overlay[ik];
+        for(int ie=0; ie<NENERGIES; ie++)
+        {
+            double val=0., up=0., dn=0.;
+            if(get_Ravg_point(ie, val, up, dn))
+            {
+                global_ymin = std::min(global_ymin, val - dn);
+                global_ymax = std::max(global_ymax, val + up);
+            }
+            if(get_ikt_point_from_graphs(R_out_default[ie], R_out_syserr[ie], ikt, val, up, dn))
+            {
+                global_ymin = std::min(global_ymin, val - dn);
+                global_ymax = std::max(global_ymax, val + up);
+            }
+            if(get_ikt_point_from_graphs(R_side_default[ie], R_side_syserr[ie], ikt, val, up, dn))
+            {
+                global_ymin = std::min(global_ymin, val - dn);
+                global_ymax = std::max(global_ymax, val + up);
+            }
+            if(get_ikt_point_from_graphs(R_long_default[ie], R_long_syserr[ie], ikt, val, up, dn))
+            {
+                global_ymin = std::min(global_ymin, val - dn);
+                global_ymax = std::max(global_ymax, val + up);
+            }
+        }
+    }
+    if(global_ymin > global_ymax)
+    {
+        global_ymin = 0.;
+        global_ymax = 1.;
+    }
+    double global_ypadmargin = 0.06 * (global_ymax - global_ymin);
+    global_ymin -= global_ypadmargin;
+    global_ymax += global_ypadmargin;
+
+    for(size_t ik=0; ik<valid_ikts_overlay.size(); ik++)
+    {
+        int ikt = valid_ikts_overlay[ik];
+        TCanvas* can_overlay = new TCanvas(Form("can_overlay_R_osl_transposed_ikt_%d", ikt), "", 1200, 800);
         can_overlay->SetLogx(1);
 
-        double ymin_both = 1e9, ymax_both = -1e9;
+        double y_Ravg[NENERGIES] = {0}, y_Ravg_up[NENERGIES] = {0}, y_Ravg_dn[NENERGIES] = {0};
+        double y_Rout[NENERGIES] = {0}, y_Rout_up[NENERGIES] = {0}, y_Rout_dn[NENERGIES] = {0};
+        double y_Rside[NENERGIES] = {0}, y_Rside_up[NENERGIES] = {0}, y_Rside_dn[NENERGIES] = {0};
+        double y_Rlong[NENERGIES] = {0}, y_Rlong_up[NENERGIES] = {0}, y_Rlong_dn[NENERGIES] = {0};
 
-        for(int ie=0; ie<NENERGIES; ie++){
-            double avg = (iparam==0)? avg_R_out[ie] : (iparam==1)? avg_R_side[ie] : avg_R_long[ie];
-            double up_sq = 0., dn_sq = 0.;
-            if(iparam==0){
-                up_sq += pow(R_out_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(R_out_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(R_out_nevt_pct_up_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_out_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_out_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_out_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                if(mtchoice_syst){
-                    up_sq += pow(R_out_mTchoice_syst_up[ie], 2);
-                    dn_sq += pow(R_out_mTchoice_syst_dn[ie], 2);
-                }
-            } else if(iparam==1){
-                up_sq += pow(R_side_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(R_side_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(R_side_nevt_pct_up_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_side_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_side_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_side_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                if(mtchoice_syst){
-                    up_sq += pow(R_side_mTchoice_syst_up[ie], 2);
-                    dn_sq += pow(R_side_mTchoice_syst_dn[ie], 2);
-                }
-            } else {
-                up_sq += pow(R_long_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(R_long_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
-                up_sq += pow(R_long_nevt_pct_up_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_long_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_long_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
-                dn_sq += pow(R_long_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                if(mtchoice_syst){
-                    up_sq += pow(R_long_mTchoice_syst_up[ie], 2);
-                    dn_sq += pow(R_long_mTchoice_syst_dn[ie], 2);
-                }
+        double ymin_both = global_ymin, ymax_both = global_ymax;
+        for(int ie=0; ie<NENERGIES; ie++)
+        {
+            double val=0., up=0., dn=0.;
+
+            if(get_Ravg_point(ie, val, up, dn))
+            {
+                y_Ravg[ie] = val;
+                y_Ravg_up[ie] = up;
+                y_Ravg_dn[ie] = dn;
+                ymin_both = std::min(ymin_both, val - dn);
+                ymax_both = std::max(ymax_both, val + up);
             }
-            double errup = sqrt(up_sq);
-            double errdn = sqrt(dn_sq);
-            if(std::isfinite(avg)){
-                ymin_both = std::min(ymin_both, avg - errdn);
-                ymax_both = std::max(ymax_both, avg + errup);
+
+            if(get_ikt_point_from_graphs(R_out_default[ie], R_out_syserr[ie], ikt, val, up, dn))
+            {
+                y_Rout[ie] = val;
+                y_Rout_up[ie] = up;
+                y_Rout_dn[ie] = dn;
+                ymin_both = std::min(ymin_both, val - dn);
+                ymax_both = std::max(ymax_both, val + up);
             }
-        }
 
-        std::vector<int> valid_ikts_overlay;
-        for(int iktsel=0; iktsel<NIKT_SNN_PLOTS; iktsel++){
-            int ikt = ikt_indices_to_plot[iktsel];
-            if(ikt < 0 || ikt >= NKT) continue;
-            valid_ikts_overlay.push_back(ikt);
-            for(int ie=0; ie<NENERGIES; ie++){
-                TGraphAsymmErrors* gdef = (iparam==0)? R_out_default[ie] : (iparam==1)? R_side_default[ie] : R_long_default[ie];
-                TGraphAsymmErrors* gsys = (iparam==0)? R_out_syserr[ie] : (iparam==1)? R_side_syserr[ie] : R_long_syserr[ie];
-                if(!gdef || !gsys || gdef->GetN()<=ikt || gsys->GetN()<=ikt) continue;
+            if(get_ikt_point_from_graphs(R_side_default[ie], R_side_syserr[ie], ikt, val, up, dn))
+            {
+                y_Rside[ie] = val;
+                y_Rside_up[ie] = up;
+                y_Rside_dn[ie] = dn;
+                ymin_both = std::min(ymin_both, val - dn);
+                ymax_both = std::max(ymax_both, val + up);
+            }
 
-                double val = gdef->GetY()[ikt];
-                double base_up = gsys->GetEYhigh()[ikt];
-                double base_dn = gsys->GetEYlow()[ikt];
-                if(debug)
-                {
-                    // Print out the values and errors for this point for debugging
-                    cerr << "Debug gdef/gsys R_osl: param=" << iparam << ", ie=" << ie << ", ikt=" << ikt << ", val=" << val << ", errup=" << base_up << ", errdn=" << base_dn << endl;
-                }
-                double neigh_up_sq = 0., neigh_dn_sq = 0.;
-                double center = gdef->GetY()[ikt];
-                for(int j : {ikt-1, ikt+1}){
-                    if(j<0 || j>=gdef->GetN()) continue;
-                    double nb = gdef->GetY()[j];
-                    double diff = nb - center;
-                    if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
-                }
-                double neigh_up = sqrt(neigh_up_sq);
-                double neigh_dn = sqrt(neigh_dn_sq);
-                double extra_up = mtchoice_syst ? neigh_up : 0.;
-                double extra_dn = mtchoice_syst ? neigh_dn : 0.;
-                double errup2 = sqrt(base_up*base_up + extra_up*extra_up);
-                double errdn2 = sqrt(base_dn*base_dn + extra_dn*extra_dn);
-                if(std::isfinite(val)){
-                    ymin_both = std::min(ymin_both, val - errdn2);
-                    ymax_both = std::max(ymax_both, val + errup2);
-                }
+            if(get_ikt_point_from_graphs(R_long_default[ie], R_long_syserr[ie], ikt, val, up, dn))
+            {
+                y_Rlong[ie] = val;
+                y_Rlong_up[ie] = up;
+                y_Rlong_dn[ie] = dn;
+                ymin_both = std::min(ymin_both, val - dn);
+                ymax_both = std::max(ymax_both, val + up);
             }
         }
-
-        if(ymin_both > ymax_both){ ymin_both = 0.; ymax_both = 1.; }
-        double ypadmargin = 0.06 * (ymax_both - ymin_both);
-        ymin_both -= ypadmargin;
-        ymax_both += ypadmargin;
 
         double xmin = x_energy[0] - 1.0;
         double xmax = x_energy[NENERGIES-1] + 1.0;
         TH1F* frame_overlay = gPad->DrawFrame(xmin, ymin_both, xmax, ymax_both);
         frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
-        const char* ytitle_overlay = (iparam==0)?"R_{out} [fm]":(iparam==1)?"R_{side} [fm]":"R_{long} [fm]";
-        frame_overlay->GetYaxis()->SetTitle(ytitle_overlay);
+        frame_overlay->GetYaxis()->SetTitle("R [fm]");
 
-        TGraphAsymmErrors* g_avg_overlay;
+        int cols[] = {kBlack, kRed+1, kBlue+1, kGreen+2};
+        const char* labels[] = {"R (m_{T}-avg)", "R_{out}", "R_{side}", "R_{long}"};
+        int markers[] = {20, 21, 22, 23};
+
+        TGraphAsymmErrors* g_Ravg = new TGraphAsymmErrors(NENERGIES, x_energy, y_Ravg, xerr_low_s, xerr_high_s, y_Ravg_dn, y_Ravg_up);
+        TGraphAsymmErrors* g_Rout = new TGraphAsymmErrors(NENERGIES, x_energy, y_Rout, xerr_low_s, xerr_high_s, y_Rout_dn, y_Rout_up);
+        TGraphAsymmErrors* g_Rside = new TGraphAsymmErrors(NENERGIES, x_energy, y_Rside, xerr_low_s, xerr_high_s, y_Rside_dn, y_Rside_up);
+        TGraphAsymmErrors* g_Rlong = new TGraphAsymmErrors(NENERGIES, x_energy, y_Rlong, xerr_low_s, xerr_high_s, y_Rlong_dn, y_Rlong_up);
+        TGraphAsymmErrors* graphs[] = {g_Ravg, g_Rout, g_Rside, g_Rlong};
+
+        for(int ig=0; ig<4; ig++)
         {
-            double yavg_overlay[NENERGIES];
-            double yavg_errup_overlay[NENERGIES];
-            double yavg_errdn_overlay[NENERGIES];
-            for(int ie=0; ie<NENERGIES; ie++){
-                double avg = (iparam==0)? avg_R_out[ie] : (iparam==1)? avg_R_side[ie] : avg_R_long[ie];
-                yavg_overlay[ie] = avg;
-                double up_sq = 0., dn_sq = 0.;
-                if(iparam==0){
-                    up_sq += pow(R_out_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
-                    up_sq += pow(R_out_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
-                    up_sq += pow(R_out_nevt_pct_up_arr[ie]/100.0 * avg, 2);
-                    dn_sq += pow(R_out_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
-                    dn_sq += pow(R_out_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
-                    dn_sq += pow(R_out_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                    if(mtchoice_syst){
-                        up_sq += pow(R_out_mTchoice_syst_up[ie], 2);
-                        dn_sq += pow(R_out_mTchoice_syst_dn[ie], 2);
-                    }
-                } else if(iparam==1){
-                    up_sq += pow(R_side_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
-                    up_sq += pow(R_side_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
-                    up_sq += pow(R_side_nevt_pct_up_arr[ie]/100.0 * avg, 2);
-                    dn_sq += pow(R_side_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
-                    dn_sq += pow(R_side_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
-                    dn_sq += pow(R_side_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                    if(mtchoice_syst){
-                        up_sq += pow(R_side_mTchoice_syst_up[ie], 2);
-                        dn_sq += pow(R_side_mTchoice_syst_dn[ie], 2);
-                    }
-                } else {
-                    up_sq += pow(R_long_qlcms_pct_up_arr[ie]/100.0 * avg, 2);
-                    up_sq += pow(R_long_rhofit_pct_up_arr[ie]/100.0 * avg, 2);
-                    up_sq += pow(R_long_nevt_pct_up_arr[ie]/100.0 * avg, 2);
-                    dn_sq += pow(R_long_qlcms_pct_dn_arr[ie]/100.0 * avg, 2);
-                    dn_sq += pow(R_long_rhofit_pct_dn_arr[ie]/100.0 * avg, 2);
-                    dn_sq += pow(R_long_nevt_pct_dn_arr[ie]/100.0 * avg, 2);
-                    if(mtchoice_syst){
-                        up_sq += pow(R_long_mTchoice_syst_up[ie], 2);
-                        dn_sq += pow(R_long_mTchoice_syst_dn[ie], 2);
-                    }
-                }
-                yavg_errup_overlay[ie] = sqrt(up_sq);
-                yavg_errdn_overlay[ie] = sqrt(dn_sq);
-            }
-            g_avg_overlay = new TGraphAsymmErrors(NENERGIES, x_energy, yavg_overlay, xerr_low_s, xerr_high_s, yavg_errdn_overlay, yavg_errup_overlay);
-            int col_avg = kBlue+2;
-            int fillcol_avg = TColor::GetColorTransparent(col_avg, 0.35);
-            g_avg_overlay->SetFillColor(fillcol_avg);
-            g_avg_overlay->SetFillStyle(1001);
-            g_avg_overlay->SetLineColor(col_avg);
-            g_avg_overlay->SetLineWidth(3);
-            if(plot_mtavg) g_avg_overlay->Draw("3 same");
-            g_avg_overlay->SetMarkerStyle(21);
-            g_avg_overlay->SetMarkerSize(0.0);
-            if(plot_mtavg) g_avg_overlay->Draw("LPX same");
+            int fillcol = TColor::GetColorTransparent(cols[ig], 0.28);
+            graphs[ig]->SetFillColor(fillcol);
+            graphs[ig]->SetFillStyle(1001);
+            graphs[ig]->SetLineColor(cols[ig]);
+            graphs[ig]->SetLineWidth(3);
+            graphs[ig]->Draw("3 same");
+            graphs[ig]->SetMarkerStyle(markers[ig]);
+            graphs[ig]->SetMarkerSize(0.0);
+            graphs[ig]->SetMarkerColor(cols[ig]);
+            graphs[ig]->Draw("LPX same");
         }
 
-        std::vector<TGraphAsymmErrors*> g_ikt_overlay;
-        std::vector<std::string> g_ikt_overlay_labels;
-        {
-            int ikt_colors[] = {kRed+1, kBlue+1, kGreen+2, kMagenta+1, kOrange+7};
-            int ikt_markers[] = {21, 22, 23, 33, 34};
-            for(size_t ik=0; ik<valid_ikts_overlay.size(); ik++){
-                int ikt = valid_ikts_overlay[ik];
-                double y_overlay[NENERGIES] = {0};
-                double yerrup_overlay[NENERGIES] = {0};
-                double yerrdn_overlay[NENERGIES] = {0};
-                for(int ie=0; ie<NENERGIES; ie++){
-                    TGraphAsymmErrors* gdef = (iparam==0)? R_out_default[ie] : (iparam==1)? R_side_default[ie] : R_long_default[ie];
-                    TGraphAsymmErrors* gsys = (iparam==0)? R_out_syserr[ie] : (iparam==1)? R_side_syserr[ie] : R_long_syserr[ie];
-                    if(!gdef || !gsys || gdef->GetN()<=ikt || gsys->GetN()<=ikt) continue;
-
-                    y_overlay[ie] = gdef->GetY()[ikt];
-                    double base_up = gsys->GetEYhigh()[ikt];
-                    double base_dn = gsys->GetEYlow()[ikt];
-                    double neigh_up_sq = 0., neigh_dn_sq = 0.;
-                    double center = gdef->GetY()[ikt];
-                    for(int j : {ikt-1, ikt+1}){
-                        if(j<0 || j>=gdef->GetN()) continue;
-                        double nb = gdef->GetY()[j];
-                        double diff = nb - center;
-                        if(diff>=0) neigh_up_sq += diff*diff; else neigh_dn_sq += diff*diff;
-                    }
-                    double neigh_up = sqrt(neigh_up_sq);
-                    double neigh_dn = sqrt(neigh_dn_sq);
-                    double extra_up = mtchoice_syst ? neigh_up : 0.;
-                    double extra_dn = mtchoice_syst ? neigh_dn : 0.;
-                    yerrup_overlay[ie] = sqrt(base_up*base_up + extra_up*extra_up);
-                    yerrdn_overlay[ie] = sqrt(base_dn*base_dn + extra_dn*extra_dn);
-                }
-
-                TGraphAsymmErrors* g_ikt = new TGraphAsymmErrors(NENERGIES, x_energy, y_overlay, xerr_low_s, xerr_high_s, yerrdn_overlay, yerrup_overlay);
-                int col_ikt = ikt_colors[ik % (sizeof(ikt_colors)/sizeof(int))];
-                int fillcol_ikt = TColor::GetColorTransparent(col_ikt, 0.35);
-                g_ikt->SetFillColor(fillcol_ikt);
-                g_ikt->SetFillStyle(1001);
-                g_ikt->SetLineColor(col_ikt);
-                g_ikt->SetLineWidth(3);
-                g_ikt->Draw("3 same");
-                g_ikt->SetMarkerStyle(ikt_markers[ik % (sizeof(ikt_markers)/sizeof(int))]);
-                g_ikt->SetMarkerSize(0.0);
-                g_ikt->SetMarkerColor(col_ikt);
-                g_ikt->Draw("LPX same");
-
-                g_ikt_overlay.push_back(g_ikt);
-                g_ikt_overlay_labels.push_back(Form("UrQMD m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
-            }
-        }
-
-        TLegend* leg_overlay = new TLegend(0.30, 0.71, 0.55, 0.91);
+        TLegend* leg_overlay = new TLegend(0.17, 0.72, 0.42, 0.91);
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
-        leg_overlay->SetTextSize(0.025);
-        if(plot_mtavg) leg_overlay->AddEntry(g_avg_overlay, mtchoice_syst ? "UrQMD <m_{T}>, incl. m_{T} choice sys.unc." : "UrQMD <m_{T}>", "f");
-        for(size_t ig=0; ig<g_ikt_overlay.size(); ig++){
-            leg_overlay->AddEntry(g_ikt_overlay[ig], g_ikt_overlay_labels[ig].c_str(), "f");
+        leg_overlay->SetTextSize(0.028);
+        for(int ig=0; ig<4; ig++)
+        {
+            leg_overlay->AddEntry(graphs[ig], labels[ig], "f");
         }
-        leg_overlay->Draw("L same");
+        leg_overlay->Draw("same");
 
-        can_overlay->SaveAs(Form("figs/syserr/sqrtS_overlay_%s.png", levy_params_3d[iparam]));
+        TLatex lat;
+        lat.SetNDC();
+        lat.SetTextSize(0.030);
+        lat.DrawLatex(0.58, 0.90, Form("UrQMD m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
+
+        can_overlay->SaveAs(Form("figs/syserr/sqrtS_overlay_R_osl_and_Ravg_ikt%d.png", ikt));
         delete can_overlay;
     }
 
