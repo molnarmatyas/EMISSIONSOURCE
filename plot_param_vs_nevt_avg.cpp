@@ -242,10 +242,14 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
                 R_sideErrs.push_back(R_sideErr);
                 R_longs.push_back(R_long);
                 R_longErrs.push_back(R_longErr);
-                chi2ndfs.push_back(chi2ndf);
-                chi2ndfErrs.push_back(chi2ndfErr);
-                nevt_points_3d.push_back(nevt);
-                nevt_errs_3d.push_back(0);
+                // Skip dropped chi2/NDF points that appear at y=0 due to upstream overflow handling.
+                // Keep other 3D points unaffected.
+                if(chi2ndf > 1e-12) {
+                    chi2ndfs.push_back(chi2ndf);
+                    chi2ndfErrs.push_back(chi2ndfErr);
+                    nevt_points_3d.push_back(nevt);
+                    nevt_errs_3d.push_back(0);
+                }
             }
             
             file->Close();
@@ -353,8 +357,10 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     // Plot alpha
     c1->cd(1);
     gPad->SetLogx();
+    gPad->SetLeftMargin(0.15);
+    gPad->SetBottomMargin(0.14);
     // Change legend position from (0.65, 0.75, 0.85, 0.85) to bottom left
-    TLegend* leg1 = new TLegend(0.7, 0.1, 0.9, 0.4);
+    TLegend* leg1 = new TLegend(0.7, 0.15, 0.9, 0.45);
     bool first_alpha_drawn = false;
     
     for(size_t i = 0; i < alpha_graphs.size(); i++) {
@@ -363,7 +369,9 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             alpha_graphs[i]->SetTitle("Levy #alpha vs NEVT_AVG");
             alpha_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             alpha_graphs[i]->GetYaxis()->SetTitle("#alpha");
-            alpha_graphs[i]->GetYaxis()->SetRangeUser(1.3, 1.9);
+            alpha_graphs[i]->GetXaxis()->SetLabelOffset(0.005);
+            alpha_graphs[i]->GetYaxis()->SetTitleOffset(1.35);
+            alpha_graphs[i]->GetYaxis()->SetRangeUser(1.3, 2.1);
             // assuming that lowest energies - plotted first - are highstat, this range setting should work
             //alpha_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg[NEVTAVGS-1]);
             alpha_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
@@ -383,6 +391,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     // Plot R
     c1->cd(2);
     gPad->SetLogx();
+    gPad->SetLeftMargin(0.15);
+    gPad->SetBottomMargin(0.14);
     // Change legend position from (0.65, 0.75, 0.85, 0.85) to bottom left
     //TLegend* leg2 = new TLegend(0.1, 0.1, 0.3, 0.4);
     // Place R legend in the upper-right with same size as alpha legend (width=0.2, height=0.3)
@@ -395,6 +405,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             R_graphs[i]->SetTitle("Levy R vs NEVT_AVG");
             R_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             R_graphs[i]->GetYaxis()->SetTitle("R [fm]");
+            R_graphs[i]->GetXaxis()->SetLabelOffset(0.005);
+            R_graphs[i]->GetYaxis()->SetTitleOffset(1.35);
             R_graphs[i]->GetYaxis()->SetRangeUser(3, 7); // R between 0 and 10 fm
             R_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             R_graphs[i]->Draw("APE");
@@ -412,6 +424,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     // Plot N
     c1->cd(3);
     gPad->SetLogx();
+    gPad->SetLeftMargin(0.17);
+    gPad->SetBottomMargin(0.14);
     // Place N legend in the upper-right with same size as alpha/R legend (width=0.2, height=0.3)
     TLegend* leg3 = new TLegend(0.7, 0.6, 0.9, 0.9);
     bool first_N_drawn = false;
@@ -419,9 +433,11 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     for(size_t i = 0; i < N_graphs.size(); i++) {
         if(!N_graphs[i]) continue;
         if(!first_N_drawn) {
-            N_graphs[i]->SetTitle("Levy N vs NEVT_AVG");
+            N_graphs[i]->SetTitle("Levy #lambda vs NEVT_AVG");
             N_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
-            N_graphs[i]->GetYaxis()->SetTitle("N");
+            N_graphs[i]->GetYaxis()->SetTitle("#lambda");
+            N_graphs[i]->GetXaxis()->SetLabelOffset(0.005);
+            N_graphs[i]->GetYaxis()->SetTitleOffset(1.55);
             N_graphs[i]->GetYaxis()->SetRangeUser(0.92, 1.12); // N between 0.98 and 1.12
             N_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             N_graphs[i]->Draw("APE");
@@ -439,8 +455,10 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     // Plot confidence level
     c1->cd(4);
     gPad->SetLogx();
-    // Place confidence legend in the upper-right with same size as alpha/R legend
-    TLegend* leg4 = new TLegend(0.7, 0.6, 0.9, 0.9);
+    gPad->SetLeftMargin(0.17);
+    gPad->SetBottomMargin(0.14);
+    // Place confidence legend in the lower-left with same size as alpha/R legend
+    TLegend* leg4 = new TLegend(0.2, 0.18, 0.4, 0.48);
     bool first_conflev_drawn = false;
 
     for(size_t i = 0; i < conflev_graphs.size(); i++) {
@@ -448,7 +466,9 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
         if(!first_conflev_drawn) {
             conflev_graphs[i]->SetTitle("Fit Confidence Level vs NEVT_AVG");
             conflev_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
-            conflev_graphs[i]->GetYaxis()->SetTitle("Confidence Level");
+            conflev_graphs[i]->GetYaxis()->SetTitle("Confidence level");
+            conflev_graphs[i]->GetXaxis()->SetLabelOffset(0.005);
+            conflev_graphs[i]->GetYaxis()->SetTitleOffset(1.55);
             conflev_graphs[i]->GetYaxis()->SetRangeUser(1e-15, 1.05); // Confidence level between 0 and 1
             conflev_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             // Set log scale for y-axis
@@ -520,6 +540,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     // Plot R_out
     c2->cd(1);
     gPad->SetLogx();
+    gPad->SetLeftMargin(0.15);
+    gPad->SetBottomMargin(0.14);
     TLegend* leg5 = new TLegend(0.7, 0.6, 0.9, 0.9);
     bool first_Rout_drawn = false;
     for(size_t i = 0; i < R_out_graphs.size(); i++) {
@@ -528,6 +550,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             R_out_graphs[i]->SetTitle("Levy R_{out} vs NEVT_AVG");
             R_out_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             R_out_graphs[i]->GetYaxis()->SetTitle("R_{out} [fm]");
+            R_out_graphs[i]->GetXaxis()->SetLabelOffset(0.005);
+            R_out_graphs[i]->GetYaxis()->SetTitleOffset(1.35);
             R_out_graphs[i]->GetYaxis()->SetRangeUser(rmin, rmax);
             R_out_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             R_out_graphs[i]->Draw("APE");
@@ -545,6 +569,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     // Plot R_side
     c2->cd(2);
     gPad->SetLogx();
+    gPad->SetLeftMargin(0.15);
+    gPad->SetBottomMargin(0.14);
     TLegend* leg6 = new TLegend(0.7, 0.6, 0.9, 0.9);
     bool first_Rside_drawn = false;
     for(size_t i = 0; i < R_side_graphs.size(); i++) {
@@ -553,6 +579,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             R_side_graphs[i]->SetTitle("Levy R_{side} vs NEVT_AVG");
             R_side_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             R_side_graphs[i]->GetYaxis()->SetTitle("R_{side} [fm]");
+            R_side_graphs[i]->GetXaxis()->SetLabelOffset(0.005);
+            R_side_graphs[i]->GetYaxis()->SetTitleOffset(1.35);
             R_side_graphs[i]->GetYaxis()->SetRangeUser(rmin, rmax);
             R_side_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             R_side_graphs[i]->Draw("APE");
@@ -570,6 +598,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     // Plot R_long
     c2->cd(3);
     gPad->SetLogx();
+    gPad->SetLeftMargin(0.15);
+    gPad->SetBottomMargin(0.14);
     TLegend* leg7 = new TLegend(0.7, 0.6, 0.9, 0.9);
     bool first_Rlong_drawn = false;
     for(size_t i = 0; i < R_long_graphs.size(); i++) {
@@ -578,6 +608,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             R_long_graphs[i]->SetTitle("Levy R_{long} vs NEVT_AVG");
             R_long_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             R_long_graphs[i]->GetYaxis()->SetTitle("R_{long} [fm]");
+            R_long_graphs[i]->GetXaxis()->SetLabelOffset(0.005);
+            R_long_graphs[i]->GetYaxis()->SetTitleOffset(1.35);
             R_long_graphs[i]->GetYaxis()->SetRangeUser(rmin, rmax);
             R_long_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             R_long_graphs[i]->Draw("APE");
@@ -595,7 +627,9 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
     // Plot chi2/NDF
     c2->cd(4);
     gPad->SetLogx();
-    TLegend* leg8 = new TLegend(0.7, 0.6, 0.9, 0.9);
+    gPad->SetLeftMargin(0.15);
+    gPad->SetBottomMargin(0.14);
+    TLegend* leg8 = new TLegend(0.18, 0.6, 0.38, 0.9);
     bool first_chi2ndf_drawn = false;
     for(size_t i = 0; i < chi2ndf_graphs.size(); i++) {
         if(!chi2ndf_graphs[i]) continue;
@@ -603,6 +637,8 @@ void plot_param_vs_nevt_avg(int ikt =-1) {
             chi2ndf_graphs[i]->SetTitle("Fit #chi^{2}/NDF vs NEVT_AVG");
             chi2ndf_graphs[i]->GetXaxis()->SetTitle("NEVT_AVG");
             chi2ndf_graphs[i]->GetYaxis()->SetTitle("#chi^{2}/NDF");
+            chi2ndf_graphs[i]->GetXaxis()->SetLabelOffset(0.005);
+            chi2ndf_graphs[i]->GetYaxis()->SetTitleOffset(1.35);
             chi2ndf_graphs[i]->GetYaxis()->SetRangeUser(cmin, cmax);
             chi2ndf_graphs[i]->GetXaxis()->SetRangeUser(nevt_avg[0], nevt_avg.back());
             chi2ndf_graphs[i]->Draw("APE");

@@ -27,6 +27,7 @@ bool debug = true; // set to true to print parameter results for each systematic
 bool plot_mtavg = false; // set to true to plot m_T-averaged param vs sNN as well
 bool mtchoice_syst = false;
 bool use_larger_same_side_shift = false; // if true, use max(|diff1|,|diff2|) when both variations are on the same side of default
+bool comparewithSTAR = false; // set to true to include analytic alpha vs sNN function fitted to STAR data
 
 const int NIKT_SNN_PLOTS = 2;
 int ikt_indices_to_plot[NIKT_SNN_PLOTS] = {0, 4}; // choose which m_T bins are shown on parameter-vs-sNN plots
@@ -1641,11 +1642,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             f_analytic->SetLineStyle(1);
             f_analytic->SetLineWidth(4);
             f_analytic->SetNpx(500);
-            f_analytic->Draw("L same");
+            if(comparewithSTAR) f_analytic->Draw("L same");
         }
         
         // Legend
-        TLegend* leg_overlay = new TLegend(0.30, 0.71, 0.55, 0.91);
+        TLegend* leg_overlay = new TLegend(0.32, 0.71, 0.57, 0.91);
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
         leg_overlay->SetTextSize(0.025);
@@ -1654,7 +1655,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             leg_overlay->AddEntry(g_ikt_overlay[ig], g_ikt_overlay_labels[ig].c_str(), "f");
         }
         if(iparam==0){
-            leg_overlay->AddEntry(f_analytic, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
+            if(comparewithSTAR) leg_overlay->AddEntry(f_analytic, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
         }
         leg_overlay->Draw("L same");
         
@@ -1663,27 +1664,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     }
 
     // Transposed sqrt(sNN) overlays:
-    // one panel per selected mT bin, each showing R (mT-averaged), R_out, R_side, R_long.
-    auto get_Ravg_point = [&](int ie, double& val, double& errup, double& errdn) -> bool
-    {
-        val = avg_R[ie];
-        if(!std::isfinite(val)) return false;
-        double up_sq = 0., dn_sq = 0.;
-        up_sq += pow(R_qlcms_pct_up_arr[ie]/100.0 * val, 2);
-        up_sq += pow(R_rhofit_pct_up_arr[ie]/100.0 * val, 2);
-        up_sq += pow(R_nevt_pct_up_arr[ie]/100.0 * val, 2);
-        dn_sq += pow(R_qlcms_pct_dn_arr[ie]/100.0 * val, 2);
-        dn_sq += pow(R_rhofit_pct_dn_arr[ie]/100.0 * val, 2);
-        dn_sq += pow(R_nevt_pct_dn_arr[ie]/100.0 * val, 2);
-        if(mtchoice_syst)
-        {
-            up_sq += pow(R_mTchoice_syst_up[ie], 2);
-            dn_sq += pow(R_mTchoice_syst_dn[ie], 2);
-        }
-        errup = sqrt(up_sq);
-        errdn = sqrt(dn_sq);
-        return true;
-    };
+    // one panel per selected mT bin, each showing
+    // R (from existing R_default/R_syserr at that bin), R_out, R_side, R_long.
 
     auto get_ikt_point_from_graphs = [&](TGraphAsymmErrors* gdef, TGraphAsymmErrors* gsys, int ikt,
                                          double& val, double& errup, double& errdn) -> bool
@@ -1728,7 +1710,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         for(int ie=0; ie<NENERGIES; ie++)
         {
             double val=0., up=0., dn=0.;
-            if(get_Ravg_point(ie, val, up, dn))
+            if(get_ikt_point_from_graphs(R_default[ie], R_syserr[ie], ikt, val, up, dn))
             {
                 global_ymin = std::min(global_ymin, val - dn);
                 global_ymax = std::max(global_ymax, val + up);
@@ -1775,7 +1757,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         {
             double val=0., up=0., dn=0.;
 
-            if(get_Ravg_point(ie, val, up, dn))
+            if(get_ikt_point_from_graphs(R_default[ie], R_syserr[ie], ikt, val, up, dn))
             {
                 y_Ravg[ie] = val;
                 y_Ravg_up[ie] = up;
@@ -1819,7 +1801,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         frame_overlay->GetYaxis()->SetTitle("R [fm]");
 
         int cols[] = {kBlack, kRed+1, kBlue+1, kGreen+2};
-        const char* labels[] = {"R (m_{T}-avg)", "R_{out}", "R_{side}", "R_{long}"};
+        const char* labels[] = {"#LT R #GT = #sqrt{(R_{out}^{2} + R_{side}^{2} + R_{long}^{2})/3}", "R_{out}", "R_{side}", "R_{long}"};
         int markers[] = {20, 21, 22, 23};
 
         TGraphAsymmErrors* g_Ravg = new TGraphAsymmErrors(NENERGIES, x_energy, y_Ravg, xerr_low_s, xerr_high_s, y_Ravg_dn, y_Ravg_up);
@@ -1842,7 +1824,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             graphs[ig]->Draw("LPX same");
         }
 
-        TLegend* leg_overlay = new TLegend(0.17, 0.72, 0.42, 0.91);
+        TLegend* leg_overlay = new TLegend(0.17, 0.68, 0.42, 0.89);
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
         leg_overlay->SetTextSize(0.028);
@@ -1854,8 +1836,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
         TLatex lat;
         lat.SetNDC();
-        lat.SetTextSize(0.030);
-        lat.DrawLatex(0.58, 0.90, Form("UrQMD m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
+        lat.SetTextSize(0.035);
+        lat.DrawLatex(0.58, 0.92, Form("UrQMD m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
 
         can_overlay->SaveAs(Form("figs/syserr/sqrtS_overlay_R_osl_and_Ravg_ikt%d.png", ikt));
         delete can_overlay;
@@ -2114,7 +2096,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             }
         }
 
-        TLegend* leg_overlay = new TLegend(0.30, 0.71, 0.55, 0.91);
+        TLegend* leg_overlay = new TLegend(0.32, 0.71, 0.57, 0.91);
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
         leg_overlay->SetTextSize(0.025);
