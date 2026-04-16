@@ -20,6 +20,7 @@
 #include <sstream>
 #include <fstream>
 #include <iomanip>
+#include <string>
 #include <TF1.h>
 #include <TLatex.h>
 
@@ -1132,51 +1133,61 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     ////////////////////////////////////////////////////
     // One combined panel per parameter across all energies.
 
-    // Helper: Find the least-crowded quadrant for legend placement (NDC coords)
-    auto findBestLegendPos = [](const std::vector<TGraphAsymmErrors*>& graphs, double xmin, double xmax, double ymin, double ymax)
-        -> std::tuple<double,double,double,double> {
-        double xmid = 0.5*(xmin + xmax);
-        double ymid = 0.5*(ymin + ymax);
-        int count[4] = {0,0,0,0}; // TL,TR,BL,BR
-        
-        for(size_t ie=0; ie<graphs.size(); ie++) {
-            TGraphAsymmErrors* g = graphs[ie];
-            if(!g) continue;
-            for(int i=0; i<g->GetN(); i++) {
-                double x = g->GetX()[i];
-                double y = g->GetY()[i];
-                int quad = (x < xmid ? 0 : 1) + (y > ymid ? 0 : 2); // 0=TL,1=TR,2=BL,3=BR
-                count[quad]++;
-            }
-        }
-        // Find least-crowded quadrant
-        int minQuad = 0, minCount = count[0];
-        for(int q=1; q<4; q++) {
-            if(count[q] < minCount) { minQuad = q; minCount = count[q]; }
-        }
-        // Return an anchor box near the chosen quadrant; the caller will size it.
-        // We return a default small box (caller will override width/height).
-        double anchorX, anchorYlow; // lower-left corner
-        if(minQuad == 0) { anchorX = 0.15; anchorYlow = 0.72; } // TL
-        else if(minQuad == 1) { anchorX = 0.62; anchorYlow = 0.72; } // TR (slightly more left to allow wider legends)
-        else if(minQuad == 2) { anchorX = 0.15; anchorYlow = 0.25; } // BL
-        else { anchorX = 0.62; anchorYlow = 0.25; } // BR
-        // default tiny box; caller will compute final x2,y2
-        return std::make_tuple(anchorX, anchorYlow, anchorX+0.10, anchorYlow+0.10);
-    };
-
     // Parameter loop: 0=alpha,1=R,2=N
     // ensure output dir exists
     gSystem->mkdir("figs/syserr", kTRUE);
 
+    // Publication-oriented plot typography and output helpers.
+    const double kAxisTitleSize = 0.060;
+    const double kAxisLabelSize = 0.048;
+    const double kLegendTextSizeMain = 0.034;
+    const double kLegendTextSizeOverlay = 0.042;
+    const double kTitleTextSize = 0.045;
+    const double kAnnotTextSize = 0.043;
+
+    auto style_frame_axes = [&](TH1* frame)
+    {
+        if(!frame) return;
+        frame->GetXaxis()->SetTitleSize(kAxisTitleSize);
+        frame->GetYaxis()->SetTitleSize(kAxisTitleSize);
+        frame->GetXaxis()->SetLabelSize(kAxisLabelSize);
+        frame->GetYaxis()->SetLabelSize(kAxisLabelSize);
+        frame->GetXaxis()->SetTitleOffset(1.20);
+        frame->GetYaxis()->SetTitleOffset(1.25);
+    };
+
+    // Convert coordinates defined in the inner frame [0,1]x[0,1] to pad NDC.
+    auto frame_to_ndc_x = [&] (double x_rel)
+    {
+        return gPad->GetLeftMargin() + x_rel * (1.0 - gPad->GetLeftMargin() - gPad->GetRightMargin());
+    };
+    auto frame_to_ndc_y = [&] (double y_rel)
+    {
+        return gPad->GetBottomMargin() + y_rel * (1.0 - gPad->GetBottomMargin() - gPad->GetTopMargin());
+    };
+
+    auto save_canvas_publication = [&](TCanvas* can, const std::string& basepath_noext)
+    {
+        if(!can) return;
+        can->SaveAs((basepath_noext + ".pdf").c_str());
+        can->SaveAs((basepath_noext + ".png").c_str());
+    };
+
+    // Manual legend placement per panel to avoid covering error bars.
+    const double leg_x1_fixed[3] = {0.46, 0.46, 0.26}; // alpha: BR, R: UR, N(lambda): bottom-middle (frame-relative)
+    const double leg_y1_fixed[3] = {0.06, 0.58, 0.06};
+    const double leg_x2_fixed[3] = {0.98, 0.99, 0.82};
+
     for(int iparam=0; iparam<3; iparam++)
     {
         TCanvas* can = new TCanvas(Form("can_param_%d", iparam), "", 1600, 1200);
-        gPad->SetLeftMargin(0.12);
-        gPad->SetBottomMargin(0.12);
+        gPad->SetLeftMargin(0.18);
+        gPad->SetBottomMargin(0.18);
+        gPad->SetRightMargin(0.04);
+        gPad->SetTopMargin(0.07);
 
         double ymins[] = {1.3, 3, 0.5};
-        double ymaxs[] = {2.1, 8., 1.2};
+        double ymaxs[] = {2.1, 9., 1.2};
         double ymin = ymins[iparam];
         double ymax = ymaxs[iparam];
 
@@ -1184,16 +1195,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double xmin = mtbin_centers[0]-0.05;
         double xmax = mtbin_centers[NKT-1]+0.05;
         TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
-        const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda"; // N
+        const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.15]{R}#GT [fm]":"#lambda*"; // N
         frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
         frame->GetYaxis()->SetTitle(ytitle);
-
-        // Legend: auto-position in least-crowded quadrant, with dynamic sizing
-        auto [leg_x1, leg_y2, leg_x2, leg_y1] = findBestLegendPos(
-            (iparam==0)? std::vector<TGraphAsymmErrors*>(alpha_default, alpha_default+NENERGIES) :
-            (iparam==1)? std::vector<TGraphAsymmErrors*>(R_default, R_default+NENERGIES) :
-                     std::vector<TGraphAsymmErrors*>(N_default, N_default+NENERGIES),
-            xmin, xmax, ymin, ymax);
+        style_frame_axes(frame);
 
         int nEntries = 0;
         for(int ie=0; ie<NENERGIES; ie++){
@@ -1208,20 +1213,27 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double lineH = 0.038;
         double vPad = 0.012;
         double legH = std::max(0.06, nRows*lineH + 2*vPad);
-        double colW = (nCols==1)? 0.24 : (nCols==2)? 0.42 : 0.58;
-        double legW = colW;
-        double maxX2 = 0.98, maxY2 = 0.96;
-        double x1 = leg_x1;
-        double y1 = leg_y2;
-        double x2 = x1 + legW;
+        double x1_rel = leg_x1_fixed[iparam] - ((nCols==1)? 0.0 : (nCols==2)? 0.05 : 0.10);
+        double x2_rel = leg_x2_fixed[iparam];
+        double y1_rel = leg_y1_fixed[iparam];
+        x1_rel = std::max(0.02, x1_rel);
+        x2_rel = std::min(0.98, x2_rel);
+
+        double x1 = frame_to_ndc_x(x1_rel);
+        double x2 = frame_to_ndc_x(x2_rel);
+        double y1 = frame_to_ndc_y(y1_rel);
         double y2 = y1 + legH;
-        if(x2 > maxX2){ x1 = std::max(0.10, maxX2 - legW); x2 = x1 + legW; }
-        if(y2 > maxY2){ y1 = std::max(0.12, maxY2 - legH); y2 = y1 + legH; }
+        double maxY2 = frame_to_ndc_y(0.98);
+        if(y2 > maxY2)
+        {
+            y2 = maxY2;
+            y1 = std::max(frame_to_ndc_y(0.02), y2 - legH);
+        }
         TLegend* leg = new TLegend(x1, y1, x2, y2);
         leg->SetNColumns(nCols);
         leg->SetFillColor(0);
         leg->SetBorderSize(1);
-        leg->SetTextSize(0.028);
+        leg->SetTextSize(kLegendTextSizeMain);
         leg->SetMargin(0.20);
         leg->SetEntrySeparation(0.005);
         leg->SetColumnSeparation(0.02);
@@ -1258,24 +1270,49 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             colorIdx++;
         }
         leg->Draw();
+        {
+            // Draw title
+            TLatex title;
+            title.SetNDC();
+            title.SetTextSize(kTitleTextSize);
+            title.DrawLatex(frame_to_ndc_x(0.03), frame_to_ndc_y(0.95), "UrQMD Au+Au 0#minus10%, #kern[-0.3]{#pi^{#pm}#pi^{#pm}}, L#acute{e}vy fit");
+        }
 
         // Save canvas (single-panel figure)
         const char* energyplotted = (energy_to_plot>-1)? Form("_energy_%s", energies[energy_to_plot]) : "_allenergies";
         can->SetTitle(Form("m_{T} vs %s systematic uncertainties%s",
-                            (iparam==0)?"#alpha":(iparam==1)?"R":"#lambda", energyplotted));
-        can->SaveAs(Form("figs/syserr/mT_vs_param_%s%s.png", levy_params[iparam], energyplotted));
+                            (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.15]{R}#GT":"#lambda*", energyplotted));
+        save_canvas_publication(can, Form("figs/syserr/mT_vs_param_%s%s", levy_params[iparam], energyplotted));
         delete can;
     }
 
-    // Additional 3D-radius panels: R_out, R_side, R_long
+    // Additional 3D-radius panels in one 3-panel canvas: R_out, R_side, R_long
+    TCanvas* can3d = new TCanvas("can_param_Rosl", "", 2400, 800);
+    can3d->Divide(3, 1, 0.001, 0.001);
+    TLegend* leg3d = nullptr;
+
+    int nEntries3d = 0;
+    for(int ie=0; ie<NENERGIES; ie++)
+    {
+        if(energy_to_plot>-1 && ie!=energy_to_plot) continue;
+        // Use middle panel availability to define shared legend content.
+        TGraphAsymmErrors* gdef = R_side_default[ie];
+        TGraphAsymmErrors* gsys = R_side_syserr[ie];
+        if(!gdef || !gsys) continue;
+        nEntries3d++;
+    }
+    int nCols3d = (nEntries3d>14)? 3 : (nEntries3d>7)? 2 : 1;
+
     for(int iparam=0; iparam<3; iparam++)
     {
-        TCanvas* can = new TCanvas(Form("can_param_3d_%d", iparam), "", 1600, 1200);
-        gPad->SetLeftMargin(0.12);
-        gPad->SetBottomMargin(0.12);
+        can3d->cd(iparam+1);
+        gPad->SetLeftMargin(0.18);
+        gPad->SetBottomMargin(0.18);
+        gPad->SetRightMargin(0.04);
+        gPad->SetTopMargin(0.07);
 
-        double ymins[] = {2.5, 2.5, 2.5};
-        double ymaxs[] = {12.0, 12.0, 12.0};
+        double ymins[] = {2.0, 2.0, 2.0};
+        double ymaxs[] = {11.0, 11.0, 11.0};
         double ymin = ymins[iparam];
         double ymax = ymaxs[iparam];
 
@@ -1285,44 +1322,32 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         const char* ytitle = (iparam==0)?"R_{out} [fm]":(iparam==1)?"R_{side} [fm]":"R_{long} [fm]";
         frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
         frame->GetYaxis()->SetTitle(ytitle);
+        style_frame_axes(frame);
 
-        auto [leg_x1, leg_y2, leg_x2, leg_y1] = findBestLegendPos(
-            (iparam==0)? std::vector<TGraphAsymmErrors*>(R_out_default, R_out_default+NENERGIES) :
-            (iparam==1)? std::vector<TGraphAsymmErrors*>(R_side_default, R_side_default+NENERGIES) :
-                         std::vector<TGraphAsymmErrors*>(R_long_default, R_long_default+NENERGIES),
-            xmin, xmax, ymin, ymax);
-
-        int nEntries = 0;
-        for(int ie=0; ie<NENERGIES; ie++){
-            if(energy_to_plot>-1 && ie!=energy_to_plot) continue;
-            TGraphAsymmErrors* gdef = (iparam==0)? R_out_default[ie] : (iparam==1)? R_side_default[ie] : R_long_default[ie];
-            TGraphAsymmErrors* gsys = (iparam==0)? R_out_syserr[ie] : (iparam==1)? R_side_syserr[ie] : R_long_syserr[ie];
-            if(!gdef || !gsys) continue;
-            nEntries++;
+        if(iparam==0)
+        {
+            // Title on the first panel only
+            TLatex title;
+            title.SetNDC();
+            title.SetTextSize(kTitleTextSize);
+            title.DrawLatex(frame_to_ndc_x(0.03), frame_to_ndc_y(0.95), "UrQMD Au+Au 0#minus10%, #kern[-0.3]{#pi^{#pm}#pi^{#pm}}, L#acute{e}vy fit");
         }
-
-        int nCols = (nEntries>14)? 3 : (nEntries>7)? 2 : 1;
-        int nRows = (nEntries==0)? 0 : ( (nEntries + nCols - 1) / nCols );
-        double lineH = 0.038;
-        double vPad = 0.012;
-        double legH = std::max(0.06, nRows*lineH + 2*vPad);
-        double colW = (nCols==1)? 0.24 : (nCols==2)? 0.42 : 0.58;
-        double legW = colW;
-        double maxX2 = 0.98, maxY2 = 0.96;
-        double x1 = leg_x1;
-        double y1 = leg_y2;
-        double x2 = x1 + legW;
-        double y2 = y1 + legH;
-        if(x2 > maxX2){ x1 = std::max(0.10, maxX2 - legW); x2 = x1 + legW; }
-        if(y2 > maxY2){ y1 = std::max(0.12, maxY2 - legH); y2 = y1 + legH; }
-        TLegend* leg = new TLegend(x1, y1, x2, y2);
-        leg->SetNColumns(nCols);
-        leg->SetFillColor(0);
-        leg->SetBorderSize(1);
-        leg->SetTextSize(0.028);
-        leg->SetMargin(0.20);
-        leg->SetEntrySeparation(0.005);
-        leg->SetColumnSeparation(0.02);
+        if(iparam==1)
+        {
+            // Shared legend on middle panel; make it wider and place slightly lower.
+            double lx1 = frame_to_ndc_x(0.06);
+            double ly1 = frame_to_ndc_y(0.42);
+            double lx2 = frame_to_ndc_x(0.86);
+            double ly2 = frame_to_ndc_y(0.80);
+            leg3d = new TLegend(lx1, ly1, lx2, ly2);
+            leg3d->SetNColumns(nCols3d);
+            leg3d->SetFillColor(0);
+            leg3d->SetBorderSize(1);
+            leg3d->SetTextSize(kLegendTextSizeMain);
+            leg3d->SetMargin(0.20);
+            leg3d->SetEntrySeparation(0.005);
+            leg3d->SetColumnSeparation(0.02);
+        }
 
         int colors[] = {kBlack,kBlue+2,kRed+1,kGreen+2,kMagenta+2,kOrange+7,kViolet+1,kCyan+1};
         int colorIdx=0;
@@ -1349,17 +1374,22 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
             std::stringstream label;
             label << std::fixed << std::setprecision(1) << energydouble[ie];
-            leg->AddEntry(gsys, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "lpx");
+            if(iparam==1 && leg3d)
+            {
+                leg3d->AddEntry(gsys, Form("#sqrt{s_{NN}} = %s GeV",label.str().c_str()), "lpx");
+            }
             colorIdx++;
         }
-        leg->Draw();
 
-        const char* energyplotted = (energy_to_plot>-1)? Form("_energy_%s", energies[energy_to_plot]) : "_allenergies";
-        can->SetTitle(Form("m_{T} vs %s systematic uncertainties%s",
-                           (iparam==0)?"R_{out}":(iparam==1)?"R_{side}":"R_{long}", energyplotted));
-        can->SaveAs(Form("figs/syserr/mT_vs_param_%s%s.png", levy_params_3d[iparam], energyplotted));
-        delete can;
+        if(iparam==1 && leg3d)
+        {
+            leg3d->Draw();
+        }
     }
+    const char* energyplotted_3d = (energy_to_plot>-1)? Form("_energy_%s", energies[energy_to_plot]) : "_allenergies";
+    can3d->SetTitle(Form("m_{T} vs 3D radii with systematic uncertainties%s", energyplotted_3d));
+    save_canvas_publication(can3d, Form("figs/syserr/mT_vs_param_R_osl%s", energyplotted_3d));
+    delete can3d;
 
     
     /////////////////////////////////////////////////////
@@ -1382,6 +1412,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     for(int iparam=0; iparam<3; iparam++){
         TCanvas* can_overlay = new TCanvas(Form("can_overlay_param_%d", iparam), "", 1200, 800);
         can_overlay->SetLogx(1); // !!! FIXME if not needed to compare with STAR data
+        gPad->SetLeftMargin(0.18);
+        gPad->SetBottomMargin(0.18);
+        gPad->SetRightMargin(0.04);
+        gPad->SetTopMargin(0.07);
 
         
         // Precompute y-range for both datasets
@@ -1501,8 +1535,9 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             //frame_overlay = gPad->DrawFrame(1.0, 0.1, 10000., 2.1); // FIXME if not needed to compare with STAR data
         }
         frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
-        const char* ytitle_overlay = (iparam==0)?"#alpha":(iparam==1)?"R [fm]":"#lambda"; // =N
+        const char* ytitle_overlay = (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.15]{R}#GT [fm]":"#lambda*"; // =N
         frame_overlay->GetYaxis()->SetTitle(ytitle_overlay);
+        style_frame_axes(frame_overlay);
         
         // Draw mT-averaged data
         TGraphAsymmErrors* g_avg_overlay;
@@ -1628,7 +1663,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 g_ikt->Draw("LPX same");
 
                 g_ikt_overlay.push_back(g_ikt);
-                g_ikt_overlay_labels.push_back(Form("UrQMD m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
+                double mt_edge_dn = sqrt(ktbins[ikt]*ktbins[ikt] + Mass2_pi); double mt_edge_up = sqrt(ktbins[ikt+1]*ktbins[ikt+1] + Mass2_pi);
+                g_ikt_overlay_labels.push_back(Form("m_{T} = %.0f#minus%.0f MeV", mt_edge_dn*1000.0, mt_edge_up*1000.0));
             }
         }
         
@@ -1646,10 +1682,19 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         }
         
         // Legend
-        TLegend* leg_overlay = new TLegend(0.32, 0.71, 0.57, 0.91);
+        double leg_x1, leg_x2, leg_y1, leg_y2;
+        if(iparam==0){
+            // bottom left
+            leg_x1 = 0.03; leg_x2 = 0.56; leg_y1 = 0.06; leg_y2 = 0.42;
+        } else if(iparam==1){
+            leg_x1 = 0.12; leg_x2 = 0.46; leg_y1 = 0.60; leg_y2 = 0.90;
+        } else {
+            leg_x1 = 0.12; leg_x2 = 0.46; leg_y1 = 0.06; leg_y2 = 0.36;
+        }
+        TLegend* leg_overlay = new TLegend(frame_to_ndc_x(leg_x1), frame_to_ndc_y(leg_y1), frame_to_ndc_x(leg_x2), frame_to_ndc_y(leg_y2));
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
-        leg_overlay->SetTextSize(0.025);
+        leg_overlay->SetTextSize(kLegendTextSizeOverlay);
         if(plot_mtavg) leg_overlay->AddEntry(g_avg_overlay, mtchoice_syst ? "UrQMD <m_{T}>, incl. m_{T} choice sys.unc." : "UrQMD <m_{T}>", "f");
         for(size_t ig=0; ig<g_ikt_overlay.size(); ig++){
             leg_overlay->AddEntry(g_ikt_overlay[ig], g_ikt_overlay_labels[ig].c_str(), "f");
@@ -1658,8 +1703,16 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             if(comparewithSTAR) leg_overlay->AddEntry(f_analytic, "#alpha=0.85 + #sqrt{s_{NN}}^{-0.14} (trend of STAR data)", "l");
         }
         leg_overlay->Draw("L same");
+
+        // Plot title
+        {
+            TLatex title;
+            title.SetNDC();
+            title.SetTextSize(kTitleTextSize);
+            title.DrawLatex(frame_to_ndc_x(0.03), frame_to_ndc_y(0.95), Form("UrQMD Au+Au 0#minus10%%, #kern[-0.3]{#pi^{#pm}#pi^{#pm}}, L#acute{e}vy fit%s", (energy_to_plot>-1)? Form(", #sqrt{s_{NN}} = %s GeV", energies[energy_to_plot]) : ""));
+        }
         
-        can_overlay->SaveAs(Form("figs/syserr/sqrtS_overlay_%s.png", levy_params[iparam]));
+        save_canvas_publication(can_overlay, Form("figs/syserr/sqrtS_overlay_%s", levy_params[iparam]));
         delete can_overlay;
     }
 
@@ -1746,6 +1799,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         int ikt = valid_ikts_overlay[ik];
         TCanvas* can_overlay = new TCanvas(Form("can_overlay_R_osl_transposed_ikt_%d", ikt), "", 1200, 800);
         can_overlay->SetLogx(1);
+        gPad->SetLeftMargin(0.18);
+        gPad->SetBottomMargin(0.18);
+        gPad->SetRightMargin(0.04);
+        gPad->SetTopMargin(0.07);
 
         double y_Ravg[NENERGIES] = {0}, y_Ravg_up[NENERGIES] = {0}, y_Ravg_dn[NENERGIES] = {0};
         double y_Rout[NENERGIES] = {0}, y_Rout_up[NENERGIES] = {0}, y_Rout_dn[NENERGIES] = {0};
@@ -1799,9 +1856,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         TH1F* frame_overlay = gPad->DrawFrame(xmin, ymin_both, xmax, ymax_both);
         frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
         frame_overlay->GetYaxis()->SetTitle("R [fm]");
+        style_frame_axes(frame_overlay);
 
         int cols[] = {kBlack, kRed+1, kBlue+1, kGreen+2};
-        const char* labels[] = {"#LT R #GT = #sqrt{(R_{out}^{2} + R_{side}^{2} + R_{long}^{2})/3}", "R_{out}", "R_{side}", "R_{long}"};
+        const char* labels[] = {"#LT#kern[-0.15]{R}#GT = #sqrt{(R_{out}^{2} + R_{side}^{2} + R_{long}^{2})/3}", "R_{out}", "R_{side}", "R_{long}"};
         int markers[] = {20, 21, 22, 23};
 
         TGraphAsymmErrors* g_Ravg = new TGraphAsymmErrors(NENERGIES, x_energy, y_Ravg, xerr_low_s, xerr_high_s, y_Ravg_dn, y_Ravg_up);
@@ -1824,22 +1882,26 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             graphs[ig]->Draw("LPX same");
         }
 
-        TLegend* leg_overlay = new TLegend(0.17, 0.68, 0.42, 0.89);
+        TLegend* leg_overlay = new TLegend(frame_to_ndc_x(0.03), frame_to_ndc_y(0.58), frame_to_ndc_x(0.42), frame_to_ndc_y(0.91));
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
-        leg_overlay->SetTextSize(0.028);
+        leg_overlay->SetTextSize(kLegendTextSizeOverlay);
         for(int ig=0; ig<4; ig++)
         {
             leg_overlay->AddEntry(graphs[ig], labels[ig], "f");
         }
         leg_overlay->Draw("same");
 
-        TLatex lat;
-        lat.SetNDC();
-        lat.SetTextSize(0.035);
-        lat.DrawLatex(0.58, 0.92, Form("UrQMD m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
+        // Plot title
+        {
+            TLatex lat;
+            lat.SetNDC();
+            lat.SetTextSize(kAnnotTextSize);
+            double mt_edge_dn = sqrt(ktbins[ikt]*ktbins[ikt] + Mass2_pi); double mt_edge_up = sqrt(ktbins[ikt+1]*ktbins[ikt+1] + Mass2_pi);
+            lat.DrawLatex(frame_to_ndc_x(0.03), frame_to_ndc_y(0.95), Form("UrQMD Au+Au, #kern[-0.3]{#pi^{#pm}#pi^{#pm}}, m_{T} = %.0f#minus%.0f MeV", mt_edge_dn*1000.0, mt_edge_up*1000.0));
+        }
 
-        can_overlay->SaveAs(Form("figs/syserr/sqrtS_overlay_R_osl_and_Ravg_ikt%d.png", ikt));
+        save_canvas_publication(can_overlay, Form("figs/syserr/sqrtS_overlay_R_osl_and_Ravg_ikt%d", ikt));
         delete can_overlay;
     }
 
@@ -1949,6 +2011,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     {
         TCanvas* can_overlay = new TCanvas(Form("can_overlay_derived_3d_%d", ider), "", 1200, 800);
         can_overlay->SetLogx(1);
+        gPad->SetLeftMargin(0.18);
+        gPad->SetBottomMargin(0.18);
+        gPad->SetRightMargin(0.04);
+        gPad->SetTopMargin(0.07);
 
         double ymin_both = 1e9, ymax_both = -1e9;
 
@@ -2017,6 +2083,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
         const char* ytitle_overlay = (ider==0) ? "R_{out}/R_{side}" : "R_{out}^{2}-R_{side}^{2} [fm^{2}]";
         frame_overlay->GetYaxis()->SetTitle(ytitle_overlay);
+        style_frame_axes(frame_overlay);
 
         TGraphAsymmErrors* g_avg_overlay = nullptr;
         {
@@ -2092,23 +2159,31 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 g_ikt->Draw("LPX same");
 
                 g_ikt_overlay.push_back(g_ikt);
-                g_ikt_overlay_labels.push_back(Form("UrQMD m_{T} bin %d (%.0f MeV)", ikt, mtbin_centers[ikt]*1000.0));
+                double mt_edge_dn = sqrt(ktbins[ikt]*ktbins[ikt] + Mass2_pi); double mt_edge_up = sqrt(ktbins[ikt+1]*ktbins[ikt+1] + Mass2_pi);
+                g_ikt_overlay_labels.push_back(Form("m_{T} = %.0f#minus%.0f MeV", mt_edge_dn*1000.0, mt_edge_up*1000.0));
             }
         }
 
-        TLegend* leg_overlay = new TLegend(0.32, 0.71, 0.57, 0.91);
+        TLegend* leg_overlay = new TLegend(frame_to_ndc_x(0.12), frame_to_ndc_y(0.60), frame_to_ndc_x(0.46), frame_to_ndc_y(0.90));
         leg_overlay->SetBorderSize(0);
         leg_overlay->SetFillStyle(0);
-        leg_overlay->SetTextSize(0.025);
+        leg_overlay->SetTextSize(kLegendTextSizeOverlay);
         if(plot_mtavg) leg_overlay->AddEntry(g_avg_overlay, mtchoice_syst ? "UrQMD <m_{T}>, incl. m_{T} choice sys.unc." : "UrQMD <m_{T}>", "f");
         for(size_t ig=0; ig<g_ikt_overlay.size(); ig++)
         {
             leg_overlay->AddEntry(g_ikt_overlay[ig], g_ikt_overlay_labels[ig].c_str(), "f");
         }
         leg_overlay->Draw("L same");
+        // Add title
+        {
+            TLatex title;
+            title.SetNDC();
+            title.SetTextSize(kTitleTextSize);
+            title.DrawLatex(frame_to_ndc_x(0.03), frame_to_ndc_y(0.95), Form("UrQMD Au+Au 0#minus10%%, #kern[-0.3]{#pi^{#pm}#pi^{#pm}}, L#acute{e}vy fit%s", (energy_to_plot>-1)? Form(", #sqrt{s_{NN}} = %s GeV", energies[energy_to_plot]) : ""));
+        }
 
-        if(ider==0) can_overlay->SaveAs("figs/syserr/sqrtS_overlay_Rout_over_Rside.png");
-        else can_overlay->SaveAs("figs/syserr/sqrtS_overlay_Rout2_minus_Rside2.png");
+        if(ider==0) save_canvas_publication(can_overlay, "figs/syserr/sqrtS_overlay_Rout_over_Rside");
+        else save_canvas_publication(can_overlay, "figs/syserr/sqrtS_overlay_Rout2_minus_Rside2");
         delete can_overlay;
     }
 
