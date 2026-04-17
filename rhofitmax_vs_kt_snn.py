@@ -20,6 +20,19 @@ def rhofitmax(kT, energy, syst=0):
         systpm = 1.0
     return (rmaxdef - ktparam * 5.0) * (1.0 + systpm * 0.25) * np.sqrt(energy/11.5) # only pm20% instead of the previous 60%
 
+plt.rcParams['axes.titlesize'] = 20   # Title font size
+plt.rcParams['axes.labelsize'] = 20   # Axis labels font size
+# Also set larger fontsize for legends and ticks:
+plt.rcParams['legend.fontsize'] = 16   # Legend font size
+plt.rcParams['xtick.labelsize'] = 16   # X-axis tick labels font size
+plt.rcParams['ytick.labelsize'] = 16   # Y-axis tick labels font size
+# Do not leave white space on the sides of the plot:
+plt.rcParams['figure.subplot.left'] = 0.05
+plt.rcParams['figure.subplot.right'] = 0.95
+plt.rcParams['figure.subplot.top'] = 0.9
+plt.rcParams['figure.subplot.bottom'] = 0.15
+
+
 #plt.figure(figsize=(8,6))
 #plt.title(r'$\rho_{fit}^{max}$ vs $k_T$ for different energies')
 #plt.xlabel(r'$k_T$ (GeV)')
@@ -32,8 +45,8 @@ def rhofitmax(kT, energy, syst=0):
 #plt.show()
 
 # Plot all three syst variations side-by-side
-plt.figure(figsize=(18,6))
-plt.suptitle(r'$\rho_{fit}^{max}$ vs $k_T$ for different energies and systematic variations')
+plt.figure(figsize=(21,6))
+#plt.suptitle(r'$\rho_{fit}^{max}$ vs $k_T$ for different energies and systematic variations')
 for syst in range(3):
     plt.subplot(1, 3, syst+1)
     if syst == 0:
@@ -42,11 +55,11 @@ for syst in range(3):
         plt.title(r'Smaller $\rho_{fit}^{max}$')
     else:
         plt.title(r'Larger $\rho_{fit}^{max}$')
-    plt.xlabel(r'$k_T$ (GeV)')
+    plt.xlabel(r'$K_T$ (GeV)')
     plt.ylabel(r'$\rho_{fit}^{max}$')
     for energy in energies:
         plt.plot(kT_center, rhofitmax(kT_center, energy, syst), 'o-', label=f'{energy} GeV')
-    plt.legend()
+plt.legend()
 fig2 = plt.gcf()
 fig2.savefig("figs/rhofitmax_vs_kt_snn_all_syst.png")
 #plt.show() # do not show if called from command line, to avoid blocking the script from finishing and saving the figure

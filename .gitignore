@@ -18,6 +18,7 @@ analysed/*
 Stuff/*
 epos_with_apptainer/*
 urqmd-3.4/*
+urqmd-3.4*
 status_report/*
 **/*.root
 **/*.exe
