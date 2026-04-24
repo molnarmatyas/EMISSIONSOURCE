@@ -1195,7 +1195,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double xmin = mtbin_centers[0]-0.05;
         double xmax = mtbin_centers[NKT-1]+0.05;
         TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
-        const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.15]{R}#GT [fm]":"#lambda*"; // N
+        const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.1]{R}#GT [fm]":"#lambda*"; // N
         frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
         frame->GetYaxis()->SetTitle(ytitle);
         style_frame_axes(frame);
@@ -1281,7 +1281,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         // Save canvas (single-panel figure)
         const char* energyplotted = (energy_to_plot>-1)? Form("_energy_%s", energies[energy_to_plot]) : "_allenergies";
         can->SetTitle(Form("m_{T} vs %s systematic uncertainties%s",
-                            (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.15]{R}#GT":"#lambda*", energyplotted));
+                            (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.1]{R}#GT":"#lambda*", energyplotted));
         save_canvas_publication(can, Form("figs/syserr/mT_vs_param_%s%s", levy_params[iparam], energyplotted));
         delete can;
     }
@@ -1535,7 +1535,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             //frame_overlay = gPad->DrawFrame(1.0, 0.1, 10000., 2.1); // FIXME if not needed to compare with STAR data
         }
         frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
-        const char* ytitle_overlay = (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.15]{R}#GT [fm]":"#lambda*"; // =N
+        const char* ytitle_overlay = (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.1]{R}#GT [fm]":"#lambda*"; // =N
         frame_overlay->GetYaxis()->SetTitle(ytitle_overlay);
         style_frame_axes(frame_overlay);
         
@@ -1859,7 +1859,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         style_frame_axes(frame_overlay);
 
         int cols[] = {kBlack, kRed+1, kBlue+1, kGreen+2};
-        const char* labels[] = {"#LT#kern[-0.15]{R}#GT = #sqrt{(R_{out}^{2} + R_{side}^{2} + R_{long}^{2})/3}", "R_{out}", "R_{side}", "R_{long}"};
+        const char* labels[] = {"#LT#kern[-0.1]{R}#GT = #sqrt{(R_{out}^{2} + R_{side}^{2} + R_{long}^{2})/3}", "R_{out}", "R_{side}", "R_{long}"};
         int markers[] = {20, 21, 22, 23};
 
         TGraphAsymmErrors* g_Ravg = new TGraphAsymmErrors(NENERGIES, x_energy, y_Ravg, xerr_low_s, xerr_high_s, y_Ravg_dn, y_Ravg_up);
