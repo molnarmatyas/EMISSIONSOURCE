@@ -320,6 +320,12 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     double R_long_qlcms_pct_up_arr[NENERGIES] = {0}, R_long_qlcms_pct_dn_arr[NENERGIES] = {0};
     double R_long_rhofit_pct_up_arr[NENERGIES] = {0}, R_long_rhofit_pct_dn_arr[NENERGIES] = {0};
     double R_long_nevt_pct_up_arr[NENERGIES] = {0}, R_long_nevt_pct_dn_arr[NENERGIES] = {0};
+    double alpha_total_pct_up_arr[NENERGIES] = {0}, alpha_total_pct_dn_arr[NENERGIES] = {0};
+    double R_total_pct_up_arr[NENERGIES] = {0}, R_total_pct_dn_arr[NENERGIES] = {0};
+    double N_total_pct_up_arr[NENERGIES] = {0}, N_total_pct_dn_arr[NENERGIES] = {0};
+    double R_out_total_pct_up_arr[NENERGIES] = {0}, R_out_total_pct_dn_arr[NENERGIES] = {0};
+    double R_side_total_pct_up_arr[NENERGIES] = {0}, R_side_total_pct_dn_arr[NENERGIES] = {0};
+    double R_long_total_pct_up_arr[NENERGIES] = {0}, R_long_total_pct_dn_arr[NENERGIES] = {0};
 
     // Also store mT-averaged default values and the ikt=2 etc. default points per energy
     double avg_alpha[NENERGIES] = {0}, avg_R[NENERGIES] = {0}, avg_N[NENERGIES] = {0};
@@ -940,47 +946,66 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double R_long_rhofitmax_percent_dn = calc_syst_contribution(R_long_default[ienergy], R_long_rhofitmax_up, R_long_rhofitmax_dn, 0);
         double R_long_nevtavg_percent_dn = calc_syst_contribution(R_long_default[ienergy], R_long_nevtavg_up, R_long_nevtavg_dn, 0);
 
+        double alpha_total_percent_up = calc_syst_contribution(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn);
+        double alpha_total_percent_dn = calc_syst_contribution(alpha_default[ienergy], alpha_syserr_up, alpha_syserr_dn, 0);
+        double R_total_percent_up = calc_syst_contribution(R_default[ienergy], R_syserr_up, R_syserr_dn);
+        double R_total_percent_dn = calc_syst_contribution(R_default[ienergy], R_syserr_up, R_syserr_dn, 0);
+        double N_total_percent_up = calc_syst_contribution(N_default[ienergy], N_syserr_up, N_syserr_dn);
+        double N_total_percent_dn = calc_syst_contribution(N_default[ienergy], N_syserr_up, N_syserr_dn, 0);
+        double R_out_total_percent_up = calc_syst_contribution(R_out_default[ienergy], R_out_syserr_up, R_out_syserr_dn);
+        double R_out_total_percent_dn = calc_syst_contribution(R_out_default[ienergy], R_out_syserr_up, R_out_syserr_dn, 0);
+        double R_side_total_percent_up = calc_syst_contribution(R_side_default[ienergy], R_side_syserr_up, R_side_syserr_dn);
+        double R_side_total_percent_dn = calc_syst_contribution(R_side_default[ienergy], R_side_syserr_up, R_side_syserr_dn, 0);
+        double R_long_total_percent_up = calc_syst_contribution(R_long_default[ienergy], R_long_syserr_up, R_long_syserr_dn);
+        double R_long_total_percent_dn = calc_syst_contribution(R_long_default[ienergy], R_long_syserr_up, R_long_syserr_dn, 0);
+
         // Append CSV block lines: energy header, parameter sub-header, then lines for alpha,R,N
         std::ostringstream h1;
         h1 << "[" << energies[ienergy] << " GeV]";
         csv_lines.push_back(h1.str());
 
-        csv_lines.push_back("Levy parameter,qlcms cut [%],rhofitmax [%],nevtavg [%]");
+        csv_lines.push_back("Levy parameter,qlcms cut [%],rhofitmax [%],nevtavg [%],total [%]");
         std::ostringstream arow;
         arow << "alpha," << std::fixed << std::setprecision(6)
             << " +" << alpha_qlcms_percent_up << " / -" << alpha_qlcms_percent_dn << ","
             << " +" << alpha_rhofitmax_percent_up << " / -" << alpha_rhofitmax_percent_dn << ","
-            << " +" << alpha_nevtavg_percent_up << " / -" << alpha_nevtavg_percent_dn;
+            << " +" << alpha_nevtavg_percent_up << " / -" << alpha_nevtavg_percent_dn << ","
+            << " +" << alpha_total_percent_up << " / -" << alpha_total_percent_dn;
         csv_lines.push_back(arow.str());
         std::ostringstream rrow;
         rrow << "R," << std::fixed << std::setprecision(6)
             << " +" << R_qlcms_percent_up << " / -" << R_qlcms_percent_dn << ","
             << " +" << R_rhofitmax_percent_up << " / -" << R_rhofitmax_percent_dn << ","
-            << " +" << R_nevtavg_percent_up << " / -" << R_nevtavg_percent_dn;
+            << " +" << R_nevtavg_percent_up << " / -" << R_nevtavg_percent_dn << ","
+            << " +" << R_total_percent_up << " / -" << R_total_percent_dn;
         csv_lines.push_back(rrow.str());
         std::ostringstream nrow;
         nrow << "N," << std::fixed << std::setprecision(6)
             << " +" << N_qlcms_percent_up << " / -" << N_qlcms_percent_dn << ","
             << " +" << N_rhofitmax_percent_up << " / -" << N_rhofitmax_percent_dn << ","
-            << " +" << N_nevtavg_percent_up << " / -" << N_nevtavg_percent_dn;
+            << " +" << N_nevtavg_percent_up << " / -" << N_nevtavg_percent_dn << ","
+            << " +" << N_total_percent_up << " / -" << N_total_percent_dn;
         csv_lines.push_back(nrow.str());
         std::ostringstream routrow;
         routrow << "R_out," << std::fixed << std::setprecision(6)
             << " +" << R_out_qlcms_percent_up << " / -" << R_out_qlcms_percent_dn << ","
             << " +" << R_out_rhofitmax_percent_up << " / -" << R_out_rhofitmax_percent_dn << ","
-            << " +" << R_out_nevtavg_percent_up << " / -" << R_out_nevtavg_percent_dn;
+            << " +" << R_out_nevtavg_percent_up << " / -" << R_out_nevtavg_percent_dn << ","
+            << " +" << R_out_total_percent_up << " / -" << R_out_total_percent_dn;
         csv_lines.push_back(routrow.str());
         std::ostringstream rsiderow;
         rsiderow << "R_side," << std::fixed << std::setprecision(6)
              << " +" << R_side_qlcms_percent_up << " / -" << R_side_qlcms_percent_dn << ","
              << " +" << R_side_rhofitmax_percent_up << " / -" << R_side_rhofitmax_percent_dn << ","
-             << " +" << R_side_nevtavg_percent_up << " / -" << R_side_nevtavg_percent_dn;
+             << " +" << R_side_nevtavg_percent_up << " / -" << R_side_nevtavg_percent_dn << ","
+             << " +" << R_side_total_percent_up << " / -" << R_side_total_percent_dn;
         csv_lines.push_back(rsiderow.str());
         std::ostringstream rlongrow;
         rlongrow << "R_long," << std::fixed << std::setprecision(6)
              << " +" << R_long_qlcms_percent_up << " / -" << R_long_qlcms_percent_dn << ","
              << " +" << R_long_rhofitmax_percent_up << " / -" << R_long_rhofitmax_percent_dn << ","
-             << " +" << R_long_nevtavg_percent_up << " / -" << R_long_nevtavg_percent_dn;
+             << " +" << R_long_nevtavg_percent_up << " / -" << R_long_nevtavg_percent_dn << ","
+             << " +" << R_long_total_percent_up << " / -" << R_long_total_percent_dn;
         csv_lines.push_back(rlongrow.str());
         
         // ---- m_T choice systematic contribution (percent) ----
@@ -1061,6 +1086,19 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         R_long_rhofit_pct_dn_arr[ienergy] = R_long_rhofitmax_percent_dn;
         R_long_nevt_pct_up_arr[ienergy] = R_long_nevtavg_percent_up;
         R_long_nevt_pct_dn_arr[ienergy] = R_long_nevtavg_percent_dn;
+
+        alpha_total_pct_up_arr[ienergy] = alpha_total_percent_up;
+        alpha_total_pct_dn_arr[ienergy] = alpha_total_percent_dn;
+        R_total_pct_up_arr[ienergy] = R_total_percent_up;
+        R_total_pct_dn_arr[ienergy] = R_total_percent_dn;
+        N_total_pct_up_arr[ienergy] = N_total_percent_up;
+        N_total_pct_dn_arr[ienergy] = N_total_percent_dn;
+        R_out_total_pct_up_arr[ienergy] = R_out_total_percent_up;
+        R_out_total_pct_dn_arr[ienergy] = R_out_total_percent_dn;
+        R_side_total_pct_up_arr[ienergy] = R_side_total_percent_up;
+        R_side_total_pct_dn_arr[ienergy] = R_side_total_percent_dn;
+        R_long_total_pct_up_arr[ienergy] = R_long_total_percent_up;
+        R_long_total_pct_dn_arr[ienergy] = R_long_total_percent_dn;
 
         // mT-averaged defaults and ikt=2 values
         double sum_a=0., sum_R=0., sum_Nv=0., sum_Rout=0., sum_Rside=0., sum_Rlong=0.;
@@ -2210,6 +2248,102 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             csvout.close();
         } else {
             cerr << "Warning: could not open syserr_percent_breakdown.csv for writing" << endl;
+        }
+    }
+
+    // Write LaTeX table for selected energies
+    {
+        const int NENERGIES_LATEX = 3;
+        const int latex_energy_indices[NENERGIES_LATEX] = {0, 7, 10}; // 3.0, 11.5, 27.0 GeV
+        std::vector<std::string> latex_lines;
+
+        auto latex_percent = [](double up, double dn) -> std::string
+        {
+            std::ostringstream os;
+            os << std::fixed << std::setprecision(2) << " +" << up << " / -" << dn;
+            return os.str();
+        };
+
+        latex_lines.push_back("\\begin{table}[H]");
+        latex_lines.push_back("\\caption{Average relative systematic uncertainties of the emission source parameters from different uncertainty sources at three selected collision energies, in percent. \\label{tab:sysunc}}");
+        latex_lines.push_back("%\\isPreprints{\\centering}{% This command is only used for ``preprints''.");
+        latex_lines.push_back("\\begin{adjustwidth}{-\\extralength}{0cm}");
+        latex_lines.push_back("%} % If the paper is ``preprints'', please uncomment this parenthesis.");
+        latex_lines.push_back("%\\isPreprints{\\begin{tabularx}{\\textwidth}{CCCC}}{% This command is only used for ``preprints''.");
+        latex_lines.push_back("\\begin{tabularx}{\\fulllength}{CCCCCCC}");
+        latex_lines.push_back("%} % If the paper is ``preprints'', please uncomment this parenthesis.");
+        latex_lines.push_back("\\toprule");
+        latex_lines.push_back("$\\sqrt{s_{NN}}$ & \\textbf{Source} & $\\alpha$ & $\\lambda^{*}$ & $R_{\\mathrm{out}}$ & $R_\\mathrm{side}$ & $R_\\mathrm{long}$\\\\");
+        latex_lines.push_back("\\midrule");
+
+        for(int ii=0; ii<NENERGIES_LATEX; ii++)
+        {
+            int ie = latex_energy_indices[ii];
+            if(ie < 0 || ie >= NENERGIES) continue;
+
+            std::ostringstream energylab;
+            energylab << std::fixed << std::setprecision(1) << energydouble[ie];
+            std::string e = energylab.str();
+
+            std::ostringstream row1;
+              row1 << "\\multirow[m]{4}{*}{" << e << " GeV} & $Q_\\mathrm{LCMS}^\\mathrm{max}$ & "
+                  << latex_percent(alpha_qlcms_pct_up_arr[ie], alpha_qlcms_pct_dn_arr[ie]) << " & "
+                  << latex_percent(N_qlcms_pct_up_arr[ie], N_qlcms_pct_dn_arr[ie]) << " & "
+                  << latex_percent(R_out_qlcms_pct_up_arr[ie], R_out_qlcms_pct_dn_arr[ie]) << " & "
+                  << latex_percent(R_side_qlcms_pct_up_arr[ie], R_side_qlcms_pct_dn_arr[ie]) << " & "
+                 << latex_percent(R_long_qlcms_pct_up_arr[ie], R_long_qlcms_pct_dn_arr[ie]) << "\\\\";
+            latex_lines.push_back(row1.str());
+
+            std::ostringstream row2;
+              row2 << " & $\\rho_\\mathrm{fit}^\\mathrm{max}$ & "
+                  << latex_percent(alpha_rhofit_pct_up_arr[ie], alpha_rhofit_pct_dn_arr[ie]) << " & "
+                  << latex_percent(N_rhofit_pct_up_arr[ie], N_rhofit_pct_dn_arr[ie]) << " & "
+                  << latex_percent(R_out_rhofit_pct_up_arr[ie], R_out_rhofit_pct_dn_arr[ie]) << " & "
+                  << latex_percent(R_side_rhofit_pct_up_arr[ie], R_side_rhofit_pct_dn_arr[ie]) << " & "
+                 << latex_percent(R_long_rhofit_pct_up_arr[ie], R_long_rhofit_pct_dn_arr[ie]) << "\\\\";
+            latex_lines.push_back(row2.str());
+
+            std::ostringstream row3;
+              row3 << " & \\texttt{NEVT\\_AVG} & "
+                  << latex_percent(alpha_nevt_pct_up_arr[ie], alpha_nevt_pct_dn_arr[ie]) << " & "
+                  << latex_percent(N_nevt_pct_up_arr[ie], N_nevt_pct_dn_arr[ie]) << " & "
+                  << latex_percent(R_out_nevt_pct_up_arr[ie], R_out_nevt_pct_dn_arr[ie]) << " & "
+                  << latex_percent(R_side_nevt_pct_up_arr[ie], R_side_nevt_pct_dn_arr[ie]) << " & "
+                 << latex_percent(R_long_nevt_pct_up_arr[ie], R_long_nevt_pct_dn_arr[ie]) << "\\\\";
+            latex_lines.push_back(row3.str());
+
+            std::ostringstream row4;
+              row4 << " & Total & "
+                  << latex_percent(alpha_total_pct_up_arr[ie], alpha_total_pct_dn_arr[ie]) << " & "
+                  << latex_percent(N_total_pct_up_arr[ie], N_total_pct_dn_arr[ie]) << " & "
+                  << latex_percent(R_out_total_pct_up_arr[ie], R_out_total_pct_dn_arr[ie]) << " & "
+                  << latex_percent(R_side_total_pct_up_arr[ie], R_side_total_pct_dn_arr[ie]) << " & "
+                 << latex_percent(R_long_total_pct_up_arr[ie], R_long_total_pct_dn_arr[ie]) << "\\\\";
+            latex_lines.push_back(row4.str());
+
+            if(ii < NENERGIES_LATEX - 1)
+            {
+                 latex_lines.push_back("\\midrule");
+            }
+        }
+
+           latex_lines.push_back("\\bottomrule");
+           latex_lines.push_back("\\end{tabularx}");
+           latex_lines.push_back("%\\isPreprints{}{% This command is only used for ``preprints''.");
+           latex_lines.push_back("\\end{adjustwidth}");
+        latex_lines.push_back("%} % If the paper is ``preprints'', please uncomment this parenthesis.");
+           latex_lines.push_back("\\noindent{\\footnotesize{* Tables may have a footer.}}");
+        latex_lines.push_back("\\end{table}");
+
+        std::ofstream texout("syserr_percent_table.tex");
+        if(texout.is_open())
+        {
+            for(const auto& ln : latex_lines) texout << ln << "\n";
+            texout.close();
+        }
+        else
+        {
+            cerr << "Warning: could not open syserr_percent_table.tex for writing" << endl;
         }
     }
 
