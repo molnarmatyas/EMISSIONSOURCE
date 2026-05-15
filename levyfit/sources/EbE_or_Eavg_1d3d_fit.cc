@@ -39,6 +39,8 @@
 #define CUBE(x) ((x)*(x)*(x))
 #include <TLatex.h>
 #include "../../header_for_all_emissionsource.h"
+#include <iomanip>
+#define FIXED_FLOAT(x) std::fixed <<std::setprecision(1)<<(x)
 
 // Note that the header also includes is3Dfit bool flag that decides 
 // if this code will perform 1D or 3D fit.
@@ -738,7 +740,7 @@ int main(int argc, char *argv[])
   }
   else
   {
-    canvas = new TCanvas("c1", "", 1200, 600);
+    canvas = new TCanvas("c1", "", 1600, 600);
     Tl.SetTextFont(43); Tl.SetTextSize(35);
     leg = new TLegend(0.5,0.3,0.7,0.5);
     pad[0] = new TPad("pad1","",0.,0.,0.37,1.);
@@ -1052,8 +1054,8 @@ int main(int argc, char *argv[])
                 if(iframe == 0 && iosl == 0) histograms[ikt][iosl+1]->GetYaxis()->SetTitleOffset(0.9);
                 if(iframe == 0) histograms[ikt][iosl+1]->GetXaxis()->SetTitle(Form("#rho_{%s} [fm]",osl_labels[iosl]));
                 if(iframe == 0) histograms[ikt][iosl+1]->GetXaxis()->SetTitleOffset(0.8*xfactor);
-                histograms[ikt][iosl+1]->SetMinimum(5.e-7);
-                histograms[ikt][iosl+1]->SetMaximum(3.);
+                histograms[ikt][iosl+1]->SetMinimum(5.e-8);
+                histograms[ikt][iosl+1]->SetMaximum(10.);
                 TF1* f_levyfunc = new TF1(Form("levyfunc%i%i",iframe,iosl), fitFunction, rfitmin, rfitmax, 3);
                 TF1* f_levyfunc_full = new TF1(Form("levyfunc_full%i%i",iframe,iosl), fitFunction, 0.1, 5000., 3);
                 f_levyfunc->SetParNames("alpha","R","norm");
@@ -1076,14 +1078,14 @@ int main(int argc, char *argv[])
                 if(iosl == 0) leg->AddEntry(histograms[ikt][iosl+1],"D(#rho)","PE");
 
                 Tl.SetTextSize(30);
-                if(iosl == 0) Tl.DrawLatex(0.24, 0.40, Form("#chi^{2}/NDF = %1.0f/%i", chi2val, NDF));
+                if(iosl == 0) Tl.DrawLatex(0.24, 0.40, Form("#chi^{2}_{LL}/NDF = %1.0f/%i", chi2val, NDF));
                 //if(iosl == 0) Tl.DrawLatex(0.24, 0.56, Form("conf.lev. = %1.5f", conflev));
                 if(iosl == 0) Tl.DrawLatex(0.25, 0.33, Form("#alpha = %1.2f #pm %1.2f",alpha, dalpha));
                 if(iosl == 0) Tl.DrawLatex(0.24, 0.26, Form("#lambda* = %1.2f #pm %1.2f",N, dN));
                 //if(iosl == 0) Tl.DrawLatex(0.24, 0.38, Form("Fit status: %s", statuses[fitstatus]));
                 //if(iosl == 0) Tl.DrawLatex(0.24, 0.32, Form("Cov. matrix: %s", covstatuses[fitcovstatus+1]));
                 //if(iosl == 0) Tl.DrawLatex(0.24, 0.26, Form("Edm %1.3f", minimizer->Edm()));
-                Tl.DrawLatex((iosl == 0 ? 0.22 : 0.12), 0.20, Form("R_{%s} = (%1.2f #pm %1.2f) fm^{2}", osl_labels[iosl], Rosl, dRosl));
+                Tl.DrawLatex((iosl == 0 ? 0.22 : 0.02), 0.20, Form("R_{%s} = (%1.2f #pm %1.2f) fm^{2}", osl_labels[iosl], Rosl, dRosl));
                 // I feel like these should be deleted, but if I do that, the fit functions do not draw properly... ROOT ownership is weird
                 // at least they do not cause significant memory bottleneck over the whole run
                 //delete f_levyfunc;
@@ -1094,11 +1096,11 @@ int main(int argc, char *argv[])
               canvas->cd();
               Tl.SetTextSize(30);
               const char* isPathUrqmdTitle = IsUrQMD ? "UrQMD" : "EPOS4";
-              Tl.DrawLatex(0.08, 0.93, Form("%s %i events", isPathUrqmdTitle, NEVT_AVG) );
-              Tl.DrawLatex(0.08, 0.87, "#pi#kern[-0.3]{{}^{#pm}}#pi#kern[-0.3]{{}^{#pm}} pair-source projections" );
-              Tl.DrawLatex(0.4, 0.93, "0#minus10% ^{197}Au#plus^{197}Au" );
-              Tl.DrawLatex(0.4, 0.87, Form("#sqrt{s_{NN}} = %s GeV", energy));
-              Tl.DrawLatex(0.69, 0.90, Form("K_{T} [GeV/c] = %1.3f#minus%1.3f",ktbins[ikt],ktbins[ikt+1]) );
+              Tl.DrawLatex(0.08, 0.79, Form("%s %i events", isPathUrqmdTitle, NEVT_AVG) );
+              Tl.DrawLatex(0.08, 0.73, "#pi#kern[-0.3]{{}^{#pm}}#pi#kern[-0.3]{{}^{#pm}} pair-source projections" );
+              Tl.DrawLatex(0.4, 0.79, "0#minus10% ^{197}Au#plus^{197}Au" );
+              Tl.DrawLatex(0.4, 0.73, Form("#sqrt{s_{NN}} = %1.1f GeV", energydouble[_ienergy]));
+              Tl.DrawLatex(0.69, 0.76, Form("K_{T} [GeV/c] = %1.3f#minus%1.3f",ktbins[ikt],ktbins[ikt+1]) );
             } // end if 3D
 
             // Both for 1D and 3D: save the canvas as a PNG file

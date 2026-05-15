@@ -159,6 +159,7 @@ if [ "$do_fitting" = true ]; then
     done
     wait
     move_matching_png "$BASEDIR/figs/fitting/lcms/*AVG${avg}*.png" "$BASEDIR/figs/fitting/lcms/AVG${avg}"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*AVG${avg}*.pdf" "$BASEDIR/figs/fitting/lcms/AVG${avg}"
   done
 
   for avg in "${nevt_avgs_highstat[@]}"; do
@@ -169,6 +170,7 @@ if [ "$do_fitting" = true ]; then
     done
     wait
     move_matching_png "$BASEDIR/figs/fitting/lcms/*AVG${avg}*.png" "$BASEDIR/figs/fitting/lcms/AVG${avg}"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*AVG${avg}*.pdf" "$BASEDIR/figs/fitting/lcms/AVG${avg}"
   done
 
   # Wait for any remaining background jobs from nevt_avg sweep
@@ -207,8 +209,11 @@ if [ "$do_fitting" = true ]; then
     #mv $BASEDIR/figs/fitting/lcms/*strictqLCMS*.png $BASEDIR/figs/fitting/lcms/defaultQlcms/
     #mv $BASEDIR/figs/fitting/lcms/*looseqLCMS*.png $BASEDIR/figs/fitting/lcms/defaultQlcms/
     move_matching_png "$BASEDIR/figs/fitting/lcms/*strictqLCMS*.png" "$BASEDIR/figs/fitting/lcms/strictQlcms"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*strictqLCMS*.pdf" "$BASEDIR/figs/fitting/lcms/strictQlcms"
     move_matching_png "$BASEDIR/figs/fitting/lcms/*looseqLCMS*.png" "$BASEDIR/figs/fitting/lcms/looseQlcms"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*looseqLCMS*.pdf" "$BASEDIR/figs/fitting/lcms/looseQlcms"
     move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultQlcms" # move remaining default
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*.pdf" "$BASEDIR/figs/fitting/lcms/defaultQlcms" # move remaining default
     echo "Fitting for qLCMS systematics, energy ${energy} done."
   done
   for energy in "${energies_high[@]}"; do
@@ -218,8 +223,11 @@ if [ "$do_fitting" = true ]; then
     run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 2 0 1" "$BASEDIR/logfiles/fit_log_${energy}_looseqLCMS.log"
     wait
     move_matching_png "$BASEDIR/figs/fitting/lcms/*strictqLCMS*.png" "$BASEDIR/figs/fitting/lcms/strictQlcms"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*strictqLCMS*.pdf" "$BASEDIR/figs/fitting/lcms/strictQlcms"
     move_matching_png "$BASEDIR/figs/fitting/lcms/*looseqLCMS*.png" "$BASEDIR/figs/fitting/lcms/looseQlcms"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*looseqLCMS*.pdf" "$BASEDIR/figs/fitting/lcms/looseQlcms"
     move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultQlcms"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*.pdf" "$BASEDIR/figs/fitting/lcms/defaultQlcms"
     echo "Fitting for qLCMS systematics, energy ${energy} done."
   done
 fi # end of qLCMS systematics fitting block
@@ -243,8 +251,11 @@ if [ "$do_fitting" = true ]; then
     wait
     # Move remaining default
     move_matching_png "$BASEDIR/figs/fitting/lcms/*strictrhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/strictrhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*strictrhoFitMax*.pdf" "$BASEDIR/figs/fitting/lcms/strictrhoFitMax"
     move_matching_png "$BASEDIR/figs/fitting/lcms/*looserhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/looserhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*looserhoFitMax*.pdf" "$BASEDIR/figs/fitting/lcms/looserhoFitMax"
     move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultrhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*.pdf" "$BASEDIR/figs/fitting/lcms/defaultrhoFitMax"
     echo "Fitting for rhofitmax systematics, energy ${energy} done."
   done
   for energy in "${energies_high[@]}"; do
@@ -254,8 +265,11 @@ if [ "$do_fitting" = true ]; then
     run_bg "cd \"$BASEDIR/levyfit\" && exe/EbE_or_Eavg_1d3d_fit.exe 11 \"${energy}\" 1 ${nevt} ${nevt_avg_default} 0 2 1" "$BASEDIR/logfiles/fit_log_${energy}_looserhoFitMax.log"
     wait
     move_matching_png "$BASEDIR/figs/fitting/lcms/*strictrhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/strictrhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*strictrhoFitMax*.pdf" "$BASEDIR/figs/fitting/lcms/strictrhoFitMax"
     move_matching_png "$BASEDIR/figs/fitting/lcms/*looserhoFitMax*.png" "$BASEDIR/figs/fitting/lcms/looserhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*looserhoFitMax*.pdf" "$BASEDIR/figs/fitting/lcms/looserhoFitMax"
     move_matching_png "$BASEDIR/figs/fitting/lcms/*.png" "$BASEDIR/figs/fitting/lcms/defaultrhoFitMax"
+    move_matching_png "$BASEDIR/figs/fitting/lcms/*.pdf" "$BASEDIR/figs/fitting/lcms/defaultrhoFitMax"
     echo "Fitting for rhofitmax systematics, energy ${energy} done."
   done
 fi # end of rhofitmax systematics fitting block

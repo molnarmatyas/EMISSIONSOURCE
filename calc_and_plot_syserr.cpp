@@ -1234,7 +1234,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double xmax = mtbin_centers[NKT-1]+0.05;
         TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
         const char* ytitle = (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.1]{R}#GT [fm]":"#lambda*"; // N
-        frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
+        frame->GetXaxis()->SetTitle("m_{T} [GeV/c^{2}]");
         frame->GetYaxis()->SetTitle(ytitle);
         style_frame_axes(frame);
 
@@ -1326,8 +1326,24 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
     // Additional 3D-radius panels in one 3-panel canvas: R_out, R_side, R_long
     TCanvas* can3d = new TCanvas("can_param_Rosl", "", 2400, 800);
-    can3d->Divide(3, 1, 0.001, 0.001);
     TLegend* leg3d = nullptr;
+    TPad* pads3d[3] = {nullptr, nullptr, nullptr};
+    const double pad_x1[3] = {0.0, 1.0/3.0, 2.0/3.0};
+    const double pad_x2[3] = {1.0/3.0, 2.0/3.0, 1.0};
+    const double pad_left_margins[3] = {0.18, 0.0, 0.0};
+    const double pad_right_margins[3] = {0.0, 0.0, 0.06};
+    const double pad_bottom_margin = 0.18;
+    const double pad_top_margin = 0.07;
+
+    for(int ip=0; ip<3; ip++)
+    {
+        pads3d[ip] = new TPad(Form("pad_Rosl_%d", ip), "", pad_x1[ip], 0.0, pad_x2[ip], 1.0);
+        pads3d[ip]->SetLeftMargin(pad_left_margins[ip]);
+        pads3d[ip]->SetRightMargin(pad_right_margins[ip]);
+        pads3d[ip]->SetBottomMargin(pad_bottom_margin);
+        pads3d[ip]->SetTopMargin(pad_top_margin);
+        pads3d[ip]->Draw();
+    }
 
     int nEntries3d = 0;
     for(int ie=0; ie<NENERGIES; ie++)
@@ -1343,11 +1359,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
 
     for(int iparam=0; iparam<3; iparam++)
     {
-        can3d->cd(iparam+1);
-        gPad->SetLeftMargin(0.18);
-        gPad->SetBottomMargin(0.18);
-        gPad->SetRightMargin(0.04);
-        gPad->SetTopMargin(0.07);
+        pads3d[iparam]->cd();
 
         double ymins[] = {2.0, 2.0, 2.0};
         double ymaxs[] = {11.0, 11.0, 11.0};
@@ -1357,10 +1369,14 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double xmin = mtbin_centers[0]-0.05;
         double xmax = mtbin_centers[NKT-1]+0.05;
         TH1F* frame = gPad->DrawFrame(xmin, ymin, xmax, ymax);
-        const char* ytitle = (iparam==0)?"R_{out} [fm]":(iparam==1)?"R_{side} [fm]":"R_{long} [fm]";
-        frame->GetXaxis()->SetTitle("m_{T} (GeV/c^{2})");
-        frame->GetYaxis()->SetTitle(ytitle);
+        frame->GetXaxis()->SetTitle("m_{T} [GeV/c^{2}]");
+        frame->GetYaxis()->SetTitle((iparam==0) ? "R_{out,side,long} [fm]" : "");
         style_frame_axes(frame);
+        if(iparam>0)
+        {
+            frame->GetYaxis()->SetLabelSize(0.0);
+            frame->GetYaxis()->SetTitleSize(0.0);
+        }
 
         if(iparam==0)
         {
@@ -1373,10 +1389,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         if(iparam==1)
         {
             // Shared legend on middle panel; make it wider and place slightly lower.
-            double lx1 = frame_to_ndc_x(0.06);
-            double ly1 = frame_to_ndc_y(0.42);
-            double lx2 = frame_to_ndc_x(0.86);
-            double ly2 = frame_to_ndc_y(0.80);
+            double lx1 = frame_to_ndc_x(0.08);
+            double ly1 = frame_to_ndc_y(0.46);
+            double lx2 = frame_to_ndc_x(0.88);
+            double ly2 = frame_to_ndc_y(0.84);
             leg3d = new TLegend(lx1, ly1, lx2, ly2);
             leg3d->SetNColumns(nCols3d);
             leg3d->SetFillColor(0);
@@ -1422,6 +1438,14 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         if(iparam==1 && leg3d)
         {
             leg3d->Draw();
+        }
+
+        {
+            TLatex panel_label;
+            panel_label.SetNDC();
+            panel_label.SetTextSize(kAnnotTextSize);
+            const char* label = (iparam==0)?"out":(iparam==1)?"side":"long";
+            panel_label.DrawLatex(frame_to_ndc_x(0.06), frame_to_ndc_y(0.10), label);
         }
     }
     const char* energyplotted_3d = (energy_to_plot>-1)? Form("_energy_%s", energies[energy_to_plot]) : "_allenergies";
@@ -1572,7 +1596,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         {
             //frame_overlay = gPad->DrawFrame(1.0, 0.1, 10000., 2.1); // FIXME if not needed to compare with STAR data
         }
-        frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
+        frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} [GeV]");
         const char* ytitle_overlay = (iparam==0)?"#alpha":(iparam==1)?"#LT#kern[-0.1]{R}#GT [fm]":"#lambda*"; // =N
         frame_overlay->GetYaxis()->SetTitle(ytitle_overlay);
         style_frame_axes(frame_overlay);
@@ -1892,7 +1916,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double xmin = x_energy[0] - 1.0;
         double xmax = x_energy[NENERGIES-1] + 1.0;
         TH1F* frame_overlay = gPad->DrawFrame(xmin, ymin_both, xmax, ymax_both);
-        frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
+        frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} [GeV]");
         frame_overlay->GetYaxis()->SetTitle("R [fm]");
         style_frame_axes(frame_overlay);
 
@@ -2118,7 +2142,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         double xmin = x_energy[0] - 1.0;
         double xmax = x_energy[NENERGIES-1] + 1.0;
         TH1F* frame_overlay = gPad->DrawFrame(xmin, ymin_both, xmax, ymax_both);
-        frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} (GeV)");
+        frame_overlay->GetXaxis()->SetTitle("#sqrt{s_{NN}} [GeV]");
         const char* ytitle_overlay = (ider==0) ? "R_{out}/R_{side}" : "R_{out}^{2}-R_{side}^{2} [fm^{2}]";
         frame_overlay->GetYaxis()->SetTitle(ytitle_overlay);
         style_frame_axes(frame_overlay);

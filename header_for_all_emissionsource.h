@@ -22,9 +22,9 @@ const double ktbins[NKT+1] = {0.175, 0.225, 0.275, 0.325, 0.375, 0.425, 0.475, 0
 const double kT_center[NKT] = {0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65};
 
 // Energies
-const char* energies[] = {"3p0","3p2","3p5","3p9","4p5","7p7","9p2","11p5","14p5","19p6","27"};
+const char* energies[] = {"3p0","3p2","3p5","3p9","4p5","5p2","7p7","9p2","11p5","14p5","19p6","27"};
 const int NENERGIES = static_cast<int>(sizeof(energies) / sizeof(energies[0]));
-const double energydouble[NENERGIES] = {3.0, 3.2, 3.5, 3.9, 4.5, 7.7, 9.2, 11.5, 14.5, 19.6, 27.0};
+const double energydouble[NENERGIES] = {3.0, 3.2, 3.5, 3.9, 4.5, 5.2, 7.7, 9.2, 11.5, 14.5, 19.6, 27.0};
 const int NENERGIES_highstat = 4; // number of the lowest energies with higher statistics (100k instead of 10k evts)
                                   // change it if you want to use higher statistics for more or fewer energies
 
@@ -41,7 +41,7 @@ double rfitmax_systlimits[NENERGIES][NKT][3]; // to be calculated in fitting cod
 // Default number of events to be averaged over for each fit, for each energy; indices correspond to NEVT_AVGsyst array below
 const int NEVT_AVGsyst[] = {10, 25, 50, 100, 200, 500, 1000, 5000, 10000, 20000, 25000, 50000, 100000}; // removed 1, not meaningful for low energies, runs too long. Above 10k: highstat
 const int NEVTAVGS = sizeof(NEVT_AVGsyst) / sizeof(int);
-const int NEVT_AVG_DEFAULT[NENERGIES] = {9,8,7,7,6,5,4,4,4,3,3}; // indices in NEVT_AVGsyst corresponding to default
+const int NEVT_AVG_DEFAULT[NENERGIES] = {9,8,7,7,6,5,5,4,4,4,3,3}; // indices in NEVT_AVGsyst corresponding to default
 
 //{60.0, 25.0, 95.0}; // simpler limits for 3D
 //const double rfitmax_systlimits[3] = {100.0, 50.0, 150.0}; // for 1D this unified stuff was sufficient;
