@@ -1211,6 +1211,30 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         can->SaveAs((basepath_noext + ".png").c_str());
     };
 
+    std::ofstream graph_txt("syserr_graphs.txt");
+    if(!graph_txt.is_open())
+    {
+        cerr << "Warning: could not open syserr_graphs.txt for writing" << endl;
+    }
+
+    auto write_graph_table = [&](std::ofstream& out, TGraphAsymmErrors* g, const std::string& label)
+    {
+        if(!g || !out.is_open()) return;
+        out << label << "\n";
+        out << "y err_up err_dn\n";
+        int npts = g->GetN();
+        for(int ipt=0; ipt<npts; ipt++)
+        {
+            double x = 0.0, y = 0.0;
+            g->GetPoint(ipt, x, y);
+            double err_up = g->GetEYhigh()[ipt];
+            double err_dn = g->GetEYlow()[ipt];
+            out << std::fixed << std::setprecision(6)
+                << y << " " << err_up << " " << err_dn << "\n";
+        }
+        out << "\n";
+    };
+
     // Manual legend placement per panel to avoid covering error bars.
     const double leg_x1_fixed[3] = {0.46, 0.46, 0.26}; // alpha: BR, R: UR, N(lambda): bottom-middle (frame-relative)
     const double leg_y1_fixed[3] = {0.06, 0.58, 0.06};
@@ -1301,6 +1325,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gsys->SetMarkerSize(2.0); // instead of 0.0, points needed for better visibility in case of mT vs param
             gsys->SetMarkerColor(col);
             gsys->Draw("LPX same");
+
+            write_graph_table(graph_txt, gsys, Form("mT_vs_%s_syserr_%s", levy_params[iparam], energies[ie]));
 
             std::stringstream label;
             label << std::fixed << std::setprecision(1) << energydouble[ie];
@@ -1425,6 +1451,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gsys->SetMarkerSize(2.0);
             gsys->SetMarkerColor(col);
             gsys->Draw("LPX same");
+
+            write_graph_table(graph_txt, gsys, Form("mT_vs_%s_syserr_%s", levy_params_3d[iparam], energies[ie]));
 
             std::stringstream label;
             label << std::fixed << std::setprecision(1) << energydouble[ie];
@@ -1727,6 +1755,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 g_ikt_overlay.push_back(g_ikt);
                 double mt_edge_dn = sqrt(ktbins[ikt]*ktbins[ikt] + Mass2_pi); double mt_edge_up = sqrt(ktbins[ikt+1]*ktbins[ikt+1] + Mass2_pi);
                 g_ikt_overlay_labels.push_back(Form("m_{T} = %.0f#minus%.0f MeV", mt_edge_dn*1000.0, mt_edge_up*1000.0));
+                write_graph_table(graph_txt, g_ikt, Form("sqrtS_overlay_%s_ikt%d_mT=%.0f-%.0fMeV", levy_params[iparam], ikt, mt_edge_dn*1000.0, mt_edge_up*1000.0));
             }
         }
         
@@ -1929,6 +1958,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         TGraphAsymmErrors* g_Rside = new TGraphAsymmErrors(NENERGIES, x_energy, y_Rside, xerr_low_s, xerr_high_s, y_Rside_dn, y_Rside_up);
         TGraphAsymmErrors* g_Rlong = new TGraphAsymmErrors(NENERGIES, x_energy, y_Rlong, xerr_low_s, xerr_high_s, y_Rlong_dn, y_Rlong_up);
         TGraphAsymmErrors* graphs[] = {g_Ravg, g_Rout, g_Rside, g_Rlong};
+
+        write_graph_table(graph_txt, g_Ravg, Form("sqrtS_transposed_ikt%d_Ravg", ikt));
+        write_graph_table(graph_txt, g_Rout, Form("sqrtS_transposed_ikt%d_Rout", ikt));
+        write_graph_table(graph_txt, g_Rside, Form("sqrtS_transposed_ikt%d_Rside", ikt));
+        write_graph_table(graph_txt, g_Rlong, Form("sqrtS_transposed_ikt%d_Rlong", ikt));
 
         for(int ig=0; ig<4; ig++)
         {
@@ -2223,6 +2257,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 g_ikt_overlay.push_back(g_ikt);
                 double mt_edge_dn = sqrt(ktbins[ikt]*ktbins[ikt] + Mass2_pi); double mt_edge_up = sqrt(ktbins[ikt+1]*ktbins[ikt+1] + Mass2_pi);
                 g_ikt_overlay_labels.push_back(Form("m_{T} = %.0f#minus%.0f MeV", mt_edge_dn*1000.0, mt_edge_up*1000.0));
+                const char* der_label = (ider==0) ? "Rout_over_Rside" : "Rout2_minus_Rside2";
+                write_graph_table(graph_txt, g_ikt, Form("sqrtS_derived_%s_ikt%d_mT=%.0f-%.0fMeV", der_label, ikt, mt_edge_dn*1000.0, mt_edge_up*1000.0));
             }
         }
 
@@ -2247,6 +2283,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         if(ider==0) save_canvas_publication(can_overlay, "figs/syserr/sqrtS_overlay_Rout_over_Rside");
         else save_canvas_publication(can_overlay, "figs/syserr/sqrtS_overlay_Rout2_minus_Rside2");
         delete can_overlay;
+    }
+
+    if(graph_txt.is_open())
+    {
+        graph_txt.close();
     }
 
 
