@@ -1217,11 +1217,11 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         cerr << "Warning: could not open syserr_graphs.txt for writing" << endl;
     }
 
-    auto write_graph_table = [&](std::ofstream& out, TGraphAsymmErrors* g, const std::string& label)
+    auto write_graph_table = [&](std::ofstream& out, TGraphAsymmErrors* g, const std::string& label, const std::string& x_label)
     {
         if(!g || !out.is_open()) return;
         out << label << "\n";
-        out << "y err_up err_dn\n";
+        out << x_label << " y err_up err_dn\n";
         int npts = g->GetN();
         for(int ipt=0; ipt<npts; ipt++)
         {
@@ -1230,7 +1230,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             double err_up = g->GetEYhigh()[ipt];
             double err_dn = g->GetEYlow()[ipt];
             out << std::fixed << std::setprecision(6)
-                << y << " " << err_up << " " << err_dn << "\n";
+                << x << " " << y << " " << err_up << " " << err_dn << "\n";
         }
         out << "\n";
     };
@@ -1326,7 +1326,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gsys->SetMarkerColor(col);
             gsys->Draw("LPX same");
 
-            write_graph_table(graph_txt, gsys, Form("mT_vs_%s_syserr_%s", levy_params[iparam], energies[ie]));
+            write_graph_table(graph_txt, gsys, Form("mT_vs_%s_syserr_%s", levy_params[iparam], energies[ie]), "mT_GeV");
 
             std::stringstream label;
             label << std::fixed << std::setprecision(1) << energydouble[ie];
@@ -1452,7 +1452,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gsys->SetMarkerColor(col);
             gsys->Draw("LPX same");
 
-            write_graph_table(graph_txt, gsys, Form("mT_vs_%s_syserr_%s", levy_params_3d[iparam], energies[ie]));
+            write_graph_table(graph_txt, gsys, Form("mT_vs_%s_syserr_%s", levy_params_3d[iparam], energies[ie]), "mT_GeV");
 
             std::stringstream label;
             label << std::fixed << std::setprecision(1) << energydouble[ie];
@@ -1755,7 +1755,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 g_ikt_overlay.push_back(g_ikt);
                 double mt_edge_dn = sqrt(ktbins[ikt]*ktbins[ikt] + Mass2_pi); double mt_edge_up = sqrt(ktbins[ikt+1]*ktbins[ikt+1] + Mass2_pi);
                 g_ikt_overlay_labels.push_back(Form("m_{T} = %.0f#minus%.0f MeV", mt_edge_dn*1000.0, mt_edge_up*1000.0));
-                write_graph_table(graph_txt, g_ikt, Form("sqrtS_overlay_%s_ikt%d_mT=%.0f-%.0fMeV", levy_params[iparam], ikt, mt_edge_dn*1000.0, mt_edge_up*1000.0));
+                write_graph_table(graph_txt, g_ikt, Form("sqrtS_overlay_%s_ikt%d_mT=%.0f-%.0fMeV", levy_params[iparam], ikt, mt_edge_dn*1000.0, mt_edge_up*1000.0), "sqrtSNN_GeV");
             }
         }
         
@@ -1959,10 +1959,10 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         TGraphAsymmErrors* g_Rlong = new TGraphAsymmErrors(NENERGIES, x_energy, y_Rlong, xerr_low_s, xerr_high_s, y_Rlong_dn, y_Rlong_up);
         TGraphAsymmErrors* graphs[] = {g_Ravg, g_Rout, g_Rside, g_Rlong};
 
-        write_graph_table(graph_txt, g_Ravg, Form("sqrtS_transposed_ikt%d_Ravg", ikt));
-        write_graph_table(graph_txt, g_Rout, Form("sqrtS_transposed_ikt%d_Rout", ikt));
-        write_graph_table(graph_txt, g_Rside, Form("sqrtS_transposed_ikt%d_Rside", ikt));
-        write_graph_table(graph_txt, g_Rlong, Form("sqrtS_transposed_ikt%d_Rlong", ikt));
+        write_graph_table(graph_txt, g_Ravg, Form("sqrtS_transposed_ikt%d_Ravg", ikt), "sqrtSNN_GeV");
+        write_graph_table(graph_txt, g_Rout, Form("sqrtS_transposed_ikt%d_Rout", ikt), "sqrtSNN_GeV");
+        write_graph_table(graph_txt, g_Rside, Form("sqrtS_transposed_ikt%d_Rside", ikt), "sqrtSNN_GeV");
+        write_graph_table(graph_txt, g_Rlong, Form("sqrtS_transposed_ikt%d_Rlong", ikt), "sqrtSNN_GeV");
 
         for(int ig=0; ig<4; ig++)
         {
@@ -2258,7 +2258,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                 double mt_edge_dn = sqrt(ktbins[ikt]*ktbins[ikt] + Mass2_pi); double mt_edge_up = sqrt(ktbins[ikt+1]*ktbins[ikt+1] + Mass2_pi);
                 g_ikt_overlay_labels.push_back(Form("m_{T} = %.0f#minus%.0f MeV", mt_edge_dn*1000.0, mt_edge_up*1000.0));
                 const char* der_label = (ider==0) ? "Rout_over_Rside" : "Rout2_minus_Rside2";
-                write_graph_table(graph_txt, g_ikt, Form("sqrtS_derived_%s_ikt%d_mT=%.0f-%.0fMeV", der_label, ikt, mt_edge_dn*1000.0, mt_edge_up*1000.0));
+                write_graph_table(graph_txt, g_ikt, Form("sqrtS_derived_%s_ikt%d_mT=%.0f-%.0fMeV", der_label, ikt, mt_edge_dn*1000.0, mt_edge_up*1000.0), "sqrtSNN_GeV");
             }
         }
 
