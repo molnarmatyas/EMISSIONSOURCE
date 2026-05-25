@@ -28,7 +28,7 @@ bool debug = true; // set to true to print parameter results for each systematic
 bool plot_mtavg = false; // set to true to plot m_T-averaged param vs sNN as well
 bool mtchoice_syst = false;
 bool use_larger_same_side_shift = false; // if true, use max(|diff1|,|diff2|) when both variations are on the same side of default
-bool comparewithSTAR = false; // set to true to include analytic alpha vs sNN function fitted to STAR data
+bool comparewithSTAR = true; // set to true to include analytic alpha vs sNN function fitted to STAR data
 
 const int NIKT_SNN_PLOTS = 2;
 int ikt_indices_to_plot[NIKT_SNN_PLOTS] = {0, 4}; // choose which m_T bins are shown on parameter-vs-sNN plots
@@ -1236,9 +1236,9 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     };
 
     // Manual legend placement per panel to avoid covering error bars.
-    const double leg_x1_fixed[3] = {0.46, 0.46, 0.26}; // alpha: BR, R: UR, N(lambda): bottom-middle (frame-relative)
-    const double leg_y1_fixed[3] = {0.06, 0.58, 0.06};
-    const double leg_x2_fixed[3] = {0.98, 0.99, 0.82};
+    const double leg_x1_fixed[3] = {0.28, 0.36, 0.26}; // alpha: BR, R: UR, N(lambda): bottom-middle (frame-relative)
+    const double leg_y1_fixed[3] = {0.06, 0.65, 0.06};
+    const double leg_x2_fixed[3] = {0.99, 0.99, 0.92};
 
     for(int iparam=0; iparam<3; iparam++)
     {
@@ -1295,7 +1295,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         leg->SetNColumns(nCols);
         leg->SetFillColor(0);
         leg->SetBorderSize(1);
-        leg->SetTextSize(kLegendTextSizeMain);
+        leg->SetTextSize(kLegendTextSizeMain-0.005);
         leg->SetMargin(0.20);
         leg->SetEntrySeparation(0.005);
         leg->SetColumnSeparation(0.02);
@@ -1418,7 +1418,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             double lx1 = frame_to_ndc_x(0.08);
             double ly1 = frame_to_ndc_y(0.46);
             double lx2 = frame_to_ndc_x(0.88);
-            double ly2 = frame_to_ndc_y(0.84);
+            double ly2 = frame_to_ndc_y(0.94);
             leg3d = new TLegend(lx1, ly1, lx2, ly2);
             leg3d->SetNColumns(nCols3d);
             leg3d->SetFillColor(0);
