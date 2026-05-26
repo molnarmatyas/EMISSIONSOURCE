@@ -1417,7 +1417,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             // Shared legend on middle panel; make it wider and place slightly lower.
             double lx1 = frame_to_ndc_x(0.08);
             double ly1 = frame_to_ndc_y(0.46);
-            double lx2 = frame_to_ndc_x(0.88);
+            double lx2 = frame_to_ndc_x(0.98);
             double ly2 = frame_to_ndc_y(0.94);
             leg3d = new TLegend(lx1, ly1, lx2, ly2);
             leg3d->SetNColumns(nCols3d);
@@ -2316,11 +2316,21 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
         }
     }
 
-    // Write LaTeX table for selected energies
+    // Write LaTeX table for selected or all energies
     {
-        const int NENERGIES_LATEX = 3;
-        const int latex_energy_indices[NENERGIES_LATEX] = {0, 7, 10}; // 3.0, 11.5, 27.0 GeV
+        const int NENERGIES_LATEX = 0; // set to 0 to include all energies
+        const int latex_energy_indices[] = {0, 7, 10}; // 3.0, 11.5, 27.0 GeV
         std::vector<std::string> latex_lines;
+        std::vector<int> energy_indices;
+        if(NENERGIES_LATEX <= 0)
+        {
+            energy_indices.reserve(NENERGIES);
+            for(int ie=0; ie<NENERGIES; ie++) energy_indices.push_back(ie);
+        }
+        else
+        {
+            energy_indices.assign(latex_energy_indices, latex_energy_indices + NENERGIES_LATEX);
+        }
 
         auto latex_percent = [](double up, double dn) -> std::string
         {
@@ -2329,29 +2339,29 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             return os.str();
         };
 
-        latex_lines.push_back("\\begin{table}[H]");
-        latex_lines.push_back("\\caption{Average relative systematic uncertainties of the emission source parameters from different uncertainty sources at three selected collision energies, in percent. \\label{tab:sysunc}}");
-        latex_lines.push_back("%\\isPreprints{\\centering}{% This command is only used for ``preprints''.");
-        latex_lines.push_back("\\begin{adjustwidth}{-\\extralength}{0cm}");
-        latex_lines.push_back("%} % If the paper is ``preprints'', please uncomment this parenthesis.");
-        latex_lines.push_back("%\\isPreprints{\\begin{tabularx}{\\textwidth}{CCCC}}{% This command is only used for ``preprints''.");
-        latex_lines.push_back("\\begin{tabularx}{\\fulllength}{CCCCCCC}");
-        latex_lines.push_back("%} % If the paper is ``preprints'', please uncomment this parenthesis.");
+        latex_lines.push_back("\\begin{table*}[!htpb]");
+        latex_lines.push_back("\\centering");
+        latex_lines.push_back("\\tiny");
+        latex_lines.push_back("\\caption{Average relative systematic uncertainties of the emission source parameters from different uncertainty sources at all collision energies, in percent. \\label{tab:sysunc_full}}");
+        latex_lines.push_back("\\resizebox{\\linewidth}{!}{");
+        latex_lines.push_back("\\begin{tabular}{ccccccc}");
         latex_lines.push_back("\\toprule");
         latex_lines.push_back("$\\sqrt{s_{NN}}$ & \\textbf{Source} & $\\alpha$ & $\\lambda^{*}$ & $R_{\\mathrm{out}}$ & $R_\\mathrm{side}$ & $R_\\mathrm{long}$\\\\");
         latex_lines.push_back("\\midrule");
 
-        for(int ii=0; ii<NENERGIES_LATEX; ii++)
+        for(size_t idx=0; idx<energy_indices.size(); idx++)
         {
-            int ie = latex_energy_indices[ii];
+            int ie = energy_indices[idx];
             if(ie < 0 || ie >= NENERGIES) continue;
 
             std::ostringstream energylab;
             energylab << std::fixed << std::setprecision(1) << energydouble[ie];
             std::string e = energylab.str();
 
-            std::ostringstream row1;
-              row1 << "\\multirow[m]{4}{*}{" << e << " GeV} & $Q_\\mathrm{LCMS}^\\mathrm{max}$ & "
+                        std::string multirow_align = (ie == 0) ? "c" : "m";
+
+                        std::ostringstream row1;
+                            row1 << "\\multirow[" << multirow_align << "]{4}{*}{" << e << " GeV} & $Q_{\\rm LCMS}^{\\rm max}$ & "
                   << latex_percent(alpha_qlcms_pct_up_arr[ie], alpha_qlcms_pct_dn_arr[ie]) << " & "
                   << latex_percent(N_qlcms_pct_up_arr[ie], N_qlcms_pct_dn_arr[ie]) << " & "
                   << latex_percent(R_out_qlcms_pct_up_arr[ie], R_out_qlcms_pct_dn_arr[ie]) << " & "
@@ -2359,8 +2369,8 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                  << latex_percent(R_long_qlcms_pct_up_arr[ie], R_long_qlcms_pct_dn_arr[ie]) << "\\\\";
             latex_lines.push_back(row1.str());
 
-            std::ostringstream row2;
-              row2 << " & $\\rho_\\mathrm{fit}^\\mathrm{max}$ & "
+                        std::ostringstream row2;
+                            row2 << " & $\\rho_{\\rm fit}^{\\rm max}$ & "
                   << latex_percent(alpha_rhofit_pct_up_arr[ie], alpha_rhofit_pct_dn_arr[ie]) << " & "
                   << latex_percent(N_rhofit_pct_up_arr[ie], N_rhofit_pct_dn_arr[ie]) << " & "
                   << latex_percent(R_out_rhofit_pct_up_arr[ie], R_out_rhofit_pct_dn_arr[ie]) << " & "
@@ -2369,7 +2379,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             latex_lines.push_back(row2.str());
 
             std::ostringstream row3;
-              row3 << " & \\texttt{NEVT\\_AVG} & "
+              row3 << " & $N_{\\rm events}$ & "//" & \\texttt{NEVT\\_AVG} & "
                   << latex_percent(alpha_nevt_pct_up_arr[ie], alpha_nevt_pct_dn_arr[ie]) << " & "
                   << latex_percent(N_nevt_pct_up_arr[ie], N_nevt_pct_dn_arr[ie]) << " & "
                   << latex_percent(R_out_nevt_pct_up_arr[ie], R_out_nevt_pct_dn_arr[ie]) << " & "
@@ -2386,19 +2396,15 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
                  << latex_percent(R_long_total_pct_up_arr[ie], R_long_total_pct_dn_arr[ie]) << "\\\\";
             latex_lines.push_back(row4.str());
 
-            if(ii < NENERGIES_LATEX - 1)
+            if(idx + 1 < energy_indices.size())
             {
-                 latex_lines.push_back("\\midrule");
+                latex_lines.push_back("\\midrule");
             }
         }
 
-           latex_lines.push_back("\\bottomrule");
-           latex_lines.push_back("\\end{tabularx}");
-           latex_lines.push_back("%\\isPreprints{}{% This command is only used for ``preprints''.");
-           latex_lines.push_back("\\end{adjustwidth}");
-        latex_lines.push_back("%} % If the paper is ``preprints'', please uncomment this parenthesis.");
-           latex_lines.push_back("\\noindent{\\footnotesize{* Tables may have a footer.}}");
-        latex_lines.push_back("\\end{table}");
+        latex_lines.push_back("\\bottomrule");
+        latex_lines.push_back("\\end{tabular}}");
+        latex_lines.push_back("\\end{table*}");
 
         std::ofstream texout("syserr_percent_table.tex");
         if(texout.is_open())
