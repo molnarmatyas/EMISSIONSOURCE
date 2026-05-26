@@ -68,7 +68,8 @@ int main(int argc, char** argv)
 {
   if(argc < 3)
   {
-    std::cerr << "usage: pairsource_urqmd <energy_string> <qLCMS_cut>" << std::endl;
+    std::cerr << "usage: pairsource_urqmd <energy_string> <qLCMS_cut> [charge_mode]" << std::endl;
+    std::cerr << "  charge_mode: 0=both (default), 1=positive only, 2=negative only" << std::endl;
     return 0;
   }
 
@@ -80,6 +81,21 @@ int main(int argc, char** argv)
     return 0;
   }
   std::cout << "Using qLCMS cut type: " << qLCMS_cut[qLCMS_cuttype] << std::endl;
+
+  int charge_mode = 0;
+  if(argc >= 4)
+  {
+    charge_mode = (int)atoi(argv[3]);
+  }
+  if(charge_mode < 0 || charge_mode > 2)
+  {
+    std::cerr << "charge_mode must be 0 (both), 1 (positive only) or 2 (negative only)" << std::endl;
+    charge_mode = 0;
+    return 0;
+  }
+  const char* charge_mode_label[3] = {"both", "positive", "negative"};
+  const char* charge_mode_suffix[3] = {"", "_pos", "_neg"};
+  std::cout << "Using charge selection: " << charge_mode_label[charge_mode] << std::endl;
 
   TFile *treefile = new TFile(Form("AuAu_%s_tree.root",argv[1]),"read");
   //TString inputFile = treefile->GetName(); 
@@ -136,6 +152,8 @@ int main(int argc, char** argv)
     int pid = 0;
     for(int ich = 0; ich < NCH; ich++)
     {
+      if(charge_mode == 1 && ich == 0) continue;
+      if(charge_mode == 2 && ich == 1) continue;
       (ich == 0) ? pid = -211 : pid = 211;
       //std::cout << "Now pid: " << pid << std::endl;
       for (int j = 0; j < eventsize; j++)
