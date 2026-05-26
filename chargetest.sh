@@ -9,7 +9,7 @@ do_analysis=true
 do_conversion=false # whether to convert from .f19 to root tree files
 do_fitting=true # whether to run the Levy fits (can be skipped if you just want to re-plot)
 
-charge_mode=1 # 0=all, 1=++, 2=--
+charge_mode=2 # 0=all, 1=++, 2=--
 
 # Base directory of this script (absolute)
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -67,6 +67,17 @@ move_matching_png() {
     mv "${files[@]}" "$dest"/
   fi
 }
+
+move_matching_files() {
+  local pattern="$1"
+  local dest="$2"
+  shopt -s nullglob
+  local files=( $pattern )
+  shopt -u nullglob
+  if [ "${#files[@]}" -gt 0 ]; then
+    mv "${files[@]}" "$dest"/
+  fi
+}
 # END JOB CONTROL ------
 
 cd drho_analyze_urqmd
@@ -100,10 +111,6 @@ if [ "$do_analysis" = true ]; then
 fi
 cd ..
 
-cd levyfit
-make clean
-make exe/EbE_or_Eavg_1d3d_fit.exe
-
 nevt_avg_default=0 # default value; if <1, using different for each energy, acc. to header 
 nevt=10000 # number of events to use for fitting
 nevt_highstat=100000
@@ -111,6 +118,30 @@ nevt_highstat=100000
 # list of NEVT_AVG values
 nevt_avgs=(10 25 50 100 200 500 1000 5000 10000)
 nevt_avgs_highstat=(20000 25000 50000 100000)
+
+if [ "$charge_mode" -eq 1 ] || [ "$charge_mode" -eq 2 ]; then
+  echo "Charge mode: $charge_mode"
+  for avg in "${nevt_avgs[@]}"; do
+    echo "Preparing folders for nevt_avg: ${avg}"
+    rm -rf $BASEDIR/figs/fitting/lcms/AVG${avg}/
+    mkdir -p $BASEDIR/figs/fitting/lcms/AVG${avg}/
+  done
+  for avg in "${nevt_avgs_highstat[@]}"; do
+    echo "Preparing folders for high-statistics nevt_avg: ${avg}"
+    rm -rf $BASEDIR/figs/fitting/lcms/AVG${avg}/
+    mkdir -p $BASEDIR/figs/fitting/lcms/AVG${avg}/
+  done
+  mkdir -p $BASEDIR/figs/fitting/lcms/strictQlcms
+  mkdir -p $BASEDIR/figs/fitting/lcms/looseQlcms
+  mkdir -p $BASEDIR/figs/fitting/lcms/defaultQlcms
+  mkdir -p $BASEDIR/figs/fitting/lcms/strictrhoFitMax
+  mkdir -p $BASEDIR/figs/fitting/lcms/looserhoFitMax
+  mkdir -p $BASEDIR/figs/fitting/lcms/defaultrhoFitMax
+fi
+
+cd levyfit
+make clean
+make exe/EbE_or_Eavg_1d3d_fit.exe
 
 if [ "$do_fitting" = true ]; then
   echo "Starting fitting for all nevt_avg values..."
@@ -190,10 +221,10 @@ mkdir -p "$BASEDIR/analysed/chargetest_negneg/"
 mkdir -p "$BASEDIR/levyfit/results/chargetest_pospos/"
 mkdir -p "$BASEDIR/levyfit/results/chargetest_negneg/"
 if [ "$charge_mode" -eq 1 ]; then
-  mv "$BASEDIR/analysed/*.root" "$BASEDIR/analysed/chargetest_pospos/"
-  mv "$BASEDIR/levyfit/results/*.root" "$BASEDIR/levyfit/results/chargetest_pospos/"
+  move_matching_files "$BASEDIR/analysed/*.root" "$BASEDIR/analysed/chargetest_pospos/"
+  move_matching_files "$BASEDIR/levyfit/results/*.root" "$BASEDIR/levyfit/results/chargetest_pospos/"
 fi
 if [ "$charge_mode" -eq 2 ]; then
-  mv "$BASEDIR/analysed/*.root" "$BASEDIR/analysed/chargetest_negneg/"
-  mv "$BASEDIR/levyfit/results/*.root" "$BASEDIR/levyfit/results/chargetest_negneg/"
+  move_matching_files "$BASEDIR/analysed/*.root" "$BASEDIR/analysed/chargetest_negneg/"
+  move_matching_files "$BASEDIR/levyfit/results/*.root" "$BASEDIR/levyfit/results/chargetest_negneg/"
 fi
