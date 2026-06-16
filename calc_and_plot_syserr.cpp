@@ -1320,7 +1320,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gsys->Draw("3 same");
 
             gsys->SetLineColor(col);
-            gsys->SetLineWidth(3);
+            gsys->SetLineWidth(2);
             gsys->SetMarkerStyle(20+colorIdx); // differentiate points
             gsys->SetMarkerSize(2.0); // instead of 0.0, points needed for better visibility in case of mT vs param
             gsys->SetMarkerColor(col);
@@ -1446,7 +1446,7 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
             gsys->Draw("3 same");
 
             gsys->SetLineColor(col);
-            gsys->SetLineWidth(3);
+            gsys->SetLineWidth(1);
             gsys->SetMarkerStyle(20+colorIdx);
             gsys->SetMarkerSize(2.0);
             gsys->SetMarkerColor(col);
