@@ -1,11 +1,13 @@
 // After the urqmd .f19 output files have been converted with convert_f19.cc (thus, creating the ...._tree.root files):
-// This code does not fit anything, it just makes histograms of the spatial separation of pion pairs in the LCMS frame, for different kT bins.
+// Store compact LCMS pair separations; histograms are built by the fit/FFT consumers.
 // TODO: add bim limits for centrality selection when minBias data will be available
 
 #include <TH1.h>
 #include <TFile.h>
 #include <TMath.h>
 #include <TTree.h>
+#include <TParameter.h>
+#include <TNamed.h>
 
 #include <stdlib.h>
 
@@ -20,9 +22,6 @@
 // const double ktbins[NKT+1]= {0.175,0.225,0.275,0.325,0.375,0.425,0.475,0.525,0.575,0.625,0.675};
 int barWidth = 70;
 
-#ifndef NCH
-#define NCH 2
-#endif
 //const double Mass2_pi = 0.019479835;
 
 //const double ktbins[NKT+1]= {0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50};
@@ -32,10 +31,9 @@ int barWidth = 70;
 
 int kTBinNum(double KT)
 {
-  if (KT > ktbins[NKT])
-    return NKT - 1;
-  if (KT < ktbins[0])
-    return 0;
+  // Keep both outer edges; discard pairs outside the configured kT range.
+  if (!std::isfinite(KT) || KT < ktbins[0] || KT > ktbins[NKT])
+    return -1;
 
   int ibin = 0;
   while (KT > ktbins[ibin + 1])
@@ -98,17 +96,31 @@ int main(int argc, char** argv)
   std::cout << "Using charge selection: " << charge_mode_label[charge_mode] << std::endl;
 
   TFile *treefile = new TFile(Form("AuAu_%s_tree.root",argv[1]),"read");
+  if(treefile->IsZombie()) {
+    std::cerr << "Cannot open input event file" << std::endl;
+    return 1;
+  }
+  TTree *event = dynamic_cast<TTree*>(treefile->Get("urqmd_tree"));
+  if(!event) {
+    std::cerr << "Input file has no urqmd_tree" << std::endl;
+    return 1;
+  }
   //TString inputFile = treefile->GetName(); 
-  TFile* outFile = new TFile(Form("UrQMD_3d_source_%scent_all_%s%s.root",centleg[11],argv[1],
-                                  qLCMS_outputtext[qLCMS_cuttype]),"RECREATE"); // FIXME make 11->ICENT for other centralities
-
-  TTree *event = (TTree*) treefile->Get("urqmd_tree");
+  TFile* outFile = new TFile(Form("UrQMD_3d_source_%scent_all_%s%s%s%s.root",centleg[11],argv[1],
+                                  qLCMS_outputtext[qLCMS_cuttype], charge_mode_suffix[charge_mode],
+                                  useFFTmethod ? "_FFT" : ""),
+                                  useFFTmethod ? "CREATE" : "RECREATE"); // FIXME make 11->ICENT for other centralities
+  if(outFile->IsZombie()) {
+    std::cerr << "Cannot create output file (FFT mode refuses to overwrite existing files)" << std::endl;
+    return 1;
+  }
   
   // Output TTree for pair source data (replaces per-event histograms for much smaller files)
   TTree *pairTree = new TTree("pairTree", "Pion pair source data in LCMS");
   Int_t out_ievent;
   Short_t out_ich, out_iKT;
   Float_t out_rho, out_rhoout, out_rhoside, out_rholong;
+  UChar_t out_osl_signs;
   pairTree->Branch("ievent", &out_ievent, "ievent/I");
   pairTree->Branch("ich", &out_ich, "ich/S");
   pairTree->Branch("iKT", &out_iKT, "iKT/S");
@@ -116,6 +128,10 @@ int main(int argc, char** argv)
   pairTree->Branch("rhoout", &out_rhoout, "rhoout/F");
   pairTree->Branch("rhoside", &out_rhoside, "rhoside/F");
   pairTree->Branch("rholong", &out_rholong, "rholong/F");
+  if(useFFTmethod) {
+    // Three sign bits recover the signed vector without duplicating its floats.
+    pairTree->Branch("rho_osl_signs", &out_osl_signs, "rho_osl_signs/b");
+  }
 
   TH1D *KTdist = new TH1D("ktdist","K_{T} distribution",100,0,10);
   TH1D *rapdist = new TH1D("rapdist","rapidity distribution",100,-10,10);
@@ -185,6 +201,9 @@ int main(int argc, char** argv)
               auto qLCMS = TMath::Sqrt(Qx*Qx + Qy*Qy + qZLCMS2);
 
               auto KT = TMath::Sqrt(Kx*Kx + Ky*Ky);
+              KTdist->Fill(KT); // retain the full pre-cut diagnostic distribution
+              int iKT = kTBinNum(KT);
+              if(iKT < 0) continue;
               auto cosphi = Kx / KT;
               auto sinphi = Ky / KT;
 
@@ -192,11 +211,8 @@ int main(int argc, char** argv)
               auto rhoside = - Rx * sinphi + Ry * cosphi;
               auto rholong = (K0 * Rz - Kz * t) / TMath::Sqrt(K0*K0 - Kz*Kz);
 
-              auto rhooutlong = std::abs(1.0/std::sqrt(2.0)*(rhoout + rholong));
               auto rho2 = rhoout*rhoout + rhoside*rhoside + rholong*rholong;
 
-              KTdist->Fill(KT);
-              int iKT = kTBinNum(KT);
               /*
               if((iKT == 0 || iKT == 15) && qLCMS < ktbins[iKT+1])
                 std::cout << "qlcms: " << qLCMS << " kT: " << ktbins[iKT] << "-" << ktbins[iKT+1] << std::endl;
@@ -241,6 +257,7 @@ int main(int argc, char** argv)
                 out_rhoout = TMath::Abs(rhoout);
                 out_rhoside = TMath::Abs(rhoside);
                 out_rholong = TMath::Abs(rholong);
+                out_osl_signs = (rhoout < 0 ? 1 : 0) | (rhoside < 0 ? 2 : 0) | (rholong < 0 ? 4 : 0);
                 pairTree->Fill();
               }
             } // only particles with matching PID
@@ -251,6 +268,15 @@ int main(int argc, char** argv)
   } // end of event loop
   std::cout << std::endl;
   outFile->cd();
+  // Counts include events with no accepted pairs, which cannot be inferred from pairTree.
+  TParameter<Long64_t>("source_events", nEvent).Write();
+  TParameter<int>("pair_source_schema", useFFTmethod ? 2 : 1).Write();
+  TParameter<int>("source_charge_mode", charge_mode).Write();
+  TParameter<int>("source_qlcms_cut", qLCMS_cuttype).Write();
+  TParameter<double>("source_kt_min", ktbins[0]).Write();
+  TParameter<double>("source_kt_max", ktbins[NKT]).Write();
+  TNamed("source_energy", argv[1]).Write();
+  TNamed("source_centrality", centleg[11]).Write();
   pairTree->Write();
   KTdist->Write();
   rapdist->Write();

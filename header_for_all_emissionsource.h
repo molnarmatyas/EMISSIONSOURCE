@@ -12,6 +12,17 @@ const int NCENT = 10; // number of centrality classes
 
 const bool is3Dfit = true; // global flag to indicate if 3D fit is being performed
 
+// Enable signed pair coordinates and the separate FFT pipeline. Keep false for
+// the existing D(rho) workflow. A build can override this with
+// -DEMISSIONSOURCE_USE_FFT=1 (rebuild the analyser as well as the FFT programs).
+#ifndef EMISSIONSOURCE_USE_FFT
+#define EMISSIONSOURCE_USE_FFT 0
+#endif
+const bool useFFTmethod = EMISSIONSOURCE_USE_FFT != 0;
+const int fftSourceBins = 251; // odd; central bin is at rho = 0
+const double fftSourceHalfRange = 100.0; // fm, all three LCMS axes
+const double fftHbarC = 0.197327; // GeV fm
+
 // Mass^2 values
 const double Mass2_pi = 0.019479835;
 const double Mass2_ka = 0.24371698032;
@@ -20,6 +31,11 @@ const double Mass2_ka = 0.24371698032;
 const int NKT = 10;
 const double ktbins[NKT+1] = {0.175, 0.225, 0.275, 0.325, 0.375, 0.425, 0.475, 0.525, 0.575, 0.625, 0.675};
 const double kT_center[NKT] = {0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65};
+
+// Spherical C(q) fit limits in GeV/c, in the same order as kT_center.
+// Tentative Au+Au starting values; check fit-range stability on the actual samples.
+// These are independent of the analysis qLCMS_cut_values below.
+const double fftQmaxFit[NKT] = {0.10, 0.10, 0.10, 0.12, 0.12, 0.12, 0.14, 0.14, 0.16, 0.16};
 
 // Energies
 const char* energies[] = {"3p0","3p2","3p5","3p9","4p2","4p5","5p2","6p2","7p2","7p7","9p2","11p5","14p5","19p6","27"};

@@ -39,6 +39,7 @@
 #define CUBE(x) ((x)*(x)*(x))
 #include <TLatex.h>
 #include "../../header_for_all_emissionsource.h"
+#include "../../pair_source_tree.h"
 #include <iomanip>
 #define FIXED_FLOAT(x) std::fixed <<std::setprecision(1)<<(x)
 
@@ -112,13 +113,7 @@ void initLogBins() {
   g_logbinsInitialized = true;
 }
 
-// Build all histograms from TTree in a single pass (called once per file)
-void buildHistCacheFromTree() {
-  if(!g_pairTree || g_histCacheBuilt) return;
-  
-  initLogBins();
-  
-  // Clear any existing cache
+void clearHistCache() {
   for(auto& evtMap : g_histCache) {
     for(auto& ktMap : evtMap.second) {
       for(auto& oslPair : ktMap.second) {
@@ -127,28 +122,26 @@ void buildHistCacheFromTree() {
     }
   }
   g_histCache.clear();
-  
-  // Read branch variables
-  Int_t t_ievent;
-  Short_t t_ich, t_iKT;
-  Float_t t_rho, t_rhoout, t_rhoside, t_rholong;
-  g_pairTree->SetBranchAddress("ievent", &t_ievent);
-  g_pairTree->SetBranchAddress("ich", &t_ich);
-  g_pairTree->SetBranchAddress("iKT", &t_iKT);
-  g_pairTree->SetBranchAddress("rho", &t_rho);
-  g_pairTree->SetBranchAddress("rhoout", &t_rhoout);
-  g_pairTree->SetBranchAddress("rhoside", &t_rhoside);
-  g_pairTree->SetBranchAddress("rholong", &t_rholong);
+  g_histCacheBuilt = false;
+}
+
+// Build all histograms from TTree in a single pass (called once per file).
+// Both the original trees and FFT trees retain these magnitude branches.
+void buildHistCacheFromTree() {
+  if(!g_pairTree || g_histCacheBuilt) return;
+  initLogBins();
+  clearHistCache();
   
   std::cout << "Building histogram cache from TTree (" << g_pairTree->GetEntries() << " entries)..." << std::endl;
   
   g_maxEventInTree = -1;
-  Long64_t nentries = g_pairTree->GetEntries();
-  for(Long64_t i = 0; i < nentries; i++) {
+  PairSourceData pair;
+  if(!setPairSourceBranches(g_pairTree, pair)) exit(1);
+  for(Long64_t i = 0; i < g_pairTree->GetEntries(); ++i) {
     g_pairTree->GetEntry(i);
-    
-    int ievt = t_ievent;
-    int ikt = t_iKT;
+    int ievt = pair.ievent;
+    int ikt = pair.iKT;
+    if(ikt < 0 || ikt >= NKT) continue;
     
     if(ievt > g_maxEventInTree) g_maxEventInTree = ievt;
     
@@ -167,13 +160,14 @@ void buildHistCacheFromTree() {
     }
     
     // Fill histograms (both charges go into same histogram)
-    g_histCache[ievt][ikt][0]->Fill(t_rho);
+    g_histCache[ievt][ikt][0]->Fill(pair.rho);
     if(is3Dfit) {
-      g_histCache[ievt][ikt][1]->Fill(t_rhoout);
-      g_histCache[ievt][ikt][2]->Fill(t_rhoside);
-      g_histCache[ievt][ikt][3]->Fill(t_rholong);
+      g_histCache[ievt][ikt][1]->Fill(std::abs(pair.rhoout));
+      g_histCache[ievt][ikt][2]->Fill(std::abs(pair.rhoside));
+      g_histCache[ievt][ikt][3]->Fill(std::abs(pair.rholong));
     }
   }
+  g_pairTree->ResetBranchAddresses();
   
   g_histCacheBuilt = true;
   std::cout << "Histogram cache built. Max event index: " << g_maxEventInTree << std::endl;
@@ -338,6 +332,14 @@ void loadHistograms(bool addtogether,
                     int ifile, int ievt, int ikt, int iframe, TFile* file, bool IsUrQMD, TH1* temp_rhohist[NOSL + 1])
 {
   // function should be called with temp_rhohist == histograms[ikt]
+  if(!addtogether) {
+    // An averaging block may start with no pairs. Drop the previous block
+    // before loading so its data cannot leak in, and release old clones.
+    for(int iosl = 0; iosl < NOSL + 1; ++iosl) {
+      delete temp_rhohist[iosl];
+      temp_rhohist[iosl] = nullptr;
+    }
+  }
   if(IsUrQMD)
   {
     // Check if file has TTree format (new compact format) or histogram format (legacy)
@@ -586,13 +588,14 @@ int main(int argc, char *argv[])
   int NEVT = 25;//1000;
   int NEVT_AVG = 100; // number of events to be averaged over for each fit
   bool IsUrQMD = false;
+  const char* input_file = nullptr; // optional explicit source, e.g. a signed FFT tree
   int qlcms_syst = 0; // 0: default, 1: strict, 2: loose
   int rho_fitmax_syst = 0; // 0: default, 1: strict, 2: loose
   // Args overridden
-  if(argc < 2 || argc > 9)
+  if(argc < 2 || argc > 10)
   {
     cerr << "Correct usage: " << endl;
-    cerr << "exe/programname.exe ICENT energy NFILEMAX NEVT NEVT_AVG qlcms rho_fitmax IsUrQMD[bool:true/false]" << endl;
+    cerr << "exe/programname.exe ICENT energy NFILEMAX NEVT NEVT_AVG qlcms rho_fitmax IsUrQMD[bool:true/false] [input_file.root]" << endl;
     cerr << "(NEVT is number of events per 'file', NEVT_AVG is number of events over to be averaged)" << endl;
     cerr << "qlcms and rho_fitmax of systematics, default: 0, strict: 1, loose: 2" << endl;
     return 1;
@@ -624,13 +627,14 @@ int main(int argc, char *argv[])
       NEVT_AVG = NEVT_AVGsyst[NEVT_AVG_DEFAULT[_ienergy]];
       cout << "NEVT_AVG set to default value of " << NEVT_AVG << " for energy " << energy << "." << endl;
     }
-    qlcms_syst = (int)atoi(argv[6]);
-    rho_fitmax_syst = (int)atoi(argv[7]);
   }
-  if(argc == 9)
+  if(argc > 6) qlcms_syst = (int)atoi(argv[6]);
+  if(argc > 7) rho_fitmax_syst = (int)atoi(argv[7]);
+  if(argc >= 9)
   {
     IsUrQMD = static_cast<bool>(atoi(argv[8]));
   }
+  if(argc == 10) input_file = argv[9];
 
   // Correct indexing of centrality classes' array - implemented from lcmsonly_epos_pair_source.C macro 
   if(ICENT==NCENT || ICENT < 0)
@@ -785,9 +789,9 @@ int main(int argc, char *argv[])
     {
       // Open the file and get the histograms
       // FIXME no file numbering, needed for EPOS (soon for UrQMD as well)
-      TFile *file = TFile::Open(Form("%s/analysed/%s_3d_source_%scent_all_%s%s.root", 
+      TFile *file = TFile::Open(input_file ? input_file : Form("%s/analysed/%s_3d_source_%scent_all_%s%s.root",
                                       path,isPathUrqmd,centleg[ICENT],energy,qlcms_syst_label));
-      if (!file)
+      if (!file || file->IsZombie())
       {
         std::cerr << "Error opening file" << std::endl;
         return 1;
@@ -1267,6 +1271,9 @@ int main(int argc, char *argv[])
       cout << "about to close input file." << endl;
       file->cd(); // FIXME is this needed?
       file->Close();
+      g_cachedFile = nullptr;
+      g_pairTree = nullptr;
+      clearHistCache();
       cerr << "input file closed." << endl;
       delete file;
       cout << "input file closed, delete done." << endl;

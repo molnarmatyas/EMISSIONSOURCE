@@ -3,6 +3,15 @@
 *.pptx
 *.docx
 *.csv
+*.root
+*.exe
+*.txt
+*.log
+*.f19
+*.out*
+*.o
+*.d
+*.tar.gz
 deprec/*
 plots/*
 **/plots/*
@@ -20,6 +29,11 @@ epos_with_apptainer/*
 urqmd-3.4/*
 urqmd-3.4*
 status_report/*
+**/*.png
+**/*.pdf
+**/*.pptx
+**/*.docx
+**/*.csv
 **/*.root
 **/*.exe
 **/*.txt
@@ -28,7 +42,7 @@ status_report/*
 **/*.out*
 **/*.o
 **/*.d
-**/*.csv
+**/*.tar.gz
 .vscode
 levyfit/exe/*
 levyfit/object/*
