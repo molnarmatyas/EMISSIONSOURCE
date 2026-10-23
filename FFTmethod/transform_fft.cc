@@ -38,7 +38,7 @@ int main(int argc, char** argv)
     if(i == 2 && option.find("--") != 0) { cutoff = atof(argv[i]); continue; }
     if(i + 1 == argc) { cerr << "Missing value for " << option << endl; return 1; }
     string value = argv[++i];
-    if(option == "--output") outputName = value;
+    if(option == "--output") outputName = fftOutputName(value.c_str(), "");
     else if(option == "--bins") nbins = atoi(value.c_str());
     else if(option == "--range") range = atof(value.c_str());
     else if(option == "--cutoff") cutoff = atof(value.c_str());
@@ -59,7 +59,7 @@ int main(int argc, char** argv)
      onlyKT < -1 || onlyKT >= NKT || firstEvent < 0 || events == 0 || events < -1) {
     cerr << "Check grid size (odd), range/error (positive), cutoff and pair selection.\n"; return 1;
   }
-  if(!checkFFTOutput(outputName)) return 1;
+  if(outputName == inputName) { cerr << "Input and output must have different names.\n"; return 1; }
   TFile* input = TFile::Open(inputName, "READ");
   if(!input || input->IsZombie()) { cerr << "Cannot open " << inputName << endl; return 1; }
   TTree* tree = dynamic_cast<TTree*>(input->Get("pairTree"));
@@ -195,7 +195,7 @@ int main(int argc, char** argv)
       hCq->SetBinError(mx+N/2+1, my+N/2+1, mz+N/2+1, binError);
     }
     if(!output) {
-      output = TFile::Open(outputName, "CREATE");
+      output = TFile::Open(outputName, "RECREATE");
       if(!output || output->IsZombie()) { cerr << "Cannot create " << outputName << endl; return 1; }
       TParameter<int>("fft_complete", 0).Write();
     }

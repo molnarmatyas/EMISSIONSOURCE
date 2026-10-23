@@ -9,6 +9,11 @@
 #include <TTree.h>
 #include <TTreeReader.h>
 #include <TTreeReaderValue.h>
+#include <TGraphAsymmErrors.h>
+#include <TGraphErrors.h>
+#include <TCanvas.h>
+#include <TPad.h>
+#include <TROOT.h>
 #include <algorithm>
 #include <array>
 #include <cstdlib>
@@ -130,19 +135,21 @@ void pairTests() {
     }
     require(sums[0] == sums[1], "Legacy projection coordinates changed");
     transform({"pairs.root", "--bins", "9", "--range", "4.5", "--save-source"});
-    TFile result((directory / "pairs_Cq_FFT.root").c_str());
-    auto* cq = result.Get<TH3D>("Cq_D_lcms_3d_kt0");
-    auto* source = result.Get<TH3D>("D_lcms_3d_kt0");
-    require(cq && source, "Missing double precision histograms");
-    checkDirect(*cq, *source);
-    near(cq->GetXaxis()->GetBinCenter(5), 0., 1.e-14, "q=0 centered");
-    near(cq->GetBinContent(5,5,5), 1.75, 1.e-14, "Flow normalization");
-    require(result.Get<TParameter<Long64_t>>("source_events")->GetVal() == 6, "Empty event provenance lost");
-    auto* metadata = result.Get<TTree>("fft_sources");
-    require(metadata && metadata->GetEntries() == 2, "kT grouping metadata");
-    TTreeReader reader(metadata);
-    TTreeReaderValue<double> retained(reader, "retained_fraction");
-    require(reader.Next(), "Missing source summary"); near(*retained, .75, 1.e-14, "Retained fraction metadata");
+    {
+        TFile result((directory / "pairs_Cq_FFT.root").c_str());
+        auto* cq = result.Get<TH3D>("Cq_D_lcms_3d_kt0");
+        auto* source = result.Get<TH3D>("D_lcms_3d_kt0");
+        require(cq && source, "Missing double precision histograms");
+        checkDirect(*cq, *source);
+        near(cq->GetXaxis()->GetBinCenter(5), 0., 1.e-14, "q=0 centered");
+        near(cq->GetBinContent(5,5,5), 1.75, 1.e-14, "Flow normalization");
+        require(result.Get<TParameter<Long64_t>>("source_events")->GetVal() == 6, "Empty event provenance lost");
+        auto* metadata = result.Get<TTree>("fft_sources");
+        require(metadata && metadata->GetEntries() == 2, "kT grouping metadata");
+        TTreeReader reader(metadata);
+        TTreeReaderValue<double> retained(reader, "retained_fraction");
+        require(reader.Next(), "Missing source summary"); near(*retained, .75, 1.e-14, "Retained fraction metadata");
+    }
     transform({"pairs.root", "--bins", "9", "--range", "4.5", "--output", "selected_FFT.root",
                "--kt", "0", "--first-event", "2", "--events", "1", "--charge", "negative", "--save-source"});
     TFile selected((directory / "selected_FFT.root").c_str());
@@ -157,13 +164,25 @@ void pairTests() {
     transform({"pairs.root", "--error", "0"}, 1);
     transform({"pairs.root", "--events", "0"}, 1);
     transform({"pairs.root", "--first-event", "50", "--output", "empty_FFT.root"}, 1);
-    transform({"pairs.root", "--output", "legacy.root"}, 1);
-    transform({"pairs.root", "--bins", "9", "--range", "4.5"}, 1); // refuses overwrite
+    transform({"pairs.root", "--bins", "9", "--range", "4.5", "--output", "legacy.root"});
+    require(fs::exists(directory / "legacy_FFT.root"), "Custom output did not get the FFT suffix");
+    {
+        TFile legacy((directory / "legacy.root").c_str());
+        require(legacy.Get<TTree>("pairTree") && !legacy.Get("fft_complete"), "D(rho) file was overwritten");
+    }
+    transform({"pairs.root", "--bins", "9", "--range", "4.5", "--kt", "0"});
+    {
+        TFile replaced((directory / "pairs_Cq_FFT.root").c_str());
+        require(replaced.Get<TH3D>("Cq_D_lcms_3d_kt0"), "Repeated FFT lost its result");
+        require(!replaced.Get("Cq_D_lcms_3d_kt1") && !replaced.Get("D_lcms_3d_kt0"), "Repeated FFT kept stale output keys");
+    }
+    fs::copy_file(directory / "pairs.root", directory / "input_FFT.root");
+    transform({"input_FFT.root", "--output", "input_FFT.root"}, 1);
     require(!fs::exists(directory / "empty_FFT.root"), "Empty selection published output");
     run("/tmp/emissionsource_transform_disabled.exe", {"pairs.root", "--output", "disabled_FFT.root"}, 1);
     require(!fs::exists(directory / "disabled_FFT.root"), "Disabled FFT switch was ignored");
     run("/tmp/emissionsource_projection_cache_tests.exe", {"legacy.root", "pairs.root"});
-    std::cout << "PASS signed trees, old projection data, selection, flows, output protection\n";
+    std::cout << "PASS signed trees, old projections, selection, flows, FFT replacement and separate D(rho) names\n";
 }
 void histogramTests() {
     {
@@ -200,6 +219,38 @@ double levy(double x, double y, double z, const std::array<double,5>& p) {
     return 1 + p[0] * std::exp(-std::pow((x*x*p[1]*p[1] + y*y*p[2]*p[2] + z*z*p[3]*p[3]) / (fftHbarC*fftHbarC), p[4]/2));
 }
 struct FitResult { std::array<double,5> p{}, raw{}, errors{}; std::array<double,25> covariance{}, covarianceRaw{}; double scale; Long64_t ndf; bool valid, atLimit; };
+void checkParameterGraphs(TFile& input) {
+    const char* names[] = {"lambda_vs_KT_FFT", "R_out_vs_KT_FFT", "R_side_vs_KT_FFT", "R_long_vs_KT_FFT", "alpha_vs_KT_FFT"};
+    TGraphAsymmErrors* graphs[5];
+    for(int p=0; p<5; ++p) {
+        graphs[p]=input.Get<TGraphAsymmErrors>(names[p]);
+        require(graphs[p], "Missing parameter graph: " + std::string(names[p]));
+    }
+    auto* tree=input.Get<TTree>("fit_results_FFT");
+    tree->ResetBranchAddresses();
+    int kt; bool valid; double parameters[5], errors[5];
+    tree->SetBranchAddress("kt", &kt); tree->SetBranchAddress("valid", &valid);
+    tree->SetBranchAddress("parameters", parameters); tree->SetBranchAddress("errors", errors);
+    int point=0;
+    // Compare graphs to valid tree rows in ascending kT order, also for sparse fits.
+    for(int expectedKT=0; expectedKT<NKT; ++expectedKT) for(Long64_t i=0; i<tree->GetEntries(); ++i) {
+        tree->GetEntry(i);
+        if(!valid || kt!=expectedKT) continue;
+        for(int p=0; p<5; ++p) {
+            auto* graph=graphs[p];
+            require(point<graph->GetN(), "Parameter graph lost a valid fit");
+            near(graph->GetPointX(point),kT_center[kt],1.e-14,"Graph kT order");
+            near(graph->GetPointY(point),parameters[p],1.e-14,"Graph parameter value");
+            near(graph->GetErrorXlow(point),kT_center[kt]-ktbins[kt],1.e-14,"Graph lower kT edge");
+            near(graph->GetErrorXhigh(point),ktbins[kt+1]-kT_center[kt],1.e-14,"Graph upper kT edge");
+            near(graph->GetErrorYlow(point),errors[p],1.e-14,"Graph lower rescaled error");
+            near(graph->GetErrorYhigh(point),errors[p],1.e-14,"Graph upper rescaled error");
+        }
+        ++point;
+    }
+    for(auto* graph : graphs) require(graph->GetN()==point, "Parameter graph contains an invalid/unlabelled fit or zero placeholder");
+    tree->ResetBranchAddresses();
+}
 FitResult readFit(const std::string& name, bool requireValid = true) {
     TFile input((directory / name).c_str());
     auto* tree = input.Get<TTree>("fit_results_FFT");
@@ -217,6 +268,7 @@ FitResult readFit(const std::string& name, bool requireValid = true) {
     for (int p = 0; p < 5; ++p) near(result.errors[p], result.raw[p] * result.scale, 1.e-12, "Error rescaling");
     for (int p = 0; p < 25; ++p)
         near(result.covariance[p], result.covarianceRaw[p] * result.scale * result.scale, 1.e-12, "Covariance rescaling");
+    checkParameterGraphs(input);
     return result;
 }
 void fitTests() {
@@ -250,11 +302,27 @@ void fitTests() {
         near(a.p[p], b.p[p], 1.e-5, "Fit depends on arbitrary uniform error");
         near(a.errors[p], b.errors[p], .01 * a.errors[p], "Rescaled errors depend on arbitrary weight");
     }
-    fit({"model0.root"}, 1); // refuses overwrite, also with default limits
+    {
+        TFile previous((directory / "model0_fitresults_FFT.root").c_str(), "UPDATE");
+        TNamed("old_fit_output", "stale key").Write();
+    }
+    const fs::path plot=directory / "figs/fitting/lcms/FFT/model0_fitresults_FFT/Cq_model_FFT";
+    std::ofstream(plot.string()+".png") << "old plot";
+    std::ofstream(plot.string()+".pdf") << "old plot";
+    fit({"model0.root", "--qmax", "0.12", "--output", "model0_fitresults.root"});
+    const auto repeated=readFit("model0_fitresults_FFT.root");
+    for(int p=0; p<5; ++p) near(repeated.p[p],a.p[p],1.e-10,"Repeated fit changed parameters");
+    {
+        TFile replaced((directory / "model0_fitresults_FFT.root").c_str());
+        require(!replaced.Get("old_fit_output"), "Repeated fit kept stale output keys");
+    }
+    require(fs::file_size(plot.string()+".png")>1000 && fs::file_size(plot.string()+".pdf")>1000, "Repeated fit did not replace its figures");
+    fs::copy_file(directory / "model0.root", directory / "input_Cq_FFT.root");
+    fit({"input_Cq_FFT.root", "--output", "input_Cq_FFT.root"},1);
     fit({"model0.root", "--qmax", "0.3", "--output", "outside_FFT.root"}, 1);
     fit({"model0.root", "--qmax", "0.00001", "--output", "tiny_FFT.root"}, 1);
     require(!fs::exists(directory / "outside_FFT.root"), "Out-of-grid fit published output");
-    std::cout << "PASS spherical Levy fit, parameter recovery, covariance scaling and weight invariance\n";
+    std::cout << "PASS spherical Levy fit, recovery, covariance scaling, weight invariance and replacing results/figures\n";
 }
 void qmaxDefaultsTest() {
     const std::array<double,5> truth = {{.72,4.2,5.3,6.4,1.35}};
@@ -276,6 +344,9 @@ void qmaxDefaultsTest() {
             h.Write(); metadata.Fill();
         }
         metadata.Write();
+        TNamed("source_energy", "27").Write();
+        TNamed("source_centrality", "0-10").Write();
+        TParameter<int>("source_qlcms_cut",0).Write();
     }
     const std::string selected = "Cq_test_kt" + std::to_string(NKT-1);
     fit({"default_ranges.root"});
@@ -298,10 +369,59 @@ void qmaxDefaultsTest() {
             for(int p=0; p<5; ++p) near(parameters[p],truth[p],.01,"Default-range parameter recovery");
         }
         tree->ResetBranchAddresses();
+        checkParameterGraphs(input);
     }
     fit({"shifted_Cq_FFT.root", "--hist", "Cq_shifted", "--output", "unknown_kt_FFT.root"},1);
     require(!fs::exists(directory / "unknown_kt_FFT.root"), "Default limits guessed an unknown kT index");
-    std::cout << "PASS header qmax defaults for every kT bin, reversed key order and --hist selection\n";
+    std::cout << "PASS header qmax defaults, sorted parameter graphs with rescaled errors and --hist selection\n";
+}
+void plotTests() {
+    TFile output((directory / "default_ranges_fitresults_FFT.root").c_str());
+    const char* directions[]={"out","side","long"};
+    for(int kt=0; kt<NKT; ++kt) {
+        const std::string histogram="Cq_test_kt" + std::to_string(kt);
+        const fs::path stem=directory / "figs/fitting/lcms/FFT/default_ranges_fitresults_FFT" / (histogram+"_FFT");
+        require(fs::file_size(stem.string()+".png")>1000 && fs::file_size(stem.string()+".pdf")>1000, "Missing kT fit PNG/PDF");
+        auto* canvas=output.Get<TCanvas>(("fitplot_"+histogram+"_FFT").c_str());
+        require(canvas, "Missing saved fit canvas");
+        auto* model=output.Get<TF3>(("fit_"+histogram+"_FFT").c_str());
+        require(model, "Missing plotted model");
+        for(int d=0; d<3; ++d) {
+            const std::string direction=directions[d];
+            auto* pad=(TPad*)canvas->GetPrimitive(("fitpad_"+direction+"_FFT").c_str());
+            require(pad, "Missing out/side/long plot panel");
+            auto* data=(TGraphErrors*)pad->GetPrimitive(("Cq_slice_"+direction+"_FFT").c_str());
+            auto* curve=(TGraph*)pad->GetPrimitive(("Cq_fit_"+direction+"_FFT").c_str());
+            auto* full=(TGraph*)pad->GetPrimitive(("Cq_fullfit_"+direction+"_FFT").c_str());
+            require(data && curve && full && data->GetN()>0, "Missing slice data or model");
+            near(curve->GetPointX(0),-fftQmaxFit[kt],1.e-14,"Solid curve lower fit edge");
+            near(curve->GetPointX(curve->GetN()-1),fftQmaxFit[kt],1.e-14,"Solid curve upper fit edge");
+            require(curve->GetLineStyle()==1 && full->GetLineStyle()==2, "Fit/extrapolation styles lost");
+            TFile input((directory / "default_ranges.root").c_str());
+            auto* source=input.Get<TH3D>(histogram.c_str());
+            const int zero=source->GetXaxis()->FindFixBin(0.);
+            TTreeReader reader(output.Get<TTree>("fit_results_FFT"));
+            TTreeReaderValue<int> rowKT(reader,"kt");
+            TTreeReaderValue<double> scale(reader,"error_scale");
+            while(reader.Next() && *rowKT!=kt) {}
+            require(*rowKT==kt,"Missing plot fit result");
+            for(int point=0; point<data->GetN(); ++point) {
+                int bins[]={zero,zero,zero}; bins[d]=source->GetXaxis()->FindFixBin(data->GetPointX(point));
+                near(data->GetPointY(point),source->GetBinContent(bins[0],bins[1],bins[2]),1.e-14,"Plot uses axis slice");
+                near(data->GetErrorY(point),source->GetBinError(bins[0],bins[1],bins[2])*(*scale),1.e-14,"Plot error rescaling");
+            }
+            for(int point=0; point<curve->GetN(); point+=100) {
+                double q[]={0.,0.,0.}; q[d]=curve->GetPointX(point);
+                near(curve->GetPointY(point),model->Eval(q[0],q[1],q[2]),1.e-14,"Plot uses full 3D fit model");
+            }
+        }
+    }
+    fit({"default_ranges.root", "--hist", "Cq_test_kt0", "--plot-dir", "custom figures", "--output", "custom_plot_FFT.root"});
+    require(fs::exists(directory / "custom figures/custom_plot_FFT/Cq_test_kt0_FFT.png"), "Custom plot directory ignored");
+    fit({"default_ranges.root", "--hist", "Cq_test_kt0", "--no-plots", "--output", "no_plot_FFT.root"});
+    TFile noPlots((directory / "no_plot_FFT.root").c_str());
+    require(!noPlots.Get("fitplot_Cq_test_kt0_FFT") && !fs::exists(directory / "figs/fitting/lcms/FFT/no_plot_FFT"), "--no-plots ignored");
+    std::cout << "PASS fit figures for all kT bins, saved central slices/model, scaled errors and plot options\n";
 }
 void gaussianTest() {
     const std::array<double,5> truth = {{1.,4.3,5.2,6.4,2.}};
@@ -366,10 +486,19 @@ void analyzerTest() {
     }
     require(negative, "Analyser lost separation signs");
     require(fft.Get<TParameter<Long64_t>>("source_events")->GetVal() == 3, "Analyser lost empty events");
-    run("/tmp/emissionsource_pairsource_fft.exe", {"synthetic","0"},1);
+    old.Close(); fft.Close();
+    {
+        TFile previous((directory / "UrQMD_3d_source_0-10cent_all_synthetic_FFT.root").c_str(), "UPDATE");
+        TNamed("old_pair_output", "stale key").Write();
+    }
+    run("/tmp/emissionsource_pairsource_fft.exe", {"synthetic","0"});
+    {
+        TFile replaced((directory / "UrQMD_3d_source_0-10cent_all_synthetic_FFT.root").c_str());
+        require(replaced.Get<TTree>("pairTree")->GetEntries()==4 && !replaced.Get("old_pair_output"), "Analyser did not replace its FFT output");
+    }
     run("/tmp/emissionsource_pairsource_fft.exe", {"synthetic","0","1"});
     require(fs::exists(directory / "UrQMD_3d_source_0-10cent_all_synthetic_pos_FFT.root"), "Charge output names collide");
-    std::cout << "PASS analyser signed branches, unchanged projections, empty events, charge names and overwrite guard\n";
+    std::cout << "PASS analyser signed branches, unchanged projections, empty events, charge names and FFT output replacement\n";
 }
 
 void ktRangeTest() {
@@ -409,14 +538,14 @@ void ktRangeTest() {
 } // namespace
 int main(int argc, char** argv) {
     if (argc != 2) return 1;
+    gROOT->SetBatch(true);
     programs = fs::absolute(argv[1]);
     char temporary[] = "/tmp/emissionsource_fft_XXXXXX";
     const char* created = mkdtemp(temporary);
     if (!created) return 1;
     directory = created;
     try {
-        pairTests(); histogramTests(); fitTests(); qmaxDefaultsTest(); gaussianTest(); analyzerTest(); ktRangeTest();
-        for (const auto& entry : fs::directory_iterator(directory)) require(entry.path().extension() != ".partial", "Leaked partial output");
+        pairTests(); histogramTests(); fitTests(); qmaxDefaultsTest(); plotTests(); gaussianTest(); analyzerTest(); ktRangeTest();
         std::cout << "All FFT regressions passed. Fixtures: " << directory << '\n';
         return 0;
     } catch (const std::exception& e) {

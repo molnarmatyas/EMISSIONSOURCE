@@ -23,9 +23,10 @@ FFTmethod/transform_fft.exe drho_analyze_urqmd/UrQMD_3d_source_0-10cent_all_27_F
 FFTmethod/CqFit.exe drho_analyze_urqmd/UrQMD_3d_source_0-10cent_all_27_Cq_FFT.root
 ```
 
-The final file ends in `_Cq_fitresults_FFT.root`. All FFT files use `_FFT`
-and refuse to overwrite existing files. The fit uses the per-kT limits
-`fftQmaxFit[NKT]` in `header_for_all_emissionsource.h` by default.
+The final file ends in `_Cq_fitresults_FFT.root`. FFT outputs are overwritten
+when rerun. All names use `_FFT` to keep them separate from D(rho) results;
+custom `--output` names also get this suffix automatically. The fit uses the
+per-kT limits `fftQmaxFit[NKT]` in `header_for_all_emissionsource.h` by default.
 
 For a batch run, set the switches at the top of `do_all_urqmd.sh`:
 
@@ -43,12 +44,12 @@ energies listed in `energies_low` and `energies_high`, and overrides the
 header with `FFT=1` (`FFT=0` when `FFTmethod=false`). FFT averages all stored
 events; the D(rho) averaging/rho-range scans and plotting are skipped.
 Pair trees, C(q) and fit results end up in `analysed/`, with logs in `logfiles/`.
-Existing FFT pair trees are reused, including a manual test left in
-`drho_analyze_urqmd/`. Set `do_analysis=false` to use only existing pair trees,
-or `do_transform=false` to fit existing C(q) files. C(q) and fit outputs still
-refuse overwrites. Failed jobs or invalid fits make the batch exit nonzero;
-fit results marked invalid are still saved for inspection. FFT final plotting
-and systematic aggregation remain to be developed.
+Enabled stages regenerate their outputs, including pair trees already in
+`analysed/`. Set `do_analysis=false` to reuse pair trees in `analysed/` or
+`drho_analyze_urqmd/`, and `do_transform=false` to fit existing C(q) files.
+Failed jobs or invalid fits make the batch exit nonzero; fit results marked
+invalid are still saved for inspection. FFT final parameter plotting and
+systematic aggregation remain to be developed.
 
 ## Where to edit things
 
@@ -59,7 +60,7 @@ and systematic aggregation remain to be developed.
   in that order inside `main`.
 - `CqFit.cpp`: `AltChi2` contains the model and chi-square; `main` selects
   the fit bins, sets Minuit parameters and writes results.
-- `fft_common.h`: three short functions for filenames and copying file information.
+- `fft_common.h`: filenames and copying file information.
 
 Default source grid: **251 bins, -100 to +100 fm** on each axis.
 One kT grid is processed at a time. The FFT plan is reused. Memory is about
@@ -103,10 +104,55 @@ need an explicit scalar `--qmax`. Each result row records the actual `qmax` used
 The region is a sphere
 `q_out² + q_side² + q_long² <= qmax²`, including q=0 and both signs.
 The five parameters are **lambda, Rout, Rside, Rlong, alpha**.
-Results, raw/scaled errors and covariance are saved in `fit_results_FFT`,
-alongside TF3 models. Errors scale by `sqrt(chi2/NDF)`; these are effective
-residual-based errors because Fourier bins are correlated. Exit code 2
+The fit output contains five `TGraphAsymmErrors` ready for a final plotter:
+`lambda_vs_KT_FFT`, `R_out_vs_KT_FFT`, `R_side_vs_KT_FFT`, `R_long_vs_KT_FFT`
+and `alpha_vs_KT_FFT`. They use `kT_center` on the x axis, with horizontal errors
+extending to the kT-bin edges. Vertical errors are the rescaled fit errors,
+equal on both sides because the current fitter uses symmetric Hesse errors.
+These are effective residual-based errors because Fourier bins are correlated.
+
+Graphs contain valid fits with known kT indices, sorted by kT. Missing or invalid
+bins are omitted, so graph point indices need not equal kT-bin indices. Fits at
+parameter limits are included if marked valid; their boundary flags remain in
+the diagnostic tree. Unlabelled TH3 fits remain available in the tree/TF3 models
+but cannot be placed on a kT graph.
+
+A final plotter can read a graph directly, for example:
+
+```cpp
+TFile file("analysed/UrQMD_3d_source_0-10cent_all_27_Cq_fitresults_FFT.root");
+auto* alpha = file.Get<TGraphAsymmErrors>("alpha_vs_KT_FFT");
+alpha->Draw("AP"); // keep file open while using the graph
+```
+
+The small `fit_results_FFT` tree is retained for fit status, raw/scaled errors
+and the full covariance, alongside TF3 models. Errors scale by `sqrt(chi2/NDF)`.
+Rerun `CqFit` on existing C(q) files to update the fit results and graphs. Exit code 2
 means at least one fit was marked invalid; 1 means an input/processing error.
+
+## Fit figures
+
+`CqFit` also saves one three-panel PNG and PDF for every fitted kT bin, including
+invalid fits labelled for inspection. The layout follows `example.png`: adjoining
+out/side/long panels, black C(q) points, and a red curve from the single 3D fit.
+The data are central-axis slices `(q_out,0,0)`, `(0,q_side,0)`, `(0,0,q_long)`.
+The model is solid inside `|q| <= qmax` and dashed outside. The displayed C(q)
+errors use the same `sqrt(chi2/NDF)` scaling as the fit, and the annotations show
+the fitted parameters, raw chi-square, fit status and any parameter-limit flag.
+Energy, centrality and the analysis qLCMS-cut label come from the input metadata.
+
+When run from the repository root (as the batch script does), figures go to:
+
+```text
+figs/fitting/lcms/FFT/<fit-output-filename-without-.root>/Cq_D_lcms_3d_kt0_FFT.png
+figs/fitting/lcms/FFT/<fit-output-filename-without-.root>/Cq_D_lcms_3d_kt0_FFT.pdf
+```
+
+This keeps energies, analysis cuts and separately named fit variations apart.
+`--plot-dir DIR` changes the parent folder (relative to the working directory);
+`--no-plots` disables figures. Plotting runs in ROOT batch mode and needs no
+display on the server. Each canvas is also saved in the fit ROOT file as
+`fitplot_<Cq-histogram-name>_FFT` for inspection or later restyling.
 
 ## Signs, normalization and D(rho) compatibility
 
@@ -119,8 +165,8 @@ Pair analysis discards kT outside `[ktbins[0], ktbins[NKT]]` (currently
 0.175–0.675 GeV/c), keeping both endpoints. This applies to both methods.
 New files record `source_kt_min` and `source_kt_max`; older files folded
 out-of-range pairs into the edge bins. Those files must be regenerated from
-the particle trees to apply this cut. Move old FFT pair trees and downstream
-C(q)/fit files aside first: the batch script reuses existing pair trees.
+the particle trees to apply this cut. Enable analysis, transformation and fitting
+in the batch script to regenerate all stages with the new selection.
 
 The convention is `C(q) = 1 + Re FFT(D)`, with `hbarc = 0.197327 GeV fm`.
 The source counts are divided by their total **including all flow bins**.

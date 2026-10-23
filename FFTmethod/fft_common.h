@@ -13,15 +13,6 @@ inline TString fftOutputName(TString input, const char* suffix)
   return input + suffix + "_FFT.root";
 }
 
-inline bool checkFFTOutput(TString name)
-{
-  if(!name.EndsWith("_FFT.root") || !gSystem->AccessPathName(name)) {
-    std::cerr << "Use a new output filename ending in _FFT.root: " << name << std::endl;
-    return false;
-  }
-  return true;
-}
-
 inline void copyFFTInfo(TFile* input, TFile* output)
 {
   output->cd();

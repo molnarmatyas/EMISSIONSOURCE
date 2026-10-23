@@ -138,12 +138,6 @@ if [ "$do_analysis" = true ]; then
   for ienergy in "${energies[@]}"; do
     echo "Creating source for energy: ${ienergy}"
     for cut in "${qlcms_types[@]}"; do
-      source_file="${analysedname}${ienergy}${qlcms_suffixes[$cut]}${source_suffix}.root"
-      # Reuse a completed one-file FFT test rather than asking the analyser to overwrite it.
-      if [ "$FFTmethod" = true ] && { [ -f "$source_file" ] || [ -f "$BASEDIR/analysed/$source_file" ]; }; then
-        echo "Using existing FFT pair tree: $source_file"
-        continue
-      fi
       ./pairsource_urqmd.exe "$ienergy" "$cut" > "$BASEDIR/logfiles/analysis_${ienergy}${qlcms_suffixes[$cut]}${source_suffix}.log" 2>&1 &
       job_pids+=("$!")
       limit_jobs
@@ -154,7 +148,6 @@ if [ "$do_analysis" = true ]; then
   for ienergy in "${energies[@]}"; do
     for cut in "${qlcms_types[@]}"; do
       source_file="${analysedname}${ienergy}${qlcms_suffixes[$cut]}${source_suffix}.root"
-      if [ "$FFTmethod" = true ] && [ -f "$BASEDIR/analysed/$source_file" ]; then continue; fi
       if [ -f "$source_file" ]; then mv "$source_file" "$BASEDIR/analysed/" || exit 1; fi
     done
   done
@@ -190,7 +183,8 @@ if [ "$FFTmethod" = true ]; then
   done
   wait_for_stage || { echo "FFT processing reported errors or invalid fits; see logfiles/*_FFT.log."; exit 1; }
   echo "FFT stages finished. Outputs are in analysed/; logs are in logfiles/*_FFT.log."
-  echo "FFT final plotting/systematic aggregation is not implemented yet."
+  if [ "$do_fitting" = true ]; then echo "Fit figures are in figs/fitting/lcms/FFT/."; fi
+  echo "FFT final parameter plotting/systematic aggregation is not implemented yet."
   exit 0
 fi
 

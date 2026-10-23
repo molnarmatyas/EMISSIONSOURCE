@@ -7,6 +7,14 @@
 #include <TNamed.h>
 #include <TParameter.h>
 #include <TTree.h>
+#include <TGraphAsymmErrors.h>
+#include <TGraphErrors.h>
+#include <TCanvas.h>
+#include <TPad.h>
+#include <TLatex.h>
+#include <TLegend.h>
+#include <TROOT.h>
+#include <TStyle.h>
 #include <Math/Functor.h>
 #include <Minuit2/Minuit2Minimizer.h>
 #include <algorithm>
@@ -34,24 +42,146 @@ double AltChi2(const double* par)
   return chi2;
 }
 
+// Central-axis slices of the same 3D data/model used in the fit.
+bool plotCqFit(TH3* cq, TF3& fit, int kt, double errorScale, bool valid, bool atLimit,
+               TFile* input, const TString& plotName)
+{
+  TString folder = gSystem->DirName(plotName);
+  if(gSystem->AccessPathName(folder) && gSystem->mkdir(folder, true) != 0) {
+    cerr << "Cannot create plot folder " << folder << endl; return false;
+  }
+  const char* directions[] = {"out", "side", "long"};
+  const char* axisTitles[] = {"(q_{out},0,0) [GeV/c]", "(0,q_{side},0) [GeV/c]", "(0,0,q_{long}) [GeV/c]"};
+  TAxis* axes[] = {cq->GetXaxis(), cq->GetYaxis(), cq->GetZaxis()};
+  int zero[] = {axes[0]->FindFixBin(0.), axes[1]->FindFixBin(0.), axes[2]->FindFixBin(0.)};
+  double qmax = fit.GetXmax(), qPlot = max(0.30, 1.4*qmax);
+  for(TAxis* axis : axes)
+    qPlot = min(qPlot, min(-axis->GetBinCenter(1), axis->GetBinCenter(axis->GetNbins())));
+
+  TGraphErrors data[3];
+  TGraph fullCurve[3], fittedCurve[3];
+  double ymin = 0.75, ymax = 2.25;
+  for(int d = 0; d < 3; ++d) {
+    data[d].SetName(Form("Cq_slice_%s_FFT", directions[d]));
+    data[d].SetTitle(Form(";%s;%s", axisTitles[d], d == 0 ? "C(q)" : ""));
+    data[d].SetMarkerStyle(20); data[d].SetMarkerSize(0.65); data[d].SetLineWidth(1);
+    for(int b = 1; b <= axes[d]->GetNbins(); ++b) {
+      double q = axes[d]->GetBinCenter(b);
+      if(abs(q) > qPlot) continue;
+      int bins[] = {zero[0], zero[1], zero[2]}; bins[d] = b;
+      double value = cq->GetBinContent(bins[0],bins[1],bins[2]);
+      double error = cq->GetBinError(bins[0],bins[1],bins[2])*errorScale;
+      if(!isfinite(value) || !isfinite(error)) continue;
+      int point = data[d].GetN();
+      data[d].SetPoint(point, q, value); data[d].SetPointError(point, 0., error);
+      ymin = min(ymin, value-error-0.08); ymax = max(ymax, value+error+0.12);
+    }
+    fullCurve[d].SetName(Form("Cq_fullfit_%s_FFT", directions[d]));
+    fittedCurve[d].SetName(Form("Cq_fit_%s_FFT", directions[d]));
+    for(int point = 0; point <= 600; ++point) {
+      double q[] = {0.,0.,0.};
+      q[d] = -qPlot + 2.*qPlot*point/600.;
+      fullCurve[d].SetPoint(point, q[d], fit.Eval(q[0],q[1],q[2]));
+      q[d] = -qmax + 2.*qmax*point/600.;
+      fittedCurve[d].SetPoint(point, q[d], fit.Eval(q[0],q[1],q[2]));
+    }
+    fullCurve[d].SetLineColor(kRed+1); fullCurve[d].SetLineWidth(3); fullCurve[d].SetLineStyle(2);
+    fittedCurve[d].SetLineColor(kRed+1); fittedCurve[d].SetLineWidth(3);
+  }
+
+  TString sample = "LCMS correlation, FFT";
+  TNamed* energy = (TNamed*)input->Get("source_energy");
+  TNamed* centrality = (TNamed*)input->Get("source_centrality");
+  if(energy) {
+    TString number = energy->GetTitle(); number.ReplaceAll("p", ".");
+    sample = "#sqrt{s_{NN}} = " + number + " GeV";
+  }
+  if(centrality) sample += TString(", ") + centrality->GetTitle() + "%";
+  TParameter<int>* cut = (TParameter<int>*)input->Get("source_qlcms_cut");
+
+  // Wider first pad leaves room for the shared y axis, as in example.png.
+  TCanvas canvas(Form("fitplot_%s_FFT", cq->GetName()), "3D C(q) fit", 1800, 620);
+  double edges[] = {0.,0.37,0.685,1.};
+  for(int d = 0; d < 3; ++d) {
+    canvas.cd();
+    TPad* pad = new TPad(Form("fitpad_%s_FFT", directions[d]), "", edges[d],0.,edges[d+1],1.);
+    pad->SetLeftMargin(d == 0 ? 0.15 : 0.);
+    pad->SetRightMargin(d == 2 ? 0.025 : 0.);
+    pad->SetBottomMargin(0.18); pad->SetTopMargin(0.025); pad->SetTicks(1,1);
+    pad->Draw(); pad->cd();
+    data[d].SetMinimum(ymin); data[d].SetMaximum(ymax);
+    data[d].Draw("AP");
+    data[d].GetXaxis()->SetLimits(-1.20*qPlot,1.20*qPlot); // space for labels at panel joins
+    for(TAxis* axis : {data[d].GetXaxis(), data[d].GetYaxis()}) {
+      axis->SetTitleFont(43); axis->SetTitleSize(30);
+      axis->SetLabelFont(43); axis->SetLabelSize(25);
+      axis->SetNdivisions(505);
+    }
+    data[d].GetXaxis()->SetTitleOffset(1.15);
+    data[d].GetYaxis()->SetTitleOffset(1.4);
+    if(d > 0) data[d].GetYaxis()->SetLabelSize(0.);
+    fullCurve[d].Draw("L SAME"); fittedCurve[d].Draw("L SAME"); data[d].Draw("P SAME");
+
+    double left = d == 0 ? 0.18 : 0.04;
+    TLatex text; text.SetNDC(); text.SetTextFont(43); text.SetTextSize(24);
+    if(d == 0) {
+      text.DrawLatex(left,0.925,"UrQMD, ^{197}Au+^{197}Au");
+      text.DrawLatex(left,0.88,sample);
+      text.DrawLatex(left,0.72,Form("#alpha = %.3f #pm %.2g", fit.GetParameter(4),fit.GetParError(4)));
+      text.DrawLatex(left,0.66,Form("#lambda = %.3f #pm %.2g", fit.GetParameter(0),fit.GetParError(0)));
+      text.DrawLatex(left,0.60,Form("#chi^{2}_{raw}/NDF = %.2g", fit.GetChisquare()/fit.GetNDF()));
+    } else if(d == 1) {
+      text.DrawLatex(left,0.935,"Like-sign #pi#pi, event averaged");
+      if(kt >= 0 && kt < NKT)
+        text.DrawLatex(left,0.88,Form("%.3f < k_{T} < %.3f GeV/c", ktbins[kt],ktbins[kt+1]));
+      text.DrawLatex(left,0.72,Form("#sigma_{C} = %.3g (rescaled)", cq->GetBinError(zero[0],zero[1],zero[2])*errorScale));
+    } else {
+      text.DrawLatex(left,0.935,Form("Spherical fit: |q| #leq %.2f GeV/c", qmax));
+      if(cut && cut->GetVal() >= 0 && cut->GetVal() < 3)
+        text.DrawLatex(left,0.88,Form("Analysis q_{LCMS}: %s", qLCMS_cut[cut->GetVal()]));
+      text.SetTextColor(valid ? kBlack : kRed+1);
+      text.DrawLatex(left,0.72,valid ? "Fit valid" : "INVALID FIT (see fit_results_FFT)");
+      if(atLimit) { text.SetTextColor(kOrange+7); text.DrawLatex(left,0.66,"Parameter at limit"); }
+      text.SetTextColor(kBlack);
+      text.DrawLatex(left,0.60,Form("NDF = %d", fit.GetNDF()));
+    }
+    text.DrawLatex(left,0.80,Form("R_{%s} = (%.2f #pm %.2g) fm", directions[d],fit.GetParameter(d+1),fit.GetParError(d+1)));
+    TLegend legend(left,0.205,0.98,0.275);
+    legend.SetBorderSize(0); legend.SetFillStyle(0); legend.SetTextFont(43); legend.SetTextSize(25);
+    if(d == 0) legend.AddEntry(&data[d],"C(q), UrQMD","pe");
+    if(d == 1) legend.AddEntry(&fittedCurve[d],"3D L#acute{e}vy fit","l");
+    if(d == 2) legend.AddEntry(&fullCurve[d],"Extrapolation outside fit range","l");
+    legend.DrawClone();
+  }
+  canvas.SaveAs(plotName + ".png"); canvas.SaveAs(plotName + ".pdf");
+  canvas.Write();
+  return !gSystem->AccessPathName(plotName + ".png") && !gSystem->AccessPathName(plotName + ".pdf");
+}
+
 int main(int argc, char** argv)
 {
   if(argc < 2 || string(argv[1]) == "--help") {
     cout << "Usage: CqFit.exe input_Cq_FFT.root [--qmax Q] [--hist NAME] [--output file_FFT.root]\n"
          << "Default: per-kT spherical |q| limits fftQmaxFit in header_for_all_emissionsource.h.\n"
-         << "--qmax overrides these with one limit in GeV/c, or NKT comma-separated limits.\n";
+         << "--qmax overrides these with one limit in GeV/c, or NKT comma-separated limits.\n"
+         << "Plots: --plot-dir DIR (default figs/fitting/lcms/FFT) or --no-plots.\n";
     return argc < 2 ? 1 : 0;
   }
   if(!useFFTmethod) { cerr << "FFT is disabled in the global header/build.\n"; return 1; }
   TString inputName = argv[1], outputName = fftOutputName(inputName, "_fitresults");
   TString onlyHist = "";
+  TString plotDir = "figs/fitting/lcms/FFT";
+  bool makePlots = true;
+  gROOT->SetBatch(true); gStyle->SetOptStat(0); gStyle->SetOptTitle(0);
   vector<double> qmaxValues(fftQmaxFit, fftQmaxFit + NKT);
   for(int i = 2; i < argc; ++i) {
     string option = argv[i];
+    if(option == "--no-plots") { makePlots = false; continue; }
     if(i + 1 == argc) { cerr << "Missing value for " << option << endl; return 1; }
     string value = argv[++i];
-    if(option == "--output") outputName = value;
+    if(option == "--output") outputName = fftOutputName(value.c_str(), "");
     else if(option == "--hist") onlyHist = value;
+    else if(option == "--plot-dir") plotDir = value;
     else if(option == "--qmax") {
       qmaxValues.clear();
       istringstream values(value);
@@ -63,7 +193,9 @@ int main(int argc, char** argv)
     cerr << "Supply --qmax with one limit or NKT comma-separated limits.\n"; return 1;
   }
   for(double q : qmaxValues) if(q <= 0 || !isfinite(q)) { cerr << "Invalid qmax.\n"; return 1; }
-  if(!checkFFTOutput(outputName)) return 1;
+  if(outputName == inputName) { cerr << "Input and output must have different names.\n"; return 1; }
+  TString plotFolder = gSystem->BaseName(outputName); plotFolder.Resize(plotFolder.Length()-5);
+  plotFolder = plotDir + "/" + plotFolder;
   TFile* input = TFile::Open(inputName, "READ");
   if(!input || input->IsZombie()) { cerr << "Cannot open " << inputName << endl; return 1; }
   TParameter<int>* complete = (TParameter<int>*)input->Get("fft_complete");
@@ -102,6 +234,16 @@ int main(int argc, char** argv)
   results.Branch("parameters", par, "parameters[5]/D");
   results.Branch("errors_raw", errorsRaw, "errors_raw[5]/D"); results.Branch("errors", errors, "errors[5]/D");
   results.Branch("covariance_raw", covRaw, "covariance_raw[25]/D"); results.Branch("covariance", cov, "covariance[25]/D");
+
+  // Ready for a final plotter; keep the tree above for fit diagnostics/covariance.
+  const char* graphNames[NPARS] = {"lambda_vs_KT_FFT", "R_out_vs_KT_FFT", "R_side_vs_KT_FFT", "R_long_vs_KT_FFT", "alpha_vs_KT_FFT"};
+  const char* graphTitles[NPARS] = {";k_{T} [GeV/c];#lambda", ";k_{T} [GeV/c];R_{out} [fm]",
+    ";k_{T} [GeV/c];R_{side} [fm]", ";k_{T} [GeV/c];R_{long} [fm]", ";k_{T} [GeV/c];#alpha"};
+  TGraphAsymmErrors graphs[NPARS];
+  for(int p = 0; p < NPARS; ++p) {
+    graphs[p].SetNameTitle(graphNames[p], graphTitles[p]);
+    graphs[p].SetMarkerStyle(20);
+  }
   TFile* output = nullptr;
   vector<string> fitted;
   int failed = 0;
@@ -186,7 +328,7 @@ int main(int argc, char** argv)
       }
     }
     if(!output) {
-      output = TFile::Open(outputName, "CREATE");
+      output = TFile::Open(outputName, "RECREATE");
       if(!output || output->IsZombie()) { cerr << "Cannot create " << outputName << endl; return 1; }
     }
     output->cd();
@@ -195,7 +337,17 @@ int main(int argc, char** argv)
       -qmax,qmax, -qmax,qmax, -qmax,qmax);
     fit.SetParNames("lambda", "R_out", "R_side", "R_long", "alpha");
     fit.SetParameters(par); fit.SetParErrors(errors); fit.SetNDF(NDF); fit.SetChisquare(chi2); fit.Write();
+    if(makePlots && !plotCqFit(hCq,fit,kt,scale,valid,atLimit,input,plotFolder + "/" + name + "_FFT")) {
+      cerr << "Could not save fit plots in " << plotFolder << endl; return 1;
+    }
     results.Fill(); fitted.push_back(histogram);
+    if(valid && kt >= 0 && kt < NKT) {
+      for(int p = 0; p < NPARS; ++p) {
+        int point = graphs[p].GetN();
+        graphs[p].SetPoint(point, kT_center[kt], par[p]);
+        graphs[p].SetPointError(point, kT_center[kt]-ktbins[kt], ktbins[kt+1]-kT_center[kt], errors[p], errors[p]);
+      }
+    }
     if(!valid) ++failed;
     cout << name << ": kT bin=" << kt << ", qmax=" << qmax << " GeV/c, status=" << status << ", chi2/ndf=" << chi2ndf
          << ", alpha=" << par[4] << ", radii=" << par[1] << ',' << par[2] << ',' << par[3] << endl;
@@ -208,6 +360,7 @@ int main(int argc, char** argv)
   TNamed("cqfit_parameter_order", "lambda,R_out,R_side,R_long,alpha").Write();
   TNamed("cqfit_error_convention", "errors=errors_raw*sqrt(chi2/ndf); covariance=covariance_raw*chi2/ndf; Fourier bins are correlated").Write();
   TNamed("cqfit_selection", "Spherical |q|<=qmax, including q=0 and both signs").Write();
+  for(int p = 0; p < NPARS; ++p) { graphs[p].Sort(); graphs[p].Write(); }
   results.Write(); TParameter<int>("fft_fit_complete", 1).Write();
   output->Close(); input->Close(); delete output; delete input;
   cout << "Wrote " << fitted.size() << " fits to " << outputName << " (" << failed << " invalid)\n";

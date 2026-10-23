@@ -108,10 +108,9 @@ int main(int argc, char** argv)
   //TString inputFile = treefile->GetName(); 
   TFile* outFile = new TFile(Form("UrQMD_3d_source_%scent_all_%s%s%s%s.root",centleg[11],argv[1],
                                   qLCMS_outputtext[qLCMS_cuttype], charge_mode_suffix[charge_mode],
-                                  useFFTmethod ? "_FFT" : ""),
-                                  useFFTmethod ? "CREATE" : "RECREATE"); // FIXME make 11->ICENT for other centralities
+                                  useFFTmethod ? "_FFT" : ""),"RECREATE"); // FIXME make 11->ICENT for other centralities
   if(outFile->IsZombie()) {
-    std::cerr << "Cannot create output file (FFT mode refuses to overwrite existing files)" << std::endl;
+    std::cerr << "Cannot create output file" << std::endl;
     return 1;
   }
   
