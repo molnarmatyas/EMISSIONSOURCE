@@ -218,7 +218,12 @@ void histogramTests() {
 double levy(double x, double y, double z, const std::array<double,5>& p) {
     return 1 + p[0] * std::exp(-std::pow((x*x*p[1]*p[1] + y*y*p[2]*p[2] + z*z*p[3]*p[3]) / (fftHbarC*fftHbarC), p[4]/2));
 }
-struct FitResult { std::array<double,5> p{}, raw{}, errors{}; std::array<double,25> covariance{}, covarianceRaw{}; double scale; Long64_t ndf; bool valid, atLimit; };
+struct FitResult {
+    std::array<double,5> p{}, raw{}, errors{};
+    std::array<double,25> covariance{}, covarianceRaw{};
+    double scale,chi2,ratio,chi2Raw,ratioRaw,binError,binErrorRaw,rms;
+    Long64_t ndf,npoints; bool valid,atLimit;
+};
 void checkParameterGraphs(TFile& input) {
     const char* names[] = {"lambda_vs_KT_FFT", "R_out_vs_KT_FFT", "R_side_vs_KT_FFT", "R_long_vs_KT_FFT", "alpha_vs_KT_FFT"};
     TGraphAsymmErrors* graphs[5];
@@ -259,12 +264,23 @@ FitResult readFit(const std::string& name, bool requireValid = true) {
     tree->SetBranchAddress("parameters", result.p.data()); tree->SetBranchAddress("errors_raw", result.raw.data());
     tree->SetBranchAddress("errors", result.errors.data()); tree->SetBranchAddress("covariance", result.covariance.data());
     tree->SetBranchAddress("covariance_raw", result.covarianceRaw.data()); tree->SetBranchAddress("error_scale", &result.scale);
+    tree->SetBranchAddress("chi2", &result.chi2); tree->SetBranchAddress("chi2_ndf", &result.ratio);
+    tree->SetBranchAddress("chi2_raw", &result.chi2Raw); tree->SetBranchAddress("chi2_ndf_raw", &result.ratioRaw);
+    tree->SetBranchAddress("bin_error", &result.binError); tree->SetBranchAddress("bin_error_raw", &result.binErrorRaw);
+    tree->SetBranchAddress("residual_rms", &result.rms); tree->SetBranchAddress("npoints", &result.npoints);
     tree->SetBranchAddress("ndf", &result.ndf); tree->SetBranchAddress("valid", &result.valid); tree->GetEntry(0);
     tree->SetBranchAddress("at_parameter_limit", &result.atLimit); tree->GetEntry(0);
     if (requireValid) require(result.valid, "Fit is not valid");
+    require(input.Get<TParameter<int>>("cqfit_error_schema")->GetVal()==2,"Missing error-convention version");
+    near(result.ratio,1.,1.e-12,"Rescaled chi-square/NDF");
+    near(result.chi2,result.ndf,1.e-9,"Rescaled chi-square");
+    near(result.scale*result.scale,result.ratioRaw,1.e-12,"Raw chi-square error scale");
+    near(result.binError,result.binErrorRaw*result.scale,1.e-14,"Effective uniform bin error");
     auto* function = input.Get<TF3>("fit_Cq_model_FFT");
-    if (function)
+    if (function) {
         near(function->Eval(.013,.021,-.019), levy(.013,.021,-.019,result.p), 1.e-13, "Saved fit function after reload");
+        near(function->GetChisquare(),result.chi2,1.e-9,"Saved function uses rescaled chi-square");
+    }
     for (int p = 0; p < 5; ++p) near(result.errors[p], result.raw[p] * result.scale, 1.e-12, "Error rescaling");
     for (int p = 0; p < 25; ++p)
         near(result.covariance[p], result.covarianceRaw[p] * result.scale * result.scale, 1.e-12, "Covariance rescaling");
@@ -297,6 +313,22 @@ void fitTests() {
     fit({"model0.root", "--qmax", "0.12"}); fit({"model1.root", "--qmax", limits});
     auto a = readFit("model0_fitresults_FFT.root"), b = readFit("model1_fitresults_FFT.root");
     require(a.ndf == points-5, "Spherical fit domain or NDF incorrect");
+    near(a.ratioRaw,25.*b.ratioRaw,1.e-12,"Raw chi-square tracks arbitrary input-error scale");
+    near(a.binError,b.binError,1.e-12,"Effective bin error depends on arbitrary input error");
+    {
+        TFile input((directory/"model0.root").c_str());
+        auto* h=input.Get<TH3D>("Cq_model");
+        double sumSquares=0.;
+        for(int x=1; x<=41; ++x) for(int y=1; y<=41; ++y) for(int z=1; z<=41; ++z) {
+            double qo=h->GetXaxis()->GetBinCenter(x), qs=h->GetYaxis()->GetBinCenter(y), ql=h->GetZaxis()->GetBinCenter(z);
+            if(qo*qo+qs*qs+ql*ql>.12*.12) continue;
+            sumSquares+=std::pow(h->GetBinContent(x,y,z)-levy(qo,qs,ql,a.p),2);
+        }
+        near(a.chi2Raw,sumSquares/(a.binErrorRaw*a.binErrorRaw),1.e-12,"Independent raw residual sum");
+        near(a.binError*a.binError,sumSquares/a.ndf,1.e-14,"Residual-based error variance");
+        near(a.rms*a.rms,sumSquares/a.npoints,1.e-14,"Residual RMS");
+        near(sumSquares/(a.binError*a.binError*a.ndf),1.,1.e-10,"Independent normalized chi-square");
+    }
     for (int p = 0; p < 5; ++p) {
         near(a.p[p], truth[p], .01, "Recovery of known Levy parameters");
         near(a.p[p], b.p[p], 1.e-5, "Fit depends on arbitrary uniform error");

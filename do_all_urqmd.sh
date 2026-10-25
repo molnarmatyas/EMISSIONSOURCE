@@ -4,13 +4,14 @@
 # time ./do_all_urqmd.sh 3 &> logdoall.log &
 
 # Run ./do_all_urqmd.sh [MAXJOBS]; select stages and method here.
-FFTmethod=false # true: signed pair trees -> FFT -> C(q) fits; false: original D(rho) workflow
+FFTmethod=true # true: signed pair trees -> FFT -> C(q) fits; false: original D(rho) workflow
 do_analysis=false
 do_conversion=false # whether to convert from .f19 to root tree files
 do_transform=true # FFT only; false reuses C(q) files already in analysed/
 do_fitting=true # fit C(q) in FFT mode, otherwise run the original Levy fits
 FFT_systematics=true # FFT: all three qLCMS cuts, two fit-range and two grid variations
 do_final_plots=true # FFT: combine systematics and draw the final parameter plots
+do_comparison=true # both methods: compare final outputs if both ROOT files exist
 
 # FFT fit limits: edit fftQmaxFit[NKT] in header_for_all_emissionsource.h.
 FFT_qlcms_cuts=(0 1 2) # used when FFT_systematics=false; use (0) for just the baseline
@@ -26,6 +27,7 @@ sleep 10
 energies_low=("3p0" "3p2" "3p5" "3p9" "4p5") # these may be with higher statistics - 100k full instead of 10k
 energies_high=("7p7" "9p2" "11p5" "14p5" "19p6" "27")
 energies=("${energies_low[@]}" "${energies_high[@]}")
+energy_list=$(IFS=,; echo "${energies[*]}")
 
 # The script's method choice overrides the header for this build.
 fft_build=0
@@ -49,8 +51,31 @@ for cut in "${qlcms_types[@]}"; do
   esac
 done
 
-mkdir -p analysed logfiles figs/fitting/lcms/FFT figs/syserr/FFT FFTmethod/results \
+mkdir -p analysed logfiles figs/fitting/lcms/FFT figs/syserr/FFT figs/comparison/Drho_FFT FFTmethod/results \
          levyfit/exe levyfit/object/deps levyfit/results || exit 1
+
+# Called after either method's final plotter; also works with saved results.
+compare_methods() {
+  if [ "$do_comparison" != true ]; then return 0; fi
+  local drho="$BASEDIR/syserr_results.root"
+  local fft="$BASEDIR/FFTmethod/results/syserr_results_FFT.root"
+  local file missing=false
+  for file in "$drho" "$fft"; do
+    if [ ! -s "$file" ]; then
+      echo "Skipping method comparison: missing or empty $file"
+      missing=true
+    fi
+  done
+  if [ "$missing" = true ]; then return 0; fi
+  make -C "$BASEDIR/FFTmethod" compare_methods.exe || return 1
+  echo "Comparing D(rho) and FFT for energies: $energy_list"
+  "$BASEDIR/FFTmethod/compare_methods.exe" --drho "$drho" --fft "$fft" --energies "$energy_list" \
+    > "$BASEDIR/logfiles/comparison_Drho_FFT.log" 2>&1 || {
+      echo "Method comparison failed; see logfiles/comparison_Drho_FFT.log."
+      return 1
+    }
+  echo "Comparison figures: figs/comparison/Drho_FFT/; ROOT/CSV: FFTmethod/results/comparison_Drho_FFT.*"
+}
 
 # JOB CONTROL ------
 # Enable job control so `jobs` builtin works inside this script
@@ -216,7 +241,6 @@ if [ "$FFTmethod" = true ]; then
   fft_status=$?
   if [ "$fft_status" -eq 1 ]; then echo "FFT processing failed; see logfiles/*_FFT.log."; exit 1; fi
   if [ "$FFT_systematics" = true ] && [ "$do_final_plots" = true ]; then
-    energy_list=$(IFS=,; echo "${energies[*]}")
     "$BASEDIR/FFTmethod/calc_and_plot_syserr_FFT.exe" --input-dir "$BASEDIR/analysed" --energies "$energy_list" > "$BASEDIR/logfiles/syserr_FFT.log" 2>&1
     case $? in
       0) ;;
@@ -224,6 +248,7 @@ if [ "$FFTmethod" = true ]; then
       *) echo "FFT systematics failed; see logfiles/syserr_FFT.log."; exit 1 ;;
     esac
   fi
+  compare_methods || exit 1
   echo "FFT stages finished. Outputs are in analysed/; logs are in logfiles/*_FFT.log."
   if [ "$do_fitting" = true ]; then echo "Fit figures are in figs/fitting/lcms/FFT/."; fi
   if [ "$fft_status" -ne 0 ]; then echo "Some fits or systematic points are incomplete; see logs and the FFT results table."; fi
@@ -404,7 +429,8 @@ echo "Plotting param vs sqrt(sNN)"
 #root.exe -b -q plot_alphaNR_allcent.cpp\(${nevt_avg_default}\)
 # root.exe -b -q plot_alphaNR_allcent.cpp\(5000\) # sort of deprecated with UrQMD
 # Calculate & collect all systematics
-root.exe -b -q calc_and_plot_syserr.cpp\(-1\) # -1 for all energies, otherwise int integers to only plot one-one energy on mT vs param plots
+root.exe -b -q calc_and_plot_syserr.cpp\(-1\) || { echo "D(rho) systematics failed; comparison skipped."; exit 1; }
+compare_methods || exit 1
 # Plot rhofitmax values vs KT, additionally
 #~/.venvs/jupyter/bin/python3.12 rhofitmax_vs_kt_snn.py
 # or:

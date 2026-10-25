@@ -28,8 +28,9 @@ with (base/'calls.log').open('a') as log:
 failure = os.environ.get('MOCK_FAIL','')
 prefix = 'UrQMD_3d_source_0-10cent_all_'
 if name == 'make':
-    for folder in ['analysed','logfiles','figs/fitting/lcms/FFT','figs/syserr/FFT','FFTmethod/results','levyfit/exe','levyfit/object/deps','levyfit/results']:
+    for folder in ['analysed','logfiles','figs/fitting/lcms/FFT','figs/syserr/FFT','figs/comparison/Drho_FFT','FFTmethod/results','levyfit/exe','levyfit/object/deps','levyfit/results']:
         assert (base/folder).is_dir(), 'missing fresh-checkout directory: '+folder
+    if 'compare_methods.exe' in args and failure == 'comparison_build': sys.exit(1)
     if 'pairsource_urqmd.exe' in args:
         (base/'mode').write_text(next(a[4:] for a in args if a.startswith('FFT=')))
 elif name == 'converter_f19.exe':
@@ -68,6 +69,19 @@ elif name == 'calc_and_plot_syserr_FFT.exe':
     if failure == 'final': sys.exit(1)
     if failure == 'final_crash': sys.exit(139)
     if failure in ['invalid_fit','partial_final']: sys.exit(2)
+elif name == 'root.exe' and 'calc_and_plot_syserr.cpp(-1)' in args:
+    if failure == 'drho_final': sys.exit(1)
+    (base/'syserr_results.root').write_text('final')
+elif name == 'compare_methods.exe':
+    assert Path(args[args.index('--drho')+1]) == base/'syserr_results.root'
+    assert Path(args[args.index('--fft')+1]) == base/'FFTmethod/results/syserr_results_FFT.root'
+    assert args[args.index('--energies')+1] == '3p0,27'
+    assert (base/'syserr_results.root').read_text() == 'final'
+    assert (base/'FFTmethod/results/syserr_results_FFT.root').read_text() == 'final', 'comparison started before final plotting finished'
+    if failure == 'comparison': sys.exit(1)
+    (base/'FFTmethod/results/comparison_Drho_FFT.root').write_text('comparison')
+    (base/'FFTmethod/results/comparison_Drho_FFT.csv').write_text('comparison table')
+    (base/'figs/comparison/Drho_FFT/preview.pdf').write_text('figure')
 '''
 
 
@@ -97,20 +111,27 @@ def setup_fits(base):
             (base/'analysed'/(stem(energy)+tag+'_FFT.root')).write_text('fit')
 
 
+def setup_final_outputs(base, drho=True, fft=True):
+    if drho: (base/'syserr_results.root').write_text('final')
+    if fft:
+        (base/'FFTmethod/results').mkdir(parents=True, exist_ok=True)
+        (base/'FFTmethod/results/syserr_results_FFT.root').write_text('final')
+
+
 def run_case(label, settings=None, setup=None, fail='', expected=0):
     base = Path(tempfile.mkdtemp(prefix='fft_batch_'+label+'_', dir='/tmp'))
     for folder in ['bin','drho_analyze_urqmd','FFTmethod','levyfit/exe']:
         (base/folder).mkdir(parents=True, exist_ok=True)
     for executable in ['bin/make','bin/sleep','bin/root.exe','drho_analyze_urqmd/pairsource_urqmd.exe',
                        'drho_analyze_urqmd/converter_f19.exe','FFTmethod/transform_fft.exe','FFTmethod/CqFit.exe',
-                       'FFTmethod/calc_and_plot_syserr_FFT.exe','levyfit/exe/EbE_or_Eavg_1d3d_fit.exe']:
+                       'FFTmethod/calc_and_plot_syserr_FFT.exe','FFTmethod/compare_methods.exe','levyfit/exe/EbE_or_Eavg_1d3d_fit.exe']:
         path = base/executable
         path.write_text(stub)
         path.chmod(0o755)
     assert not (base/'figs').exists()
     (base/'rhofitmax_vs_kt_snn.py').write_text('pass\n')
     config = dict(FFTmethod='true',do_conversion='false',do_analysis='true',do_transform='true',do_fitting='true',
-                  FFT_systematics='true',do_final_plots='true',FFT_qlcms_cuts='(0 1 2)',
+                  FFT_systematics='true',do_final_plots='true',do_comparison='true',FFT_qlcms_cuts='(0 1 2)',
                   energies_low='("3p0")',energies_high='("27")')
     config.update(settings or {})
     script = script_source
@@ -128,7 +149,7 @@ def run_case(label, settings=None, setup=None, fail='', expected=0):
     result = subprocess.run(['bash',str(base/'do_all_urqmd.sh'),'2'],cwd='/tmp',env=env,capture_output=True,text=True,timeout=60)
     (base/'run.log').write_text(result.stdout+result.stderr)
     assert result.returncode == expected, (label,result.returncode,result.stdout,result.stderr,str(base))
-    calls = [json.loads(line) for line in (base/'calls.log').read_text().splitlines()]
+    calls = [json.loads(line) for line in (base/'calls.log').read_text().splitlines()] if (base/'calls.log').exists() else []
     if config['FFTmethod'] == 'true':
         assert old.read_text() == 'original D(rho)'
         assert not any(name in ['root.exe','EbE_or_Eavg_1d3d_fit.exe'] for name,args in calls)
@@ -141,6 +162,8 @@ assert sum(name=='pairsource_urqmd.exe' for name,args in calls) == 6
 assert sum(name=='transform_fft.exe' for name,args in calls) == 10
 assert sum(name=='CqFit.exe' for name,args in calls) == 14
 assert sum(name=='calc_and_plot_syserr_FFT.exe' for name,args in calls) == 1
+assert not any(name=='compare_methods.exe' for name,args in calls)
+assert 'Skipping method comparison' in (base/'run.log').read_text()
 
 base,calls = run_case('replace_existing',setup=lambda base:(setup_pairs(base),setup_cq(base),setup_fits(base)))
 assert sum(name=='pairsource_urqmd.exe' for name,args in calls) == 6
@@ -154,14 +177,47 @@ assert not any(name=='calc_and_plot_syserr_FFT.exe' for name,args in calls)
 base,calls = run_case('transform_only',{'do_analysis':'false','do_fitting':'false','do_final_plots':'false'},setup=setup_pairs)
 assert sum(name=='transform_fft.exe' for name,args in calls) == 10
 assert not any(name in ['CqFit.exe','calc_and_plot_syserr_FFT.exe'] for name,args in calls)
-base,calls = run_case('invalid_fit_continues',fail='invalid_fit',expected=2)
+base,calls = run_case('invalid_fit_continues',setup=lambda base:setup_final_outputs(base,fft=False),fail='invalid_fit',expected=2)
 assert sum(name=='CqFit.exe' for name,args in calls) == 14
 assert any(name=='calc_and_plot_syserr_FFT.exe' for name,args in calls)
+assert any(name=='compare_methods.exe' for name,args in calls)
 for failure in ['analysis','transform','fit','final','final_crash']:
-    base,calls = run_case('failure_'+failure,fail=failure,expected=1)
+    base,calls = run_case('failure_'+failure,setup=setup_final_outputs,fail=failure,expected=1)
     if failure not in ['final','final_crash']: assert not any(name=='calc_and_plot_syserr_FFT.exe' for name,args in calls)
+    assert not any(name=='compare_methods.exe' for name,args in calls)
 base,calls = run_case('incomplete_systematics',fail='partial_final',expected=2)
 base,calls = run_case('legacy',{'FFTmethod':'false','do_fitting':'false'})
 assert not any(name in ['transform_fft.exe','CqFit.exe','calc_and_plot_syserr_FFT.exe'] for name,args in calls)
 assert any(name=='make' and 'FFT=0' in args for name,args in calls)
+
+base,calls = run_case('comparison_after_fft',setup=lambda base:setup_final_outputs(base,fft=False))
+names = [name for name,args in calls]
+assert names.index('calc_and_plot_syserr_FFT.exe') < names.index('compare_methods.exe')
+assert (base/'FFTmethod/results/comparison_Drho_FFT.root').is_file()
+assert (base/'FFTmethod/results/comparison_Drho_FFT.csv').is_file()
+assert (base/'figs/comparison/Drho_FFT/preview.pdf').is_file()
+assert (base/'logfiles/comparison_Drho_FFT.log').is_file()
+base,calls = run_case('comparison_after_drho',{'FFTmethod':'false','do_fitting':'false'},
+                      setup=lambda base:setup_final_outputs(base,drho=False))
+assert any(name=='compare_methods.exe' for name,args in calls)
+assert [name for name,args in calls][-1] == 'compare_methods.exe'
+
+comparison_only = dict(do_analysis='false',do_conversion='false',do_transform='false',do_fitting='false',do_final_plots='false')
+base,calls = run_case('comparison_only',comparison_only,setup=setup_final_outputs)
+assert [name for name,args in calls] == ['make','compare_methods.exe']
+assert 'compare_methods.exe' in calls[0][1]
+base,calls = run_case('comparison_disabled',dict(comparison_only,do_comparison='false'),setup=setup_final_outputs)
+assert not any(name=='compare_methods.exe' for name,args in calls)
+base,calls = run_case('comparison_missing_fft',comparison_only,setup=lambda base:setup_final_outputs(base,fft=False))
+assert not any(name=='compare_methods.exe' for name,args in calls)
+assert 'Skipping method comparison' in (base/'run.log').read_text()
+base,calls = run_case('comparison_empty_input',comparison_only,
+                      setup=lambda base:(setup_final_outputs(base),(base/'syserr_results.root').write_text('')))
+assert not any(name=='compare_methods.exe' for name,args in calls)
+for failure in ['comparison','comparison_build']:
+    base,calls = run_case('failure_'+failure,comparison_only,setup=setup_final_outputs,fail=failure,expected=1)
+    assert (base/'syserr_results.root').read_text() == 'final'
+    assert (base/'FFTmethod/results/syserr_results_FFT.root').read_text() == 'final'
+base,calls = run_case('failure_drho_final',{'FFTmethod':'false','do_fitting':'false'},setup=setup_final_outputs,fail='drho_final',expected=1)
+assert not any(name=='compare_methods.exe' for name,args in calls)
 print('All batch checks passed without real event files or production executables.')

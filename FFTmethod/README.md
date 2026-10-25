@@ -38,6 +38,7 @@ do_transform=true
 do_fitting=true
 FFT_systematics=true
 do_final_plots=true
+do_comparison=true # compare with D(rho) when both final ROOT outputs are available
 ```
 
 Then run `./do_all_urqmd.sh 2` for at most two concurrent jobs. It uses the
@@ -46,8 +47,8 @@ header with `FFT=1` (`FFT=0` when `FFTmethod=false`). FFT averages all stored
 events; the D(rho) averaging/rho-range scans and plotting are skipped.
 Pair trees, C(q) and fit results end up in `analysed/`, with logs in `logfiles/`.
 The script creates all output folders, including `figs/fitting/lcms/FFT`,
-`figs/syserr/FFT` and `FFTmethod/results`, so a fresh checkout needs no empty
-directories copied from another machine. Both plotting programs also create
+`figs/syserr/FFT`, `figs/comparison/Drho_FFT` and `FFTmethod/results`, so a fresh checkout needs no empty
+directories copied from another machine. The plotting programs also create
 their own output directories when run separately.
 Enabled stages regenerate their outputs, including pair trees already in
 `analysed/`. Set `do_analysis=false` to reuse pair trees in `analysed/` or
@@ -55,6 +56,7 @@ Enabled stages regenerate their outputs, including pair trees already in
 Set `do_final_plots=false` for a transform-only run. For final plotting only,
 turn analysis, conversion, transformation and fitting off, leaving
 `FFT_systematics=true` and `do_final_plots=true`.
+Set `do_comparison=false` to skip the separate method comparison.
 Input/processing failures exit with code 1. Invalid fits are saved, the other
 variations and final calculator still run, and code 2 reports incomplete results.
 No missing variation is silently counted as zero systematic uncertainty.
@@ -71,6 +73,7 @@ No missing variation is silently counted as zero systematic uncertainty.
   the fit bins, sets Minuit parameters and writes results.
 - `calc_and_plot_syserr_FFT.cpp`: read seven fits, calculate directional
   systematics, write graphs/table, and draw the final figures.
+- `compare_methods.cpp`: read both final ROOT outputs and draw method comparisons.
 - `fft_common.h`: filenames and copying file information.
 
 Default source grid: **251 bins, -100 to +100 fm** on each axis.
@@ -140,9 +143,57 @@ alpha->Draw("AP"); // keep file open while using the graph
 ```
 
 The small `fit_results_FFT` tree is retained for fit status, raw/scaled errors
-and the full covariance, alongside TF3 models. Errors scale by `sqrt(chi2/NDF)`.
+and the full covariance, alongside TF3 models.
 Rerun `CqFit` on existing C(q) files to update the fit results and graphs. Exit code 2
 means at least one fit was marked invalid; 1 means an input/processing error.
+
+## Uniform errors and chi-square
+
+Following the [Supplemental Material of arXiv:2610.29760](https://arxiv.org/pdf/2610.29760#page=6),
+we fit with a common bin error and estimate its scale from the fit residuals.
+Uniform weighting is a convention here: an FFT does not produce independent
+bins with a known statistical error. Fourier-bin correlations remain omitted,
+so these parameter uncertainties are estimates.
+
+For the input bin error `sigma0` (the transformer defaults to 1), the procedure is:
+
+```text
+SSE = sum((Cq - model)^2) over the selected fit sphere
+NDF = number of selected bins - number of fitted parameters
+chi2_raw = SSE / sigma0^2
+error_scale = sqrt(chi2_raw / NDF)
+sigma_eff = sigma0 * error_scale = sqrt(SSE / NDF)
+errors = errors_raw * error_scale
+covariance = covariance_raw * error_scale^2
+chi2 = SSE / sigma_eff^2                 # equals NDF by construction
+```
+
+A raw `chi2_raw/NDF = 0.00012` with `sigma0 = 1` simply means the residual
+scale is about 0.011. It is not a calibrated goodness-of-fit statistic.
+The rescaled ratio is 1 by definition and cannot independently demonstrate
+that the model is a good description either. `residual_rms` and the data/model
+plots retain information about the actual discrepancy.
+
+`CqFit` already applied the parameter/covariance rescaling before this reporting
+change; it must not be applied twice. New fit files use `cqfit_error_schema=2`:
+
+| Field | Meaning |
+| --- | --- |
+| `chi2_raw`, `chi2_ndf_raw` | Before estimating the error scale, using `bin_error_raw` |
+| `chi2`, `chi2_ndf` | After rescaling, using `bin_error`; ratio is 1 by construction |
+| `bin_error_raw`, `bin_error` | Input placeholder error and effective residual-based error |
+| `error_scale` | `sqrt(chi2_ndf_raw)`; applied once to parameter errors |
+| `errors_raw`, `covariance_raw` | Hesse results converted to the input error scale |
+| `errors`, `covariance` | Final residual-rescaled parameter errors and covariance |
+| `residual_rms` | `sqrt(SSE / number_of_selected_bins)` |
+
+The saved TF3 and fit plots use the rescaled chi-square, while raw values remain
+available in the tree, plot annotations and log. Files without the schema marker
+used `chi2` and `chi2_ndf` for the raw quantities. Rerunning only `CqFit` updates
+these diagnostics; the existing C(q) can be reused. Central values and the
+already rescaled parameter errors are unaffected. If SSE is exactly zero,
+normalization to unity is undefined; chi-square is saved as NaN and the fit is
+flagged invalid rather than inventing a finite uncertainty scale.
 
 ## Fit figures
 
@@ -151,8 +202,9 @@ invalid fits labelled for inspection. The layout follows `example.png`: adjoinin
 out/side/long panels, black C(q) points, and a red curve from the single 3D fit.
 The data are central-axis slices `(q_out,0,0)`, `(0,q_side,0)`, `(0,0,q_long)`.
 The model is solid inside `|q| <= qmax` and dashed outside. The displayed C(q)
-errors use the same `sqrt(chi2/NDF)` scaling as the fit, and the annotations show
-the fitted parameters, raw chi-square, fit status and any parameter-limit flag.
+errors use the same `sqrt(chi2_raw/NDF)` scaling as the fit. Annotations show
+the fitted parameters, rescaled and raw chi-square ratios, fit status and any
+parameter-limit flag; the normalized ratio is labelled as such.
 Energy, centrality and the analysis qLCMS-cut label come from the input metadata.
 
 When run from the repository root (as the batch script does), figures go to:
@@ -242,10 +294,24 @@ The outputs are separate from the D(rho) results:
   give the collision-energy dependence at fixed kT.
 - `FFTmethod/results/syserr_results_breakdown_FFT.csv`: one row per energy,
   kT and parameter, with absolute errors from each source, totals and status.
+- `FFTmethod/results/syserr_results_graphs_FFT.txt`: ROOT graph names followed
+  by `mT_GeV y err_up err_dn` or `sqrtSNN_GeV y err_up err_dn` and point rows,
+  matching the D(rho) text-table convention. Statistical, systematic, total
+  and individual-source graphs are exported separately, with 12 significant digits.
+- `FFTmethod/results/syserr_results_percent_breakdown_FFT.csv` and
+  `syserr_results_percent_table_FFT.tex`: mean relative systematic uncertainties
+  per energy, source and parameter. These are arithmetic means over complete
+  kT bins with nonzero central values; CSV bin counts make omissions explicit.
+  The total is combined in quadrature per kT bin before averaging percentages.
 - `figs/syserr/FFT/<energy>/`: mT plots and signed percentage contributions.
 - `figs/syserr/FFT/`: energy overlays versus mT and fixed-kT plots versus
   collision energy, all as PNG/PDF. Bars show statistical errors; boxes show
   systematic errors. The widths of energy-axis boxes are only for display.
+
+Each ROOT graph's object name agrees with its file key, and its axes carry
+the quantity and units. The final calculator consumes the already scaled
+baseline parameter errors without any further chi-square rescaling. Custom
+`--output` names give the accompanying tables the same filename prefix.
 
 The calculator matches graph points by kT, not graph point index. A point
 missing from any required variation is omitted from the final graphs and
@@ -288,6 +354,93 @@ existing `0-10` label rather than introducing new centrality selection.
 The D(rho) fitter can read old trees or the magnitude branches of FFT trees.
 Its optional final argument supplies an explicit input filename. Its usual
 output names and `calc_and_plot_syserr.cpp` remain as before.
+
+## Comparing D(rho) and FFT
+
+From the repository root, after running both final plotters:
+
+```bash
+make -C FFTmethod compare_methods.exe
+FFTmethod/compare_methods.exe
+```
+
+This reads `syserr_results.root` and
+`FFTmethod/results/syserr_results_FFT.root`. No analysis or fits are repeated.
+To select files, energies or the kT bins used in energy plots:
+
+```bash
+FFTmethod/compare_methods.exe \
+  --drho syserr_results.root \
+  --fft FFTmethod/results/syserr_results_FFT.root \
+  --energies 3p0,5p2,27 --kt 0,4
+```
+
+By default, all energies present in both outputs and all ten kT bins are used.
+The kT plots always include every valid bin; `--kt` selects the energy plots.
+The plotter creates its directories automatically and saves PNG/PDF figures in
+`figs/comparison/Drho_FFT/`:
+
+- `<energy>/kT_<parameter>_<energy>_comparison_FFT`: separate D(rho) and FFT
+  panels with a common vertical scale, for alpha and each radius.
+- `sNN_radii_kt<K>_comparison_FFT`: Rout, Rside and Rlong in three panels
+  with a common vertical scale, overlaying the methods.
+- Single panels for alpha versus energy and for the derived quantities versus
+  kT and energy: `R_RMS`, `Rout_over_Rside`, `Rout2_minus_Rside2`.
+- Normalizations N and lambda in separate, explicitly labelled method panels.
+  They have different definitions and are not overlaid as a common parameter.
+
+D(rho) uses solid red lines, filled markers and `/` hatching; FFT uses dashed
+blue lines, open markers and `\\` hatching. Lines guide the eye. Boxes show
+systematic uncertainties and bars show the baseline errors saved by each final
+plotter. D(rho)'s bars are the existing spreads across accepted event-group fits;
+FFT's bars are residual-rescaled fit errors. Their meanings differ.
+Horizontal box widths follow the kT-bin edges in kT plots; in energy plots
+they are chosen only for visibility and do not represent energy uncertainties.
+The D(rho) final plotter now also saves these existing baseline graphs as
+`<parameter>_stat_<energy>`. Older ROOT files still work: their baseline bars
+are omitted, flagged on the figures, and recorded as `nan` in the CSV.
+
+The averaged radius is defined consistently here as
+`R_RMS = sqrt((Rout² + Rside² + Rlong²)/3)`, computed from each method's reported
+radii. It does not average over kT or energies. In D(rho) this can differ from
+the saved `R` graph, which averages per-fit RMS radii over event groups.
+Derived errors use first-order propagation of the saved marginal errors,
+separately for baseline and systematic uncertainties. Negative derivatives
+swap the asymmetric error directions (for example, increasing Rside decreases
+Rout/Rside). Radius correlations are unavailable in these final graphs and are
+neglected, so the derived uncertainty bands are approximations.
+
+The plotted graphs, canvases, input filenames and conventions are saved in
+`FFTmethod/results/comparison_Drho_FFT.root`, with a tidy CSV beside it.
+Graphs use kT coordinates even though the final plotters save mT; missing bins
+are matched by coordinate and never replaced with zeros. Negative and zero
+values of Rout²−Rside² are retained. Existing input files are read only.
+`--output NAME`, `--plot-dir DIR` and `--no-plots` are also available.
+The batch script runs the comparison after either method's final plotter when
+`do_comparison=true` (the default). It first checks that both final ROOT files
+exist and are nonempty; otherwise it prints a skip message. The comparison uses
+the script's selected energies and all kT bins. Its log is
+`logfiles/comparison_Drho_FFT.log`. Invalid ROOT files or comparison/build
+failures exit with code 1; incomplete FFT fits still retain exit code 2 when
+the comparison succeeds. FFT processing failures and failures in either final
+plotter stop the script before comparison.
+
+To run only the comparison from saved final ROOT files, set these switches
+at the beginning of `do_all_urqmd.sh` and then run the script normally:
+
+```bash
+FFTmethod=true
+do_analysis=false
+do_conversion=false
+do_transform=false
+do_fitting=false
+do_final_plots=false
+do_comparison=true
+```
+
+This builds only the comparison executable and leaves the analyses and final
+plotters untouched. For a transform-only or baseline-only run, turn comparison
+off too if saved final outputs should not be plotted.
 
 Run the numerical and compatibility checks with `make -C FFTmethod check`.
 The test code lives under `tests/`, separately from the analysis workflow.

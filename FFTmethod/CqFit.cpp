@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <map>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -43,7 +44,7 @@ double AltChi2(const double* par)
 }
 
 // Central-axis slices of the same 3D data/model used in the fit.
-bool plotCqFit(TH3* cq, TF3& fit, int kt, double errorScale, bool valid, bool atLimit,
+bool plotCqFit(TH3* cq, TF3& fit, int kt, double errorScale, double rawChi2Ndf, bool valid, bool atLimit,
                TFile* input, const TString& plotName)
 {
   TString folder = gSystem->DirName(plotName);
@@ -129,12 +130,14 @@ bool plotCqFit(TH3* cq, TF3& fit, int kt, double errorScale, bool valid, bool at
       text.DrawLatex(left,0.88,sample);
       text.DrawLatex(left,0.72,Form("#alpha = %.3f #pm %.2g", fit.GetParameter(4),fit.GetParError(4)));
       text.DrawLatex(left,0.66,Form("#lambda = %.3f #pm %.2g", fit.GetParameter(0),fit.GetParError(0)));
-      text.DrawLatex(left,0.60,Form("#chi^{2}_{raw}/NDF = %.2g", fit.GetChisquare()/fit.GetNDF()));
+      text.DrawLatex(left,0.60,Form("#chi^{2}_{sc}/NDF = %.2f", fit.GetChisquare()/fit.GetNDF()));
     } else if(d == 1) {
       text.DrawLatex(left,0.935,"Like-sign #pi#pi, event averaged");
       if(kt >= 0 && kt < NKT)
         text.DrawLatex(left,0.88,Form("%.3f < k_{T} < %.3f GeV/c", ktbins[kt],ktbins[kt+1]));
       text.DrawLatex(left,0.72,Form("#sigma_{C} = %.3g (rescaled)", cq->GetBinError(zero[0],zero[1],zero[2])*errorScale));
+      text.DrawLatex(left,0.66,Form("#chi^{2}_{raw}/NDF = %.2g", rawChi2Ndf));
+      text.DrawLatex(left,0.60,"Scaled by construction");
     } else {
       text.DrawLatex(left,0.935,Form("Spherical fit: |q| #leq %.2f GeV/c", qmax));
       if(cut && cut->GetVal() >= 0 && cut->GetVal() < 3)
@@ -229,7 +232,7 @@ int main(int argc, char** argv)
   int kt, status, covarianceStatus;
   Long64_t npoints, NDF;
   bool valid, atLimit;
-  double qmax, chi2, chi2ndf, scale, binError, edm;
+  double qmax, chi2, chi2ndf, chi2Raw, chi2ndfRaw, scale, binError, binErrorScaled, residualRMS, edm;
   double par[NPARS], errorsRaw[NPARS], errors[NPARS], covRaw[25], cov[25];
   TTree results("fit_results_FFT", "3D Levy fits of C(q)");
   results.SetDirectory(nullptr);
@@ -238,6 +241,8 @@ int main(int argc, char** argv)
   results.Branch("valid", &valid); results.Branch("at_parameter_limit", &atLimit);
   results.Branch("npoints", &npoints); results.Branch("ndf", &NDF); results.Branch("qmax", &qmax);
   results.Branch("chi2", &chi2); results.Branch("chi2_ndf", &chi2ndf);
+  results.Branch("chi2_raw", &chi2Raw); results.Branch("chi2_ndf_raw", &chi2ndfRaw);
+  results.Branch("bin_error", &binErrorScaled); results.Branch("residual_rms", &residualRMS);
   results.Branch("error_scale", &scale); results.Branch("bin_error_raw", &binError); results.Branch("edm", &edm);
   results.Branch("parameters", par, "parameters[5]/D");
   results.Branch("errors_raw", errorsRaw, "errors_raw[5]/D"); results.Branch("errors", errors, "errors[5]/D");
@@ -316,11 +321,17 @@ int main(int argc, char** argv)
     bool minimized = minimizer.Minimize(), hesse = minimizer.Hesse();
     status = minimizer.Status(); covarianceStatus = minimizer.CovMatrixStatus(); edm = minimizer.Edm();
 
-    // Convert the fixed numerical weight back to the input error, then rescale
-    // errors by sqrt(chi2/NDF). Final errors do not depend on that common weight.
+    // Uniform input errors have an arbitrary scale. Use the residual variance
+    // to estimate that scale, as in arXiv:2610.29760, Supplemental Material.
+    // Keep the raw chi-square; the rescaled one is NDF by construction.
     double weightRatio2 = pow(binError/fitWeight, 2);
-    chi2 = AltChi2(minimizer.X()) / weightRatio2;
-    chi2ndf = chi2/NDF; scale = sqrt(chi2ndf);
+    double sumSquares = AltChi2(minimizer.X())*fitWeight*fitWeight;
+    chi2Raw = sumSquares/(binError*binError);
+    chi2ndfRaw = chi2Raw/NDF; scale = sqrt(chi2ndfRaw);
+    binErrorScaled = binError*scale;
+    residualRMS = sqrt(sumSquares/npoints);
+    chi2 = binErrorScaled > 0 ? sumSquares/(binErrorScaled*binErrorScaled) : numeric_limits<double>::quiet_NaN();
+    chi2ndf = chi2/NDF;
     valid = minimized && hesse && status == 0 && covarianceStatus == 3 && isfinite(chi2ndf);
     atLimit = false;
     double lower[NPARS] = {0.,0.05,0.05,0.05,0.2}, upper[NPARS] = {2.,100.,100.,100.,2.};
@@ -332,7 +343,7 @@ int main(int argc, char** argv)
       if(!isfinite(par[p]) || !isfinite(errors[p])) valid = false;
       for(int q = 0; q < NPARS; ++q) {
         covRaw[p*NPARS+q] = minimizer.CovMatrix(p,q)*weightRatio2;
-        cov[p*NPARS+q] = covRaw[p*NPARS+q]*chi2ndf;
+        cov[p*NPARS+q] = covRaw[p*NPARS+q]*chi2ndfRaw;
       }
     }
     if(!output) {
@@ -345,7 +356,7 @@ int main(int argc, char** argv)
       -qmax,qmax, -qmax,qmax, -qmax,qmax);
     fit.SetParNames("lambda", "R_out", "R_side", "R_long", "alpha");
     fit.SetParameters(par); fit.SetParErrors(errors); fit.SetNDF(NDF); fit.SetChisquare(chi2); fit.Write();
-    if(makePlots && !plotCqFit(hCq,fit,kt,scale,valid,atLimit,input,plotFolder + "/" + name + "_FFT")) {
+    if(makePlots && !plotCqFit(hCq,fit,kt,scale,chi2ndfRaw,valid,atLimit,input,plotFolder + "/" + name + "_FFT")) {
       cerr << "Could not save fit plots in " << plotFolder << endl; return 1;
     }
     results.Fill(); fitted.push_back(histogram);
@@ -358,6 +369,7 @@ int main(int argc, char** argv)
     }
     if(!valid) ++failed;
     cout << name << ": kT bin=" << kt << ", qmax=" << qmax << " GeV/c, status=" << status << ", chi2/ndf=" << chi2ndf
+         << " (rescaled by construction), raw=" << chi2ndfRaw << ", sigma_C=" << binErrorScaled << ", residual_RMS=" << residualRMS
          << ", alpha=" << par[4] << ", radii=" << par[1] << ',' << par[2] << ',' << par[3] << endl;
     delete hCq;
   }
@@ -366,7 +378,9 @@ int main(int argc, char** argv)
   if(sources) { TTree* copy = sources->CloneTree(-1, "fast"); copy->Write(); delete copy; }
   TNamed("cqfit_input", inputName.Data()).Write();
   TNamed("cqfit_parameter_order", "lambda,R_out,R_side,R_long,alpha").Write();
-  TNamed("cqfit_error_convention", "errors=errors_raw*sqrt(chi2/ndf); covariance=covariance_raw*chi2/ndf; Fourier bins are correlated").Write();
+  TParameter<int>("cqfit_error_schema", 2).Write();
+  TNamed("cqfit_error_convention", "error_scale=sqrt(chi2_ndf_raw); bin_error=bin_error_raw*error_scale; errors=errors_raw*error_scale; covariance=covariance_raw*error_scale^2; chi2 and chi2_ndf use bin_error and are rescaled by construction; Fourier-bin correlations are neglected").Write();
+  TNamed("cqfit_uncertainty_reference", "https://arxiv.org/pdf/2610.29760#page=6").Write();
   TNamed("cqfit_selection", "Spherical |q|<=qmax, including q=0 and both signs").Write();
   TParameter<int>("cqfit_range_variation", fitRange).Write();
   TParameter<double>("cqfit_qmax_scale", qmaxScale).Write();

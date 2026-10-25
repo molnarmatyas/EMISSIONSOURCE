@@ -1,6 +1,7 @@
 // Deterministic ROOT fixtures for the final calculator, separate from real analysis data.
 #include "../fft_common.h"
 #include <TGraphAsymmErrors.h>
+#include <TAxis.h>
 #include <TNamed.h>
 #include <TParameter.h>
 #include <TTree.h>
@@ -8,6 +9,7 @@
 #include <array>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <sstream>
 #include <stdexcept>
 #include <sys/wait.h>
@@ -99,6 +101,8 @@ int main(int argc,char** argv) {
         auto* syst=result.Get<TGraphAsymmErrors>(Form("%s_syserr_3p0_FFT",names[p]));
         auto* total=result.Get<TGraphAsymmErrors>(Form("%s_total_3p0_FFT",names[p]));
         require(stat && syst && total && stat->GetN()==NKT,"Missing final graph");
+        require(std::string(stat->GetName())==std::string(names[p])+"_stat_3p0_FFT","Graph key and object name differ");
+        require(std::string(stat->GetXaxis()->GetTitle())=="m_{T} [GeV/c^{2}]","Missing mT axis units");
         for(int kt=0; kt<NKT; ++kt) {
           near(stat->GetPointX(kt),std::sqrt(kT_center[kt]*kT_center[kt]+Mass2_pi));
           near(stat->GetPointY(kt),truth[p]+.01*kt); near(stat->GetErrorYlow(kt),.02); near(stat->GetErrorYhigh(kt),.03);
@@ -113,6 +117,7 @@ int main(int argc,char** argv) {
         near(grid->GetErrorYlow(0),.5); near(grid->GetErrorYhigh(0),0.);
         auto* energy=result.Get<TGraphAsymmErrors>(Form("%s_sNN_stat_kt0_FFT",names[p]));
         require(energy && energy->GetN()==2,"Missing energy plot graph");
+        require(std::string(energy->GetName())==std::string(names[p])+"_sNN_stat_kt0_FFT","Energy graph object name differs from key");
         near(energy->GetPointX(0),3.); near(energy->GetPointX(1),27.); near(energy->GetPointY(1),truth[p]+.1);
       }
       require(fs::file_size(directory/"figures/final/3p0/mT_alpha_FFT.png")>1000,"Missing final mT plot");
@@ -125,6 +130,50 @@ int main(int argc,char** argv) {
       std::string line; int rows=0;
       while(std::getline(csv,line)) { require(std::count(line.begin(),line.end(),',')==19,"Malformed breakdown row"); ++rows; }
       require(rows==1+2*NKT*5,"Breakdown lost rows");
+    }
+    {
+      TFile result((directory/"results/summary_FFT.root").c_str());
+      std::ifstream text(directory/"results/summary_graphs_FFT.txt");
+      std::string name,header,line; int blocks=0;
+      while(std::getline(text,name)) {
+        if(name.empty()) continue;
+        std::getline(text,header);
+        auto* graph=result.Get<TGraphAsymmErrors>(name.c_str());
+        require(graph && header.find(" y err_up err_dn")!=std::string::npos,"Malformed graph text block");
+        for(int i=0; i<graph->GetN(); ++i) {
+          std::getline(text,line); std::istringstream values(line); double x,y,up,down;
+          require(bool(values>>x>>y>>up>>down),"Malformed graph values");
+          near(x,graph->GetPointX(i)); near(y,graph->GetPointY(i));
+          near(up,graph->GetErrorYhigh(i)); near(down,graph->GetErrorYlow(i));
+        }
+        std::getline(text,line); require(line.empty(),"Missing graph block separator"); ++blocks;
+      }
+      require(blocks==2*6*5+2*NKT*5,"Missing graph text tables");
+    }
+    {
+      std::ifstream csv(directory/"results/summary_percent_breakdown_FFT.csv");
+      std::string line; std::getline(csv,line); int rows=0;
+      const std::vector<std::string> parameters={"lambda","R_out","R_side","R_long","alpha"};
+      const std::vector<std::string> sources={"qLCMS","qFit","binning","total"};
+      const double down[]={.2,0.,.5,std::sqrt(.29)},up[]={.1,.4,0.,std::sqrt(.17)};
+      while(std::getline(csv,line)) {
+        std::istringstream record(line); std::vector<std::string> fields; std::string field;
+        while(std::getline(record,field,',')) fields.push_back(field);
+        require(fields.size()==7 && std::stoi(fields[4])==NKT,"Malformed percent summary");
+        int p=std::find(parameters.begin(),parameters.end(),fields[2])-parameters.begin();
+        int s=std::find(sources.begin(),sources.end(),fields[3])-sources.begin();
+        require(p<5 && s<4,"Unknown summary parameter/source");
+        double expectedDown=0.,expectedUp=0.;
+        for(int kt=0; kt<NKT; ++kt) {
+          double value=truth[p]+(fields[0]=="27" ? .1 : 0.)+.01*kt;
+          expectedDown+=100.*down[s]/value/NKT; expectedUp+=100.*up[s]/value/NKT;
+        }
+        near(std::stod(fields[5]),expectedDown); near(std::stod(fields[6]),expectedUp); ++rows;
+      }
+      require(rows==2*5*4,"Missing percent summary rows");
+      std::ifstream latex(directory/"results/summary_percent_table_FFT.tex");
+      std::string table((std::istreambuf_iterator<char>(latex)),std::istreambuf_iterator<char>());
+      require(table.find("\\begin{table}")!=std::string::npos && table.find("FFT binning")!=std::string::npos && table.find("nan")==std::string::npos,"Malformed LaTeX summary");
     }
     {
       TFile varied((directory/"analysed"/filename("3p0",4)).c_str(),"UPDATE");

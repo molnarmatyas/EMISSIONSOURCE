@@ -2296,6 +2296,17 @@ int calc_and_plot_syserr(int energy_to_plot=-1)
     outfile->cd();
     for(int ie=0; ie<NENERGIES; ie++)
     {
+        // Save the baseline bars too, so the separate method comparison can
+        // read the same uncertainties shown here. These are the existing
+        // spreads across the accepted event-group fits, not errors on a mean.
+        TGraphAsymmErrors* baseline[] = {alpha_default[ie], R_default[ie], N_default[ie],
+                                        R_out_default[ie], R_side_default[ie], R_long_default[ie]};
+        const char* names[] = {"alpha", "R", "N", "R_out", "R_side", "R_long"};
+        for(int p=0; p<6; ++p) if(baseline[p])
+        {
+            baseline[p]->SetName(Form("%s_stat_%s", names[p], energies[ie]));
+            baseline[p]->Write();
+        }
         if(alpha_syserr[ie]) { alpha_syserr[ie]->SetName(Form("alpha_syserr_%s", energies[ie])); alpha_syserr[ie]->Write(); }
         if(R_syserr[ie]) { R_syserr[ie]->SetName(Form("R_syserr_%s", energies[ie])); R_syserr[ie]->Write(); }
         if(N_syserr[ie]) { N_syserr[ie]->SetName(Form("N_syserr_%s", energies[ie])); N_syserr[ie]->Write(); }

@@ -103,6 +103,18 @@ void systematicShift(double center, double first, double second, double& down, d
   }
 }
 
+// ROOT objects and the text table share names, units and the up/down convention.
+void writeGraph(TGraphAsymmErrors& graph, TString name, int parameter, ofstream& text, bool energyAxis=false)
+{
+  graph.SetNameTitle(name,Form(";%s;%s",energyAxis ? "#sqrt{s_{NN}} [GeV]" : "m_{T} [GeV/c^{2}]",titles[parameter]));
+  graph.Write();
+  text << name << '\n' << (energyAxis ? "sqrtSNN_GeV" : "mT_GeV") << " y err_up err_dn\n" << setprecision(12);
+  for(int i=0; i<graph.GetN(); ++i)
+    text << graph.GetPointX(i) << ' ' << graph.GetPointY(i) << ' '
+         << graph.GetErrorYhigh(i) << ' ' << graph.GetErrorYlow(i) << '\n';
+  text << '\n';
+}
+
 // Statistical bars and systematic boxes. Used for per-energy and overlay plots.
 void drawPlot(const vector<TGraphAsymmErrors*>& stat, const vector<TGraphAsymmErrors*>& syst,
               const vector<TString>& labels, TString heading, const char* xTitle, const char* yTitle,
@@ -182,10 +194,20 @@ int main(int argc, char** argv)
   gROOT->SetBatch(true); gStyle->SetOptStat(0); gStyle->SetOptTitle(0);
   TFile output(outputName,"RECREATE");
   if(output.IsZombie()) return 1;
-  TString tableName=outputName; tableName.Resize(tableName.Length()-9); tableName+="_breakdown_FFT.csv";
+  TString outputStem=outputName; outputStem.Resize(outputStem.Length()-9);
+  TString tableName=outputStem+"_breakdown_FFT.csv";
   ofstream csv(tableName.Data());
-  if(!csv) { cerr << "Cannot create " << tableName << endl; return 1; }
+  ofstream graphText((outputStem+"_graphs_FFT.txt").Data());
+  ofstream percentCSV((outputStem+"_percent_breakdown_FFT.csv").Data());
+  ofstream percentLatex((outputStem+"_percent_table_FFT.tex").Data());
+  if(!csv || !graphText || !percentCSV || !percentLatex) { cerr << "Cannot create output tables for " << outputName << endl; return 1; }
   csv << setprecision(12) << "energy,kt,kt_low,kt_high,mT,parameter,value,stat_down,stat_up,qLCMS_down,qLCMS_up,qFit_down,qFit_up,binning_down,binning_up,sys_down,sys_up,total_down,total_up,status\n";
+  percentCSV << setprecision(12) << "energy,energy_GeV,parameter,source,n_kT_bins,down_percent,up_percent\n";
+  percentLatex << "\\begin{table}\n\\centering\n"
+    << "\\caption{Mean relative systematic uncertainties in percent over complete $k_T$ bins. Bin counts are given in the accompanying CSV table.}\n"
+    << "\\begin{tabular}{llccccc}\n\\hline\n"
+    << "$\\sqrt{s_{NN}}$ [GeV] & Source & $\\alpha$ & $\\lambda$ & $R_{\\mathrm{out}}$ & $R_{\\mathrm{side}}$ & $R_{\\mathrm{long}}$ \\\\\n\\hline\n"
+    << fixed << setprecision(2);
   TFile* drho=nullptr;
   if(drhoName!="") {
     drho=TFile::Open(drhoName,"READ");
@@ -252,12 +274,24 @@ int main(int argc, char** argv)
     TString folder=plotDir+"/"+energy; gSystem->mkdir(folder,true);
     TString label=Form("#sqrt{s_{NN}} = %g GeV",energyValue(energy));
     TString heading="UrQMD Au+Au, "+data[0].centrality+"%, FFT; "+label;
+    double percentDown[NSYST+1][NPAR]={}, percentUp[NSYST+1][NPAR]={};
+    int percentCount[NPAR]={};
     output.cd();
     for(int p=0; p<NPAR; ++p) {
-      stat[p].Write(Form("%s_stat_%s_FFT",parameters[p],energy.Data()));
-      syst[p].Write(Form("%s_syserr_%s_FFT",parameters[p],energy.Data()));
-      total[p].Write(Form("%s_total_%s_FFT",parameters[p],energy.Data()));
-      for(int s=0; s<NSYST; ++s) contribution[s][p].Write(Form("%s_%s_%s_FFT",parameters[p],sources[s],energy.Data()));
+      writeGraph(stat[p],Form("%s_stat_%s_FFT",parameters[p],energy.Data()),p,graphText);
+      writeGraph(syst[p],Form("%s_syserr_%s_FFT",parameters[p],energy.Data()),p,graphText);
+      writeGraph(total[p],Form("%s_total_%s_FFT",parameters[p],energy.Data()),p,graphText);
+      for(int s=0; s<NSYST; ++s) writeGraph(contribution[s][p],Form("%s_%s_%s_FFT",parameters[p],sources[s],energy.Data()),p,graphText);
+      for(int i=0; i<stat[p].GetN(); ++i) {
+        double value=abs(stat[p].GetPointY(i));
+        if(value<=1.e-12) continue; // A relative uncertainty is undefined at zero.
+        ++percentCount[p];
+        for(int s=0; s<=NSYST; ++s) {
+          auto& graph=s<NSYST ? contribution[s][p] : syst[p];
+          percentDown[s][p]+=100.*graph.GetErrorYlow(i)/value;
+          percentUp[s][p]+=100.*graph.GetErrorYhigh(i)/value;
+        }
+      }
       drawPlot({&stat[p]},{&syst[p]},{"FFT C(q)"},heading,"m_{T} [GeV/c^{2}]",titles[p],folder+"/mT_"+parameters[p]+"_FFT");
       drawPlot({&relative[0][p],&relative[1][p],&relative[2][p]},
                {&relative[0][p],&relative[1][p],&relative[2][p]},
@@ -279,6 +313,24 @@ int main(int argc, char** argv)
       allStat[p].push_back((TGraphAsymmErrors*)stat[p].Clone());
       allSyst[p].push_back((TGraphAsymmErrors*)syst[p].Clone());
     }
+    const char* sourceNames[]={"qLCMS","qFit","binning","total"};
+    const char* sourceLatex[]={"$Q_{\\mathrm{LCMS}}^{\\max}$","$q_{\\mathrm{fit}}^{\\max}$","FFT binning","Total"};
+    const int tableOrder[]={4,0,1,2,3}; // alpha, lambda, Rout, Rside, Rlong
+    for(int s=0; s<=NSYST; ++s) {
+      for(int p=0; p<NPAR; ++p) {
+        if(percentCount[p]>0) { percentDown[s][p]/=percentCount[p]; percentUp[s][p]/=percentCount[p]; }
+        else percentDown[s][p]=percentUp[s][p]=numeric_limits<double>::quiet_NaN();
+        percentCSV << energy << ',' << energyValue(energy) << ',' << parameters[p] << ',' << sourceNames[s] << ','
+                   << percentCount[p] << ',' << percentDown[s][p] << ',' << percentUp[s][p] << '\n';
+      }
+      percentLatex << energyValue(energy) << " & " << sourceLatex[s];
+      for(int p : tableOrder) {
+        if(percentCount[p]>0) percentLatex << " & $^{+" << percentUp[s][p] << "}_{-" << percentDown[s][p] << "}$";
+        else percentLatex << " & --";
+      }
+      percentLatex << " \\\\\n";
+    }
+    percentLatex << "\\hline\n";
     energyLabels.push_back(label);
   }
   for(int p=0; p<NPAR; ++p) {
@@ -295,7 +347,9 @@ int main(int argc, char** argv)
         double width=0.025*energyValue(selected[e]);
         syst.SetPointError(point,width,width,allSyst[p][e]->GetErrorYlow(i),allSyst[p][e]->GetErrorYhigh(i));
       }
-      output.cd(); stat.Write(Form("%s_sNN_stat_kt%d_FFT",parameters[p],kt)); syst.Write(Form("%s_sNN_syserr_kt%d_FFT",parameters[p],kt));
+      output.cd();
+      writeGraph(stat,Form("%s_sNN_stat_kt%d_FFT",parameters[p],kt),p,graphText,true);
+      writeGraph(syst,Form("%s_sNN_syserr_kt%d_FFT",parameters[p],kt),p,graphText,true);
       drawPlot({&stat},{&syst},{"FFT C(q)"},Form("UrQMD Au+Au, %.3f < k_{T} < %.3f GeV/c",ktbins[kt],ktbins[kt+1]),
                "#sqrt{s_{NN}} [GeV]",titles[p],plotDir+Form("/sNN_%s_kt%d_FFT",parameters[p],kt),true);
     }
@@ -303,6 +357,9 @@ int main(int argc, char** argv)
     for(auto* graph : allSyst[p]) delete graph;
   }
   output.cd();
+  percentLatex << "\\end{tabular}\n\\end{table}\n";
+  TNamed("fft_systematics_parameter_order","lambda,R_out,R_side,R_long,alpha").Write();
+  TNamed("fft_systematics_statistical_errors","Baseline CqFit graph errors are already residual-rescaled; no second rescaling is applied; Fourier-bin correlations are neglected").Write();
   TNamed("fft_systematics_settings",Form("all events; qLCMS indices 0/1/2; qmax scales %.6g/%.6g/%.6g; source bins %d/%d/%d; half-range %.6g fm",
     fftQmaxFitScale[0],fftQmaxFitScale[1],fftQmaxFitScale[2],fftSourceBinsSyst[0],fftSourceBinsSyst[1],fftSourceBinsSyst[2],fftSourceHalfRange)).Write();
   TNamed("fft_systematics_convention",use_larger_same_side_shift ? "Same-side: larger shift; opposite sides: separate; sources combined in quadrature" :
@@ -311,5 +368,6 @@ int main(int argc, char** argv)
   TParameter<int>("fft_systematics_points",accepted).Write();
   output.Close(); if(drho) { drho->Close(); delete drho; }
   cout << "Wrote " << accepted << " complete kT/energy points to " << outputName << "; table: " << tableName << endl;
+  cout << "Graph tables: " << outputStem << "_graphs_FFT.txt; percent summary: " << outputStem << "_percent_breakdown_FFT.csv and _percent_table_FFT.tex\n";
   return incomplete ? 2 : 0;
 }

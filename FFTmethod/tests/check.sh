@@ -15,4 +15,6 @@ g++ -O2 -std=c++17 tests/fft_pipeline.cc -o /tmp/emissionsource_fft_tests.exe $r
 /tmp/emissionsource_fft_tests.exe "$PWD"
 g++ -O2 -std=c++17 tests/fft_systematics.cc -o /tmp/emissionsource_fft_systematics_tests.exe $root_flags
 /tmp/emissionsource_fft_systematics_tests.exe "$PWD/calc_and_plot_syserr_FFT.exe"
+g++ -O2 -std=c++17 tests/compare_methods.cc -o /tmp/emissionsource_compare_methods_tests.exe $root_flags
+/tmp/emissionsource_compare_methods_tests.exe "$PWD/compare_methods.exe"
 python3 tests/batch_pipeline.py
