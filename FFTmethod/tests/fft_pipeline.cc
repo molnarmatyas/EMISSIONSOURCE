@@ -423,6 +423,37 @@ void plotTests() {
     require(!noPlots.Get("fitplot_Cq_test_kt0_FFT") && !fs::exists(directory / "figs/fitting/lcms/FFT/no_plot_FFT"), "--no-plots ignored");
     std::cout << "PASS fit figures for all kT bins, saved central slices/model, scaled errors and plot options\n";
 }
+void systematicOptionsTest() {
+    const auto baseline=readFit("one_range_FFT.root");
+    for(int range=1; range<=2; ++range) {
+        fit({"default_ranges.root","--hist","Cq_test_kt9","--fit-range",std::to_string(range),"--no-plots"});
+        const std::string name=std::string("default_ranges_fitresults")+fftFitRangeSuffix[range]+"_FFT.root";
+        const auto varied=readFit(name);
+        require(range==1 ? varied.ndf<baseline.ndf : varied.ndf>baseline.ndf, "Fit-range variation did not change selected bins");
+        TFile input((directory/name).c_str());
+        require(input.Get<TParameter<int>>("cqfit_range_variation")->GetVal()==range,"Missing fit-range provenance");
+        near(input.Get<TParameter<double>>("cqfit_qmax_scale")->GetVal(),fftQmaxFitScale[range],0.,"Fit-range scale");
+        auto* tree=input.Get<TTree>("fit_results_FFT");
+        double qmax; tree->SetBranchAddress("qmax",&qmax); tree->GetEntry(0);
+        near(qmax,fftQmaxFit[NKT-1]*fftQmaxFitScale[range],1.e-14,"Per-kT scaled range");
+        tree->ResetBranchAddresses();
+    }
+    fit({"default_ranges.root","--fit-range","3","--no-plots"},1);
+    transform({"pairs.root","--binning","1","--kt","0"});
+    {
+        TFile input((directory/"pairs_Cq_coarseFFT_FFT.root").c_str());
+        auto* cq=input.Get<TH3D>("Cq_D_lcms_3d_kt0");
+        require(cq && cq->GetNbinsX()==fftSourceBinsSyst[1],"Grid variation did not rebin the pair source");
+        require(input.Get<TParameter<int>>("fft_binning_variation")->GetVal()==1,"Missing grid provenance");
+        near(input.Get<TParameter<double>>("fft_source_half_range")->GetVal(),fftSourceHalfRange,0.,"Grid variation changed spatial extent");
+        near(cq->GetBinContent(cq->FindBin(0.,0.,0.)),2.,1.e-14,"Coarse-grid normalization");
+        near(cq->GetXaxis()->GetBinWidth(1),acos(-1.)*fftHbarC/fftSourceHalfRange,1.e-12,"Grid variation changed q spacing");
+    }
+    transform({"pairs.root","--binning","3"},1);
+    transform({"pairs.root","--binning","2","--bins","9"},1);
+    transform({"shifted.root","--binning","1"},1);
+    std::cout << "PASS per-kT fit-range systematics, separate names, and actual source rebinning at fixed extent\n";
+}
 void gaussianTest() {
     const std::array<double,5> truth = {{1.,4.3,5.2,6.4,2.}};
     {
@@ -545,7 +576,7 @@ int main(int argc, char** argv) {
     if (!created) return 1;
     directory = created;
     try {
-        pairTests(); histogramTests(); fitTests(); qmaxDefaultsTest(); plotTests(); gaussianTest(); analyzerTest(); ktRangeTest();
+        pairTests(); histogramTests(); fitTests(); qmaxDefaultsTest(); plotTests(); systematicOptionsTest(); gaussianTest(); analyzerTest(); ktRangeTest();
         std::cout << "All FFT regressions passed. Fixtures: " << directory << '\n';
         return 0;
     } catch (const std::exception& e) {

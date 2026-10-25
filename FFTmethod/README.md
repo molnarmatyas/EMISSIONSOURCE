@@ -36,7 +36,8 @@ do_conversion=false # true only if particle trees still need conversion
 do_analysis=true
 do_transform=true
 do_fitting=true
-FFT_qlcms_cuts=(0 1 2) # or (0) for just the baseline
+FFT_systematics=true
+do_final_plots=true
 ```
 
 Then run `./do_all_urqmd.sh 2` for at most two concurrent jobs. It uses the
@@ -44,22 +45,32 @@ energies listed in `energies_low` and `energies_high`, and overrides the
 header with `FFT=1` (`FFT=0` when `FFTmethod=false`). FFT averages all stored
 events; the D(rho) averaging/rho-range scans and plotting are skipped.
 Pair trees, C(q) and fit results end up in `analysed/`, with logs in `logfiles/`.
+The script creates all output folders, including `figs/fitting/lcms/FFT`,
+`figs/syserr/FFT` and `FFTmethod/results`, so a fresh checkout needs no empty
+directories copied from another machine. Both plotting programs also create
+their own output directories when run separately.
 Enabled stages regenerate their outputs, including pair trees already in
 `analysed/`. Set `do_analysis=false` to reuse pair trees in `analysed/` or
 `drho_analyze_urqmd/`, and `do_transform=false` to fit existing C(q) files.
-Failed jobs or invalid fits make the batch exit nonzero; fit results marked
-invalid are still saved for inspection. FFT final parameter plotting and
-systematic aggregation remain to be developed.
+Set `do_final_plots=false` for a transform-only run. For final plotting only,
+turn analysis, conversion, transformation and fitting off, leaving
+`FFT_systematics=true` and `do_final_plots=true`.
+Input/processing failures exit with code 1. Invalid fits are saved, the other
+variations and final calculator still run, and code 2 reports incomplete results.
+No missing variation is silently counted as zero systematic uncertainty.
 
 ## Where to edit things
 
 - `header_for_all_emissionsource.h`: FFT switch, grid size, spatial range and
-  per-kT C(q) fit limits (`fftQmaxFit`). Rebuild after editing.
+  per-kT C(q) fit limits (`fftQmaxFit`), fit-range scales and grid variations.
+  Rebuild after editing.
 - `pair_source_tree.h`: branch variables and `SetBranchAddress` calls only.
 - `transform_fft.cc`: settings, tree-to-TH3D loop, normalization, FFT, output,
   in that order inside `main`.
 - `CqFit.cpp`: `AltChi2` contains the model and chi-square; `main` selects
   the fit bins, sets Minuit parameters and writes results.
+- `calc_and_plot_syserr_FFT.cpp`: read seven fits, calculate directional
+  systematics, write graphs/table, and draw the final figures.
 - `fft_common.h`: filenames and copying file information.
 
 Default source grid: **251 bins, -100 to +100 fm** on each axis.
@@ -70,6 +81,7 @@ The transformer accepts pair trees or top-level TH3 count histograms. Options:
 
 ```text
 --bins N --range R       change the spatial grid
+--binning 0|1|2          baseline/coarse/fine source grid; adds a filename tag
 --kt K                  process one kT bin (default all)
 --charge positive       or negative / both (default both)
 --first-event E --events N   select event indices [E,E+N)
@@ -96,6 +108,8 @@ stability for the actual samples; the same array initially applies at all energi
 and for all analysis qLCMS cuts. Those analysis cuts remain independent settings.
 
 Both the batch script and standalone fitter use this array automatically.
+`--fit-range 1` or `--fit-range 2` applies the narrow/wide scale in the header
+and adds `_narrowqFit` or `_wideqFit` to the default fit output name.
 For manual variations, `--qmax 0.12` overrides it with a common limit, and
 `--qmax 0.10,0.10,0.10,0.12,0.12,0.12,0.14,0.14,0.16,0.16` supplies a separate array.
 The kT index is read from `fft_sources`, including when using
@@ -153,6 +167,100 @@ This keeps energies, analysis cuts and separately named fit variations apart.
 `--no-plots` disables figures. Plotting runs in ROOT batch mode and needs no
 display on the server. Each canvas is also saved in the fit ROOT file as
 `fitplot_<Cq-histogram-name>_FFT` for inspection or later restyling.
+
+## FFT systematics and final plots
+
+`FFT_systematics=true` runs seven fits per configured energy, each with all
+events and each kT bin kept separate. It automatically selects all three
+analysis qLCMS cuts. The settings in the common header are:
+
+```cpp
+const double fftQmaxFitScale[3] = {1.0, 0.8, 1.2};
+const int fftSourceBinsSyst[3] = {fftSourceBins, 151, 351}; // baseline is 251
+```
+
+The analysis qLCMS cut remains a source-selection systematic. It is independent
+of the Fourier-space fitting limit. The fit-range variations multiply each
+bin's own `fftQmaxFit` by 0.8 or 1.2, keeping the grid and analysis cut fixed.
+The binning variations rebuild D(rho) from the signed pair tree and repeat the
+FFT with 151 or 351 bins, keeping the spatial range at ±100 fm and using the
+baseline fit range and analysis cut. Thus five transforms supply seven fits;
+there is no Cartesian product of the variations and no event-count scan.
+
+Changing source binning belongs in the transformer: the fitter cannot recover
+a finer spatial grid from an already transformed C(q). At fixed spatial range,
+this checks the spatial discretization; the q spacing stays
+`pi*hbarc/fftSourceHalfRange`. `--binning` needs pairTree input and cannot be
+combined with a separate `--bins` override for a coarse/fine run.
+The 351-bin transform uses roughly 2.5 GiB per job; the script processes the
+variations sequentially within each energy and limits concurrent energies by
+`MAXJOBS`.
+
+For `S = UrQMD_3d_source_0-10cent_all_<energy>`, these fit files are in `analysed/`:
+
+| Run | Fit filename after `S` |
+| --- | --- |
+| Baseline | `_Cq_fitresults_FFT.root` |
+| Strict analysis qLCMS | `_strictqLCMS_Cq_fitresults_FFT.root` |
+| Loose analysis qLCMS | `_looseqLCMS_Cq_fitresults_FFT.root` |
+| Narrow fit sphere | `_Cq_fitresults_narrowqFit_FFT.root` |
+| Wide fit sphere | `_Cq_fitresults_wideqFit_FFT.root` |
+| Coarse source grid | `_Cq_coarseFFT_fitresults_FFT.root` |
+| Fine source grid | `_Cq_fineFFT_fitresults_FFT.root` |
+
+Standalone examples (replace the energy with the sample you have):
+
+```bash
+FFTmethod/transform_fft.exe analysed/UrQMD_3d_source_0-10cent_all_27_FFT.root --binning 1
+FFTmethod/CqFit.exe analysed/UrQMD_3d_source_0-10cent_all_27_Cq_FFT.root --fit-range 1
+FFTmethod/calc_and_plot_syserr_FFT.exe --input-dir analysed --energies 27
+```
+
+`--fit-range` also scales an explicitly supplied `--qmax`. Custom `--output`
+names override the automatic variation tags, so choose distinct names when
+keeping manual variations. For baseline-only batch runs set
+`FFT_systematics=false`, `FFT_qlcms_cuts=(0)` and `do_final_plots=false`.
+The batch still uses only its `energies_low` and `energies_high` arrays; set
+those arrays to the energies available on the machine. In particular, add
+`5p2` there if you want the manual 5.2 GeV test included in a batch.
+
+The final calculator uses the same default rule as the D(rho) calculator:
+opposite-side deviations contribute separately upwards and downwards;
+two deviations on the same side contribute their mean shift. The three
+source contributions are then added in quadrature, separately for each side.
+Set `use_larger_same_side_shift=true` near the top of the new calculator to
+use the larger same-side shift instead. Statistical errors come from the
+baseline fit; variations' statistical errors are not added to the systematics.
+
+The outputs are separate from the D(rho) results:
+
+- `FFTmethod/results/syserr_results_FFT.root`: statistical, systematic, total
+  and individual-source `TGraphAsymmErrors` for lambda, alpha and the three radii.
+  For example, `alpha_stat_27_FFT`, `alpha_syserr_27_FFT`, `alpha_total_27_FFT`,
+  `alpha_qLCMS_27_FFT`, `alpha_qFit_27_FFT` and `alpha_binning_27_FFT` use mT
+  on the x axis. `alpha_sNN_stat_kt0_FFT` and `alpha_sNN_syserr_kt0_FFT`
+  give the collision-energy dependence at fixed kT.
+- `FFTmethod/results/syserr_results_breakdown_FFT.csv`: one row per energy,
+  kT and parameter, with absolute errors from each source, totals and status.
+- `figs/syserr/FFT/<energy>/`: mT plots and signed percentage contributions.
+- `figs/syserr/FFT/`: energy overlays versus mT and fixed-kT plots versus
+  collision energy, all as PNG/PDF. Bars show statistical errors; boxes show
+  systematic errors. The widths of energy-axis boxes are only for display.
+
+The calculator matches graph points by kT, not graph point index. A point
+missing from any required variation is omitted from the final graphs and
+marked incomplete in the table. Exit code 2 and `fft_systematics_complete=0`
+in the ROOT file report this. Metadata checks also reject mismatched energies,
+centralities, event counts, grids, spatial extents, fit limits, or event subsets.
+Regenerate old C(q)/fit files once with the updated programs to record these
+settings; thereafter fit-only and final-only runs can reuse them.
+
+The calculator also accepts `--plot-dir DIR`, `--output file_FFT.root` and
+`--no-plots`. Without `--energies`, it selects energies with baseline fit files.
+An optional `--compare-drho syserr_results.root` produces comparisons for alpha
+and the three radii. The old file supplies systematic bands only; its N parameter
+is not equated to the FFT lambda. Empty legacy points are skipped, and the
+D(rho) file is opened for reading only.
 
 ## Signs, normalization and D(rho) compatibility
 

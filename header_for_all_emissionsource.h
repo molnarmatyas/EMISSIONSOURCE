@@ -36,6 +36,11 @@ const double kT_center[NKT] = {0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 
 // Tentative Au+Au starting values; check fit-range stability on the actual samples.
 // These are independent of the analysis qLCMS_cut_values below.
 const double fftQmaxFit[NKT] = {0.10, 0.10, 0.10, 0.12, 0.12, 0.12, 0.14, 0.14, 0.16, 0.16};
+// Systematics: baseline, smaller/coarser, larger/finer. Change one setting at a time.
+const double fftQmaxFitScale[3] = {1.0, 0.8, 1.2};
+const int fftSourceBinsSyst[3] = {fftSourceBins, 151, 351};
+const char* fftFitRangeSuffix[3] = {"", "_narrowqFit", "_wideqFit"};
+const char* fftBinningSuffix[3] = {"", "_coarseFFT", "_fineFFT"};
 
 // Energies
 const char* energies[] = {"3p0","3p2","3p5","3p9","4p2","4p5","5p2","6p2","7p2","7p7","9p2","11p5","14p5","19p6","27"};

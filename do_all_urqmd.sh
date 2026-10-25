@@ -9,9 +9,11 @@ do_analysis=false
 do_conversion=false # whether to convert from .f19 to root tree files
 do_transform=true # FFT only; false reuses C(q) files already in analysed/
 do_fitting=true # fit C(q) in FFT mode, otherwise run the original Levy fits
+FFT_systematics=true # FFT: all three qLCMS cuts, two fit-range and two grid variations
+do_final_plots=true # FFT: combine systematics and draw the final parameter plots
 
 # FFT fit limits: edit fftQmaxFit[NKT] in header_for_all_emissionsource.h.
-FFT_qlcms_cuts=(0 1 2) # default, strict, loose; use (0) for just the baseline
+FFT_qlcms_cuts=(0 1 2) # used when FFT_systematics=false; use (0) for just the baseline
 
 # Base directory of this script (absolute)
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,6 +36,7 @@ if [ "$FFTmethod" = true ]; then
   fft_build=1
   source_suffix="_FFT"
   qlcms_types=("${FFT_qlcms_cuts[@]}")
+  if [ "$FFT_systematics" = true ]; then qlcms_types=(0 1 2); fi
 fi
 if [ "${#qlcms_types[@]}" -eq 0 ]; then
   echo "Select at least one qLCMS cut."
@@ -46,18 +49,12 @@ for cut in "${qlcms_types[@]}"; do
   esac
 done
 
-mkdir -p analysed
-mkdir -p figs/fitting/lcms
-mkdir -p levyfit/exe
-mkdir -p levyfit/object/deps
-mkdir -p levyfit/results
+mkdir -p analysed logfiles figs/fitting/lcms/FFT figs/syserr/FFT FFTmethod/results \
+         levyfit/exe levyfit/object/deps levyfit/results || exit 1
 
 # JOB CONTROL ------
 # Enable job control so `jobs` builtin works inside this script
 set -m
-
-# Ensure log directory exists
-mkdir -p "$BASEDIR/logfiles"
 
 # Ensure background children are killed if the script exits or is interrupted
 trap 'echo "Script exiting - terminating background jobs..."; jobs -p | xargs -r kill; wait' EXIT SIGINT SIGTERM
@@ -84,9 +81,12 @@ limit_jobs() {
 # Wait for every job in a conversion/analysis/FFT stage and report failures.
 job_pids=()
 wait_for_stage() {
-  local failed=0
+  local failed=0 status
   for pid in "${job_pids[@]}"; do
-    if ! wait "$pid"; then failed=1; fi
+    if wait "$pid"; then :; else
+      status=$?
+      if [ "$status" -eq 2 ] && [ "$failed" -ne 1 ]; then failed=2; else failed=1; fi
+    fi
   done
   job_pids=()
   return "$failed"
@@ -157,35 +157,77 @@ cd "$BASEDIR" || exit 1
 # FFT workflow: one fully event-averaged source per energy/qLCMS cut.
 # C(q) and fit results go to analysed/; no D(rho) plot folders are cleared.
 if [ "$FFTmethod" = true ]; then
-  if [ "$do_transform" = true ] || [ "$do_fitting" = true ]; then
+  if [ "$do_transform" = true ] || [ "$do_fitting" = true ] || [ "$do_final_plots" = true ]; then
     make -C "$BASEDIR/FFTmethod" FFT=1 || exit 1
   fi
+  range_suffixes=("" "_narrowqFit" "_wideqFit")
+  binning_suffixes=("" "_coarseFFT" "_fineFFT")
+  # A failed Minuit fit is saved and reported, while the remaining variations run.
+  fit_fft() {
+    "$BASEDIR/FFTmethod/CqFit.exe" "$1" --fit-range "$2" > "$3" 2>&1
+    case $? in
+      0) ;;
+      2) fft_fit_status=2 ;;
+      *) return 1 ;;
+    esac
+  }
   for energy in "${energies[@]}"; do
-    for cut in "${qlcms_types[@]}"; do
-      stem="${analysedname}${energy}${qlcms_suffixes[$cut]}"
-      source_file="$BASEDIR/analysed/${stem}_FFT.root"
-      # Also accept a manual analyser test left in drho_analyze_urqmd/.
-      if [ ! -f "$source_file" ]; then source_file="$BASEDIR/drho_analyze_urqmd/${stem}_FFT.root"; fi
-      cq_file="$BASEDIR/analysed/${stem}_Cq_FFT.root"
-      (
+    (
+      fft_fit_status=0
+      for cut in "${qlcms_types[@]}"; do
+        stem="${analysedname}${energy}${qlcms_suffixes[$cut]}"
+        source_file="$BASEDIR/analysed/${stem}_FFT.root"
+        if [ ! -f "$source_file" ]; then source_file="$BASEDIR/drho_analyze_urqmd/${stem}_FFT.root"; fi
+        cq_file="$BASEDIR/analysed/${stem}_Cq_FFT.root"
         if [ "$do_transform" = true ]; then
           echo "Transforming $energy, qLCMS=$cut"
-          "$BASEDIR/FFTmethod/transform_fft.exe" "$source_file" --output "$cq_file" > "$BASEDIR/logfiles/transform_${energy}${qlcms_suffixes[$cut]}_FFT.log" 2>&1 || exit 1
+          "$BASEDIR/FFTmethod/transform_fft.exe" "$source_file" --binning 0 --output "$cq_file" > "$BASEDIR/logfiles/transform_${energy}${qlcms_suffixes[$cut]}_FFT.log" 2>&1 || exit 1
         fi
         if [ "$do_fitting" = true ]; then
           echo "Fitting C(q) for $energy, qLCMS=$cut"
-          "$BASEDIR/FFTmethod/CqFit.exe" "$cq_file" > "$BASEDIR/logfiles/fit_${energy}${qlcms_suffixes[$cut]}_FFT.log" 2>&1
+          ranges=(0)
+          if [ "$cut" -eq 0 ] && [ "$FFT_systematics" = true ]; then ranges=(0 1 2); fi
+          for range in "${ranges[@]}"; do
+            fit_fft "$cq_file" "$range" "$BASEDIR/logfiles/fit_${energy}${qlcms_suffixes[$cut]}${range_suffixes[$range]}_FFT.log" || exit 1
+          done
         fi
-      ) &
-      job_pids+=("$!")
-      limit_jobs
-    done
+      done
+      if [ "$FFT_systematics" = true ]; then
+        stem="${analysedname}${energy}"
+        source_file="$BASEDIR/analysed/${stem}_FFT.root"
+        if [ ! -f "$source_file" ]; then source_file="$BASEDIR/drho_analyze_urqmd/${stem}_FFT.root"; fi
+        for grid in 1 2; do
+          cq_file="$BASEDIR/analysed/${stem}_Cq${binning_suffixes[$grid]}_FFT.root"
+          if [ "$do_transform" = true ]; then
+            echo "Transforming $energy, grid=$grid"
+            "$BASEDIR/FFTmethod/transform_fft.exe" "$source_file" --binning "$grid" --output "$cq_file" > "$BASEDIR/logfiles/transform_${energy}${binning_suffixes[$grid]}_FFT.log" 2>&1 || exit 1
+          fi
+          if [ "$do_fitting" = true ]; then
+            fit_fft "$cq_file" 0 "$BASEDIR/logfiles/fit_${energy}${binning_suffixes[$grid]}_FFT.log" || exit 1
+          fi
+        done
+      fi
+      exit "$fft_fit_status"
+    ) &
+    job_pids+=("$!")
+    limit_jobs
   done
-  wait_for_stage || { echo "FFT processing reported errors or invalid fits; see logfiles/*_FFT.log."; exit 1; }
+  wait_for_stage
+  fft_status=$?
+  if [ "$fft_status" -eq 1 ]; then echo "FFT processing failed; see logfiles/*_FFT.log."; exit 1; fi
+  if [ "$FFT_systematics" = true ] && [ "$do_final_plots" = true ]; then
+    energy_list=$(IFS=,; echo "${energies[*]}")
+    "$BASEDIR/FFTmethod/calc_and_plot_syserr_FFT.exe" --input-dir "$BASEDIR/analysed" --energies "$energy_list" > "$BASEDIR/logfiles/syserr_FFT.log" 2>&1
+    case $? in
+      0) ;;
+      2) fft_status=2 ;;
+      *) echo "FFT systematics failed; see logfiles/syserr_FFT.log."; exit 1 ;;
+    esac
+  fi
   echo "FFT stages finished. Outputs are in analysed/; logs are in logfiles/*_FFT.log."
   if [ "$do_fitting" = true ]; then echo "Fit figures are in figs/fitting/lcms/FFT/."; fi
-  echo "FFT final parameter plotting/systematic aggregation is not implemented yet."
-  exit 0
+  if [ "$fft_status" -ne 0 ]; then echo "Some fits or systematic points are incomplete; see logs and the FFT results table."; fi
+  exit "$fft_status"
 fi
 
 #root.exe -b -q 'Average_Drho.cpp(100)' # why doesn't this work?! # I guess this rage-comment was related to why it doesn't work except for the default values # Anyways, this is looong deprecated

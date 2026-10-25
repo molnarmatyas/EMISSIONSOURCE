@@ -164,6 +164,7 @@ int main(int argc, char** argv)
     cout << "Usage: CqFit.exe input_Cq_FFT.root [--qmax Q] [--hist NAME] [--output file_FFT.root]\n"
          << "Default: per-kT spherical |q| limits fftQmaxFit in header_for_all_emissionsource.h.\n"
          << "--qmax overrides these with one limit in GeV/c, or NKT comma-separated limits.\n"
+         << "--fit-range 0|1|2 uses the baseline/narrow/wide qmax scale from the header.\n"
          << "Plots: --plot-dir DIR (default figs/fitting/lcms/FFT) or --no-plots.\n";
     return argc < 2 ? 1 : 0;
   }
@@ -172,6 +173,8 @@ int main(int argc, char** argv)
   TString onlyHist = "";
   TString plotDir = "figs/fitting/lcms/FFT";
   bool makePlots = true;
+  bool customOutput = false;
+  int fitRange = 0;
   gROOT->SetBatch(true); gStyle->SetOptStat(0); gStyle->SetOptTitle(0);
   vector<double> qmaxValues(fftQmaxFit, fftQmaxFit + NKT);
   for(int i = 2; i < argc; ++i) {
@@ -179,8 +182,9 @@ int main(int argc, char** argv)
     if(option == "--no-plots") { makePlots = false; continue; }
     if(i + 1 == argc) { cerr << "Missing value for " << option << endl; return 1; }
     string value = argv[++i];
-    if(option == "--output") outputName = fftOutputName(value.c_str(), "");
+    if(option == "--output") { outputName = fftOutputName(value.c_str(), ""); customOutput = true; }
     else if(option == "--hist") onlyHist = value;
+    else if(option == "--fit-range") fitRange = atoi(value.c_str());
     else if(option == "--plot-dir") plotDir = value;
     else if(option == "--qmax") {
       qmaxValues.clear();
@@ -189,6 +193,10 @@ int main(int argc, char** argv)
       while(getline(values, entry, ',')) qmaxValues.push_back(atof(entry.c_str()));
     } else { cerr << "Unknown option: " << option << endl; return 1; }
   }
+  if(fitRange < 0 || fitRange > 2) { cerr << "Fit range must be 0, 1 or 2.\n"; return 1; }
+  double qmaxScale = fftQmaxFitScale[fitRange];
+  for(double& q : qmaxValues) q *= qmaxScale;
+  if(!customOutput) outputName = fftOutputName(inputName, (TString("_fitresults") + fftFitRangeSuffix[fitRange]).Data());
   if(qmaxValues.size() != 1 && qmaxValues.size() != NKT) {
     cerr << "Supply --qmax with one limit or NKT comma-separated limits.\n"; return 1;
   }
@@ -360,6 +368,8 @@ int main(int argc, char** argv)
   TNamed("cqfit_parameter_order", "lambda,R_out,R_side,R_long,alpha").Write();
   TNamed("cqfit_error_convention", "errors=errors_raw*sqrt(chi2/ndf); covariance=covariance_raw*chi2/ndf; Fourier bins are correlated").Write();
   TNamed("cqfit_selection", "Spherical |q|<=qmax, including q=0 and both signs").Write();
+  TParameter<int>("cqfit_range_variation", fitRange).Write();
+  TParameter<double>("cqfit_qmax_scale", qmaxScale).Write();
   for(int p = 0; p < NPARS; ++p) { graphs[p].Sort(); graphs[p].Write(); }
   results.Write(); TParameter<int>("fft_fit_complete", 1).Write();
   output->Close(); input->Close(); delete output; delete input;

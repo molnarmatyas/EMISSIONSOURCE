@@ -46,4 +46,5 @@ status_report/*
 .vscode
 levyfit/exe/*
 levyfit/object/*
+syserr_percent_table.tex
 

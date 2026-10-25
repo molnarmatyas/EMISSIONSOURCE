@@ -19,6 +19,7 @@ int main(int argc, char** argv)
   if(argc < 2 || string(argv[1]) == "--help") {
     cout << "Usage: transform_fft.exe input.root [cutoff] [options]\n"
          << "  --bins N --range R    source grid (defaults in global header)\n"
+         << "  --binning 0|1|2       baseline/coarse/fine grid from the header, with separate filenames\n"
          << "  --kt K --charge both|negative|positive\n"
          << "  --first-event E --events N    event interval [E,E+N)\n"
          << "  --cutoff X --error X --save-source --output file_FFT.root\n";
@@ -29,17 +30,20 @@ int main(int argc, char** argv)
   // Settings: all events, both charges, all kT bins by default.
   TString inputName = argv[1], outputName = fftOutputName(inputName, "_Cq");
   int nbins = fftSourceBins, onlyKT = -1, charge = -1;
+  int binning = 0;
   Long64_t firstEvent = 0, events = -1;
   double range = fftSourceHalfRange, cutoff = 0., binError = 1.;
   bool saveSource = false;
+  bool customOutput = false, customBins = false;
   for(int i = 2; i < argc; ++i) {
     string option = argv[i];
     if(option == "--save-source") { saveSource = true; continue; }
     if(i == 2 && option.find("--") != 0) { cutoff = atof(argv[i]); continue; }
     if(i + 1 == argc) { cerr << "Missing value for " << option << endl; return 1; }
     string value = argv[++i];
-    if(option == "--output") outputName = fftOutputName(value.c_str(), "");
-    else if(option == "--bins") nbins = atoi(value.c_str());
+    if(option == "--output") { outputName = fftOutputName(value.c_str(), ""); customOutput = true; }
+    else if(option == "--bins") { nbins = atoi(value.c_str()); customBins = true; }
+    else if(option == "--binning") binning = atoi(value.c_str());
     else if(option == "--range") range = atof(value.c_str());
     else if(option == "--cutoff") cutoff = atof(value.c_str());
     else if(option == "--error") binError = atof(value.c_str());
@@ -54,6 +58,11 @@ int main(int argc, char** argv)
     }
     else { cerr << "Unknown option: " << option << endl; return 1; }
   }
+  if(binning < 0 || binning > 2 || (customBins && binning != 0)) {
+    cerr << "Use --binning 0, 1 or 2; do not combine a grid variation with --bins.\n"; return 1;
+  }
+  if(!customBins) nbins = fftSourceBinsSyst[binning];
+  if(!customOutput) outputName = fftOutputName(inputName, (TString("_Cq") + fftBinningSuffix[binning]).Data());
   if(nbins < 3 || nbins > 1287 || nbins % 2 == 0 || range <= 0 || !isfinite(range) ||
      cutoff < 0 || !isfinite(cutoff) || binError <= 0 || !isfinite(binError) ||
      onlyKT < -1 || onlyKT >= NKT || firstEvent < 0 || events == 0 || events < -1) {
@@ -63,6 +72,7 @@ int main(int argc, char** argv)
   TFile* input = TFile::Open(inputName, "READ");
   if(!input || input->IsZombie()) { cerr << "Cannot open " << inputName << endl; return 1; }
   TTree* tree = dynamic_cast<TTree*>(input->Get("pairTree"));
+  if(!tree && binning != 0) { cerr << "Grid variations need pairTree input so the source can be rebinned.\n"; return 1; }
   PairSourceData pair;
   vector<TString> names;
   vector<int> ktBins;
@@ -214,6 +224,8 @@ int main(int argc, char** argv)
   TParameter<double>("fft_cutoff", cutoff).Write();
   TParameter<double>("fft_bin_error", binError).Write();
   TParameter<double>("fft_hbarc", fftHbarC).Write();
+  TParameter<int>("fft_binning_variation", binning).Write();
+  if(tree) TParameter<double>("fft_source_half_range", range).Write();
   summary.Write(); TParameter<int>("fft_complete", 1).Write("fft_complete", TObject::kOverwrite);
   output->Close(); input->Close(); delete output; delete input;
   cout << "Wrote " << written << " correlations to " << outputName << endl;

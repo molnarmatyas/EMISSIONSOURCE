@@ -18,7 +18,8 @@ inline void copyFFTInfo(TFile* input, TFile* output)
   output->cd();
   const char* names[] = {"source_events", "pair_source_schema", "source_charge_mode",
     "source_qlcms_cut", "source_energy", "source_centrality", "source_kt_min", "source_kt_max",
-    "fft_input", "fft_convention", "fft_cutoff", "fft_bin_error", "fft_hbarc"};
+    "fft_input", "fft_convention", "fft_cutoff", "fft_bin_error", "fft_hbarc",
+    "fft_binning_variation", "fft_source_half_range"};
   for(const char* name : names) {
     TObject* object = input->Get(name);
     if(object) object->Write(name);
