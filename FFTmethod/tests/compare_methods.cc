@@ -123,7 +123,10 @@ int main(int argc,char** argv) {
       require(!file.Get("kT_R_out_3p0_comparison_FFT"),"Kept the separate two-panel radius plots");
       checkPanels(file,"sNN_radii_kt0_comparison_FFT",3);
       checkPanels(file,"sNN_R_RMS_kt0_comparison_FFT",1);
-      checkPanels(file,"sNN_normalization_kt0_comparison_FFT",2,1);
+      checkPanels(file,"sNN_normalization_kt0_comparison_FFT",1);
+      checkPanels(file,"kT_normalization_3p0_comparison_FFT",1);
+      require(string(graph(file,"normalization_FFT_kT_3p0_points")->GetYaxis()->GetTitle())=="#lambda^{*}","Normalization axis needs lambda*");
+      require(string(graph(file,"normalization_Drho_sNN_kt0_points")->GetYaxis()->GetTitle())=="#lambda^{*}","Energy normalization axis needs lambda*");
       checkPanels(file,"sNN_alpha_kt4_comparison_FFT",1);
       require(!file.Get("sNN_radii_kt1_comparison_FFT") && !file.Get("sNN_radii_kt9_comparison_FFT"),"Energy plots must default to kT bins 0 and 4 only");
       require(fs::file_size(directory/"figures/3p0/kT_alpha_3p0_comparison_FFT.pdf")>1000,"Missing kT PDF");

@@ -103,6 +103,7 @@ int main(int argc,char** argv) {
         require(stat && syst && total && stat->GetN()==NKT,"Missing final graph");
         require(std::string(stat->GetName())==std::string(names[p])+"_stat_3p0_FFT","Graph key and object name differ");
         require(std::string(stat->GetXaxis()->GetTitle())=="m_{T} [GeV/c^{2}]","Missing mT axis units");
+        if(p==0) require(std::string(stat->GetYaxis()->GetTitle())=="#lambda^{*}","Normalization axis needs lambda*");
         for(int kt=0; kt<NKT; ++kt) {
           near(stat->GetPointX(kt),std::sqrt(kT_center[kt]*kT_center[kt]+Mass2_pi));
           near(stat->GetPointY(kt),truth[p]+.01*kt); near(stat->GetErrorYlow(kt),.02); near(stat->GetErrorYhigh(kt),.03);
@@ -121,6 +122,12 @@ int main(int argc,char** argv) {
         near(energy->GetPointX(0),3.); near(energy->GetPointX(1),27.); near(energy->GetPointY(1),truth[p]+.1);
       }
       require(fs::file_size(directory/"figures/final/3p0/mT_alpha_FFT.png")>1000,"Missing final mT plot");
+      require(fs::file_size(directory/"figures/final/3p0/mT_radii_FFT.pdf")>1000,"Missing combined per-energy radius plot");
+      require(fs::file_size(directory/"figures/final/mT_overlay_radii_FFT.png")>1000,"Missing combined radius overlay");
+      for(const char* radius : {"R_out","R_side","R_long"}) {
+        require(!fs::exists(directory/"figures/final/3p0"/(std::string("mT_")+radius+"_FFT.png")),"Wrote a deprecated separate radius plot");
+        require(!fs::exists(directory/"figures/final"/(std::string("mT_overlay_")+radius+"_FFT.pdf")),"Wrote a deprecated separate radius overlay");
+      }
       require(fs::file_size(directory/"figures/final/sNN_R_out_kt0_FFT.pdf")>1000,"Missing energy plot");
       require(fs::file_size(directory/"figures/final/sNN_R_out_kt4_FFT.pdf")>1000,"Missing second selected energy plot");
       require(!fs::exists(directory/"figures/final/sNN_R_out_kt1_FFT.pdf") &&

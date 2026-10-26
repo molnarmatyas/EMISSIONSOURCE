@@ -2,6 +2,7 @@
 #include "fft_common.h"
 #include <TGraphAsymmErrors.h>
 #include <TCanvas.h>
+#include <TPad.h>
 #include <TLegend.h>
 #include <TLatex.h>
 #include <TNamed.h>
@@ -20,8 +21,11 @@ using namespace std;
 
 const int NPAR = 5, NVAR = 7, NSYST = 3;
 const char* parameters[NPAR] = {"lambda", "R_out", "R_side", "R_long", "alpha"};
-const char* titles[NPAR] = {"#lambda", "R_{out} [fm]", "R_{side} [fm]", "R_{long} [fm]", "#alpha"};
+const char* titles[NPAR] = {"#lambda^{*}", "R_{out} [fm]", "R_{side} [fm]", "R_{long} [fm]", "#alpha"};
 const char* sources[NSYST] = {"qLCMS", "qFit", "binning"};
+const int colors[]={kBlack,kRed+1,kBlue+1,kGreen+2,kMagenta+1,kOrange+7,kCyan+2,kViolet+1,kTeal+3,kPink+7,
+                    kAzure+2,kSpring-6,kOrange+3,kViolet+9,kGray+2};
+const int NCOLORS=sizeof(colors)/sizeof(colors[0]);
 // Same default convention as calc_and_plot_syserr.cpp for D(rho).
 bool use_larger_same_side_shift = false;
 bool makePlots = true;
@@ -138,7 +142,6 @@ void drawPlot(const vector<TGraphAsymmErrors*>& stat, const vector<TGraphAsymmEr
   for(TAxis* axis : {frame->GetXaxis(),frame->GetYaxis()}) {
     axis->SetTitleSize(0.045); axis->SetLabelSize(0.035); axis->SetTitleOffset(1.25);
   }
-  const int colors[]={kBlack,kRed+1,kBlue+1,kGreen+2,kMagenta+1,kOrange+7,kCyan+2,kViolet+1,kTeal+3,kPink+7};
   int columns=labels.size()>5 ? 2 : 1;
   double height=0.048*((labels.size()+columns-1)/columns);
   TLegend legend(0.58,max(0.40,0.88-height),0.95,0.88);
@@ -146,13 +149,13 @@ void drawPlot(const vector<TGraphAsymmErrors*>& stat, const vector<TGraphAsymmEr
   legend.SetNColumns(columns);
   for(size_t i=0; i<stat.size(); ++i) {
     if(stat[i]->GetN()==0) continue;
-    int color=colors[i%10];
+    int color=colors[i%NCOLORS];
     syst[i]->SetFillColorAlpha(color,0.25); syst[i]->SetFillStyle(1001); syst[i]->SetLineColor(color);
     syst[i]->Draw(syst[i]->GetN()>1 ? "3 SAME" : "2 SAME");
   }
   for(size_t i=0; i<stat.size(); ++i) {
     if(stat[i]->GetN()==0) continue;
-    int color=colors[i%10];
+    int color=colors[i%NCOLORS];
     stat[i]->SetMarkerStyle(20+i%10); stat[i]->SetMarkerSize(0.8); stat[i]->SetMarkerColor(color); stat[i]->SetLineColor(color);
     stat[i]->SetLineWidth(2);
     if(drawPoints) stat[i]->Draw("LPZ SAME");
@@ -163,6 +166,65 @@ void drawPlot(const vector<TGraphAsymmErrors*>& stat, const vector<TGraphAsymmEr
   text.DrawLatex(0.14,0.95,heading);
   text.SetTextSize(0.024);
   text.DrawLatex(0.15,0.85,drawPoints ? "Bars: statistical; bands: systematic" : "Signed relative systematic shifts");
+  canvas.SaveAs(filename+".png"); canvas.SaveAs(filename+".pdf");
+}
+
+// Out, side and long share one vertical scale, for one energy or all energies.
+void drawRadii(const vector<TGraphAsymmErrors*> stat[3], const vector<TGraphAsymmErrors*> syst[3],
+               const vector<TString>& labels, TString heading, TString filename)
+{
+  if(!makePlots) return;
+  double xmin=1.e30,xmax=-1.e30,ymin=1.e30,ymax=-1.e30;
+  for(int p=0; p<3; ++p) for(size_t e=0; e<stat[p].size(); ++e) for(int i=0; i<stat[p][e]->GetN(); ++i) {
+    double x=stat[p][e]->GetPointX(i),y=stat[p][e]->GetPointY(i);
+    xmin=min(xmin,x-syst[p][e]->GetErrorXlow(i)); xmax=max(xmax,x+syst[p][e]->GetErrorXhigh(i));
+    ymin=min(ymin,y-max(stat[p][e]->GetErrorYlow(i),syst[p][e]->GetErrorYlow(i)));
+    ymax=max(ymax,y+max(stat[p][e]->GetErrorYhigh(i),syst[p][e]->GetErrorYhigh(i)));
+  }
+  if(xmin>xmax) return;
+  double dx=max(.01,.08*(xmax-xmin)),dy=max(.02,.18*(ymax-ymin));
+  TCanvas canvas("final_radii_FFT","",1500,720);
+  for(int p=0; p<3; ++p) {
+    canvas.cd();
+    auto* pad=new TPad(Form("radius_panel_%d",p),"",double(p)/3.,0.,double(p+1)/3.,.82);
+    pad->Draw(); pad->cd(); pad->SetTicks(1,1);
+    pad->SetLeftMargin(p==0 ? .17 : .045); pad->SetRightMargin(.04);
+    pad->SetBottomMargin(.17); pad->SetTopMargin(.10);
+    auto* frame=pad->DrawFrame(xmin-dx,ymin-dy,xmax+dx,ymax+dy);
+    frame->SetTitle(Form(";m_{T} [GeV/c^{2}];%s",p==0 ? "R [fm]" : ""));
+    for(auto* axis : {frame->GetXaxis(),frame->GetYaxis()}) {
+      axis->SetTitleFont(43); axis->SetLabelFont(43);
+      axis->SetTitleSize(23); axis->SetLabelSize(19); axis->SetTitleOffset(1.4);
+    }
+    frame->GetYaxis()->SetTitleOffset(1.6);
+    frame->GetXaxis()->SetNdivisions(505);
+    if(p>0) frame->GetYaxis()->SetLabelSize(0.);
+    for(size_t e=0; e<stat[p].size(); ++e) {
+      if(stat[p][e]->GetN()==0) continue;
+      int color=colors[e%NCOLORS];
+      syst[p][e]->SetFillColorAlpha(color,.25); syst[p][e]->SetFillStyle(1001); syst[p][e]->SetLineColor(color);
+      syst[p][e]->Draw(syst[p][e]->GetN()>1 ? "3 SAME" : "2 SAME");
+    }
+    for(size_t e=0; e<stat[p].size(); ++e) {
+      if(stat[p][e]->GetN()==0) continue;
+      int color=colors[e%NCOLORS];
+      stat[p][e]->SetLineColor(color); stat[p][e]->SetLineWidth(2);
+      stat[p][e]->SetMarkerColor(color); stat[p][e]->SetMarkerStyle(20+e%10); stat[p][e]->SetMarkerSize(.8);
+      stat[p][e]->Draw("LPZ SAME");
+    }
+    TLatex text; text.SetNDC(); text.SetTextFont(42); text.SetTextSize(.045);
+    text.DrawLatex(p==0 ? .19 : .07,.94,titles[p+1]);
+  }
+  canvas.cd();
+  int columns=min(6,max(1,int(labels.size())));
+  double height=.04*((labels.size()+columns-1)/columns);
+  TLegend legend(labels.size()==1 ? .72 : .15,.89-height,.96,.89);
+  legend.SetBorderSize(0); legend.SetFillStyle(0); legend.SetTextSize(.022); legend.SetNColumns(columns);
+  for(size_t e=0; e<labels.size(); ++e) if(stat[0][e]->GetN()>0) legend.AddEntry(stat[0][e],labels[e],"lp");
+  legend.Draw();
+  TLatex text; text.SetNDC(); text.SetTextFont(42); text.SetTextSize(.034);
+  text.DrawLatex(.085,.963,heading); text.SetTextSize(.024);
+  text.DrawLatex(.085,.918,"Bars: statistical; bands: systematic");
   canvas.SaveAs(filename+".png"); canvas.SaveAs(filename+".pdf");
 }
 
@@ -297,7 +359,8 @@ int main(int argc, char** argv)
           percentUp[s][p]+=100.*graph.GetErrorYhigh(i)/value;
         }
       }
-      drawPlot({&stat[p]},{&syst[p]},{"FFT C(q)"},heading,"m_{T} [GeV/c^{2}]",titles[p],folder+"/mT_"+parameters[p]+"_FFT");
+      if(p==0 || p==4)
+        drawPlot({&stat[p]},{&syst[p]},{"FFT C(q)"},heading,"m_{T} [GeV/c^{2}]",titles[p],folder+"/mT_"+parameters[p]+"_FFT");
       drawPlot({&relative[0][p],&relative[1][p],&relative[2][p]},
                {&relative[0][p],&relative[1][p],&relative[2][p]},
                {"Analysis q_{LCMS}","Fit range","FFT binning"},heading,"m_{T} [GeV/c^{2}]","Relative systematic shift [%]",
@@ -318,6 +381,9 @@ int main(int argc, char** argv)
       allStat[p].push_back((TGraphAsymmErrors*)stat[p].Clone());
       allSyst[p].push_back((TGraphAsymmErrors*)syst[p].Clone());
     }
+    vector<TGraphAsymmErrors*> radiusStat[3]={{&stat[1]},{&stat[2]},{&stat[3]}};
+    vector<TGraphAsymmErrors*> radiusSyst[3]={{&syst[1]},{&syst[2]},{&syst[3]}};
+    drawRadii(radiusStat,radiusSyst,{"FFT C(q)"},heading,folder+"/mT_radii_FFT");
     const char* sourceNames[]={"qLCMS","qFit","binning","total"};
     const char* sourceLatex[]={"$Q_{\\mathrm{LCMS}}^{\\max}$","$q_{\\mathrm{fit}}^{\\max}$","FFT binning","Total"};
     const int tableOrder[]={4,0,1,2,3}; // alpha, lambda, Rout, Rside, Rlong
@@ -338,8 +404,10 @@ int main(int argc, char** argv)
     percentLatex << "\\hline\n";
     energyLabels.push_back(label);
   }
+  drawRadii(allStat+1,allSyst+1,energyLabels,"UrQMD Au+Au, FFT",plotDir+"/mT_overlay_radii_FFT");
   for(int p=0; p<NPAR; ++p) {
-    drawPlot(allStat[p],allSyst[p],energyLabels,"UrQMD Au+Au, FFT","m_{T} [GeV/c^{2}]",titles[p],plotDir+"/mT_overlay_"+parameters[p]+"_FFT");
+    if(p==0 || p==4)
+      drawPlot(allStat[p],allSyst[p],energyLabels,"UrQMD Au+Au, FFT","m_{T} [GeV/c^{2}]",titles[p],plotDir+"/mT_overlay_"+parameters[p]+"_FFT");
     for(int kt=0; kt<NKT; ++kt) {
       TGraphAsymmErrors stat,syst;
       double mt=sqrt(kT_center[kt]*kT_center[kt]+Mass2_pi);

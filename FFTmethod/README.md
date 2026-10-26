@@ -305,7 +305,11 @@ The outputs are separate from the D(rho) results:
   kT bins with nonzero central values; CSV bin counts make omissions explicit.
   The total is combined in quadrature per kT bin before averaging percentages.
 - `figs/syserr/FFT/<energy>/`: mT plots and signed percentage contributions.
-- `figs/syserr/FFT/`: energy overlays versus mT and fixed-kT plots versus
+  `mT_radii_FFT` combines Rout, Rside and Rlong in three panels with a common
+  vertical scale. Alpha, lambda and the contribution plots remain separate.
+- `figs/syserr/FFT/`: `mT_overlay_radii_FFT` combines the three radius directions
+  in three panels with a common vertical scale and matching energy colors.
+  Alpha/lambda energy overlays versus mT and fixed-kT plots versus
   collision energy for `ikt_indices_to_plot`, all as PNG/PDF. Central values
   form connected lines; filled bands connect the systematic-error edges, as
   in the D(rho) plotter. Bars show statistical errors. All kT bins remain in
@@ -393,8 +397,12 @@ The plotter creates its directories automatically and saves PNG/PDF figures in
   with a common vertical scale, overlaying the methods.
 - Single panels for alpha versus energy and for the derived quantities versus
   kT and energy: `R_RMS`, `Rout_over_Rside`, `Rout2_minus_Rside2`.
-- Normalizations N and lambda in separate, explicitly labelled method panels.
-  They have different definitions and are not overlaid as a common parameter.
+- Normalizations overlaid on a single panel versus kT and energy, labelled
+  `lambda*` (λ*). The original source-fit N and correlation-fit lambda values
+  and errors are plotted directly; their saved graph names remain unchanged.
+
+All normalization-parameter axes use λ*, including the FFT final plots and
+the parameter graphs written by `CqFit`.
 
 D(rho) uses solid red lines, filled markers and `/` hatching; FFT uses dashed
 blue lines, open markers and `\\` hatching. Lines guide the eye. Connected bands show

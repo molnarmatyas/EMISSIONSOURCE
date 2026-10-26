@@ -23,7 +23,7 @@ const int NQUANT=8;
 const char* quantities[NQUANT]={"alpha","R_out","R_side","R_long","R_RMS",
                                "Rout_over_Rside","Rout2_minus_Rside2","normalization"};
 const char* titles[NQUANT]={"#alpha","R_{out} [fm]","R_{side} [fm]","R_{long} [fm]",
-                          "R_{RMS} [fm]","R_{out}/R_{side}","R_{out}^{2}-R_{side}^{2} [fm^{2}]","Normalization"};
+                          "R_{RMS} [fm]","R_{out}/R_{side}","R_{out}^{2}-R_{side}^{2} [fm^{2}]","#lambda^{*}"};
 const char* methods[]={"Drho","FFT"};
 const char* methodLabels[]={"D(#rho)","FFT C(q)"};
 
@@ -190,7 +190,7 @@ void drawPanels(vector<Panel>& panels, TString name, TString heading, const char
   text.DrawLatex(.085,.963,heading);
   text.SetTextSize(.025);
   text.DrawLatex(.085,.922,"Bands: systematic; bars: baseline errors; lines guide the eye");
-  TString note=normalization ? "N: source normalization; #lambda: correlation amplitude (different definitions)" : "";
+  TString note=normalization ? "D(#rho): source-fit amplitude; FFT: correlation-fit amplitude" : "";
   if(derived) note="Derived errors: independent-radius approximation";
   if(missingStat) note+=(note.IsNull() ? "" : "; ")+TString("D(#rho): baseline bars unavailable at some points");
   if(!note.IsNull()) { text.SetTextSize(.021); text.DrawLatex(.085,.886,note); }
@@ -296,7 +296,6 @@ int main(int argc,char** argv)
     for(int q=1; q<=3; ++q) radii.push_back({titles[q],"R [fm]",{}});
     for(int q=0; q<NQUANT; ++q) {
       vector<Panel> panels={{"",titles[q],{}}};
-      if(q==7) panels={{"D(#rho): N",titles[q],{}},{"FFT C(q): #lambda",titles[q],{}}};
       for(int m=0; m<2; ++m) {
         Series series; series.method=m;
         for(int kt=0; kt<NKT; ++kt) {
@@ -310,7 +309,7 @@ int main(int argc,char** argv)
           csv << ',' << point.sysDown << ',' << point.sysUp << '\n';
         }
         writeSeries(series,Form("%s_%s_kT_%s",quantities[q],methods[m],d.name.Data()),"k_{T} [GeV/c]",titles[q]);
-        auto& panel=(q>=1 && q<=3) ? radii[q-1] : panels[q==7 ? m : 0];
+        auto& panel=(q>=1 && q<=3) ? radii[q-1] : panels[0];
         panel.series.push_back(series);
       }
       if(makePlots && (q==0 || q>=4)) drawPanels(panels,Form("kT_%s_%s_comparison_FFT",quantities[q],d.name.Data()),
@@ -326,9 +325,8 @@ int main(int argc,char** argv)
     for(int q=1; q<=3; ++q) radii.push_back({titles[q],"R [fm]",{}});
     for(int q=0; q<NQUANT; ++q) {
       vector<Panel> single={{"",titles[q],{}}};
-      if(q==7) single={{"D(#rho): N",titles[q],{}},{"FFT C(q): #lambda",titles[q],{}}};
       for(int m=0; m<2; ++m) {
-        auto& panel=(q>=1 && q<=3) ? radii[q-1] : single[q==7 ? m : 0];
+        auto& panel=(q>=1 && q<=3) ? radii[q-1] : single[0];
         Series series; series.method=m;
         for(const auto& d : data) append(series,d.points[m][q][kt],d.energy,.018*d.energy,.018*d.energy);
         writeSeries(series,Form("%s_%s_sNN_kt%d",quantities[q],methods[m],kt),"#sqrt{s_{NN}} [GeV]",titles[q]);
@@ -345,7 +343,7 @@ int main(int argc,char** argv)
   TNamed("comparison_drho_input",drhoName.Data()).Write(); TNamed("comparison_fft_input",fftName.Data()).Write();
   TNamed("comparison_derived_convention","R_RMS=sqrt((Rout^2+Rside^2+Rlong^2)/3), computed from each method's reported radii; ratio=Rout/Rside; difference=Rout^2-Rside^2; no kT averaging").Write();
   TNamed("comparison_error_convention","Baseline bars and systematic bands kept separate; derived errors use first-order propagation without radius covariances, swapping asymmetric up/down errors for negative derivatives; missing baseline errors are nan in CSV").Write();
-  TNamed("comparison_normalizations","D(rho) N and FFT lambda have different definitions; shown only in separate method panels").Write();
+  TNamed("comparison_normalizations","Source-fit N and correlation-fit lambda are overlaid as lambda*; input amplitudes and their errors are used directly").Write();
   TNamed("comparison_baseline_convention","D(rho): existing final-plotter baseline spreads; FFT: residual-rescaled fit errors; these error estimates have different meanings").Write();
   TParameter<int>("comparison_missing_drho_baseline",missingStat).Write();
   output.Close();

@@ -47,4 +47,4 @@ status_report/*
 levyfit/exe/*
 levyfit/object/*
 syserr_percent_table.tex
-
+FFTmethod/results/syserr_results_percent_table_FFT.tex

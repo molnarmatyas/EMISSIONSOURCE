@@ -129,7 +129,7 @@ bool plotCqFit(TH3* cq, TF3& fit, int kt, double errorScale, double rawChi2Ndf, 
       text.DrawLatex(left,0.925,"UrQMD, ^{197}Au+^{197}Au");
       text.DrawLatex(left,0.88,sample);
       text.DrawLatex(left,0.72,Form("#alpha = %.3f #pm %.2g", fit.GetParameter(4),fit.GetParError(4)));
-      text.DrawLatex(left,0.66,Form("#lambda = %.3f #pm %.2g", fit.GetParameter(0),fit.GetParError(0)));
+      text.DrawLatex(left,0.66,Form("#lambda^{*} = %.3f #pm %.2g", fit.GetParameter(0),fit.GetParError(0)));
       text.DrawLatex(left,0.60,Form("#chi^{2}_{sc}/NDF = %.2f", fit.GetChisquare()/fit.GetNDF()));
     } else if(d == 1) {
       text.DrawLatex(left,0.935,"Like-sign #pi#pi, event averaged");
@@ -250,7 +250,7 @@ int main(int argc, char** argv)
 
   // Ready for a final plotter; keep the tree above for fit diagnostics/covariance.
   const char* graphNames[NPARS] = {"lambda_vs_KT_FFT", "R_out_vs_KT_FFT", "R_side_vs_KT_FFT", "R_long_vs_KT_FFT", "alpha_vs_KT_FFT"};
-  const char* graphTitles[NPARS] = {";k_{T} [GeV/c];#lambda", ";k_{T} [GeV/c];R_{out} [fm]",
+  const char* graphTitles[NPARS] = {";k_{T} [GeV/c];#lambda^{*}", ";k_{T} [GeV/c];R_{out} [fm]",
     ";k_{T} [GeV/c];R_{side} [fm]", ";k_{T} [GeV/c];R_{long} [fm]", ";k_{T} [GeV/c];#alpha"};
   TGraphAsymmErrors graphs[NPARS];
   for(int p = 0; p < NPARS; ++p) {
