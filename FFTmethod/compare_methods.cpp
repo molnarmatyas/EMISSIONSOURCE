@@ -169,12 +169,13 @@ void drawPanels(vector<Panel>& panels, TString name, TString heading, const char
     frame->GetYaxis()->SetTitleOffset(n==3 ? 1.65 : 1.4);
     if(p>0) frame->GetYaxis()->SetLabelSize(0.);
     if(energyAxis) { frame->GetXaxis()->SetMoreLogLabels(); frame->GetXaxis()->SetNoExponent(); }
-    for(auto& series : panels[p].series) series.band.Draw("2 SAME");
-    for(auto& series : panels[p].series) series.points.Draw("LPZ SAME");
+    for(auto& series : panels[p].series) if(series.band.GetN()>0)
+      series.band.Draw(series.band.GetN()>1 ? "3 SAME" : "2 SAME");
+    for(auto& series : panels[p].series) if(series.points.GetN()>0) series.points.Draw("LPZ SAME");
     TLatex text; text.SetNDC(); text.SetTextFont(42); text.SetTextSize(.048);
     text.DrawLatex(p==0 ? .19 : .07,.91,panels[p].label);
     if(panels[p].series.size()>1) {
-      auto* legend=new TLegend(p==0 ? .23 : .10,.68,.64,.81);
+      auto* legend=new TLegend(p==0 ? .56 : .52,.85,.97,.98);
       legend->SetFillStyle(0); legend->SetBorderSize(0); legend->SetTextSize(.038);
       for(auto& series : panels[p].series) if(series.points.GetN()>0)
         legend->AddEntry(&series.band,methodLabels[series.method],"lfp");
@@ -188,7 +189,7 @@ void drawPanels(vector<Panel>& panels, TString name, TString heading, const char
   TLatex text; text.SetNDC(); text.SetTextFont(42); text.SetTextSize(.035);
   text.DrawLatex(.085,.963,heading);
   text.SetTextSize(.025);
-  text.DrawLatex(.085,.922,"Boxes: systematic; bars: baseline errors; lines guide the eye");
+  text.DrawLatex(.085,.922,"Bands: systematic; bars: baseline errors; lines guide the eye");
   TString note=normalization ? "N: source normalization; #lambda: correlation amplitude (different definitions)" : "";
   if(derived) note="Derived errors: independent-radius approximation";
   if(missingStat) note+=(note.IsNull() ? "" : "; ")+TString("D(#rho): baseline bars unavailable at some points");
@@ -211,7 +212,8 @@ int main(int argc,char** argv)
       cout << "Usage: compare_methods.exe [--drho syserr_results.root] [--fft syserr_results_FFT.root]\n"
            << "  [--energies 3p0,5p2,27] [--kt 0,4] [--output comparison_FFT.root]\n"
            << "  [--plot-dir DIR] [--no-plots]\n"
-           << "Default: common energies, all kT bins. kT plots always include all available bins.\n";
+           << "Default: common energies; energy plots use ikt_indices_to_plot in the common header.\n"
+           << "kT plots always include all available bins.\n";
       return 0;
     }
     if(i+1==argc) { cerr << "Missing value for " << option << endl; return 1; }
@@ -236,7 +238,7 @@ int main(int argc,char** argv)
       }
     } else { cerr << "Unknown option: " << option << endl; return 1; }
   }
-  if(ktBins.empty()) for(int kt=0; kt<NKT; ++kt) ktBins.push_back(kt);
+  if(ktBins.empty()) ktBins.assign(begin(ikt_indices_to_plot),end(ikt_indices_to_plot));
   sort(ktBins.begin(),ktBins.end());
   TFile drho(drhoName,"READ"), fft(fftName,"READ");
   if(drho.IsZombie() || fft.IsZombie()) { cerr << "Run both final plotters first, or supply their ROOT files with --drho and --fft.\n"; return 1; }
@@ -278,7 +280,7 @@ int main(int argc,char** argv)
     data.push_back(d);
   }
   if(common==0) { cerr << "No common valid alpha/radius points found. Check the energy selection and input graphs.\n"; return 1; }
-  if(missingStat) cerr << "Older D(rho) results have no baseline error graphs: showing their systematic boxes only. Rerun its final plotter to save baseline bars.\n";
+  if(missingStat) cerr << "Older D(rho) results have no baseline error graphs: showing their systematic bands only. Rerun its final plotter to save baseline bars.\n";
   for(TString folder : {TString(gSystem->DirName(outputName)),plotDir})
     if(gSystem->AccessPathName(folder) && gSystem->mkdir(folder,true)!=0) { cerr << "Cannot create " << folder << endl; return 1; }
   gROOT->SetBatch(true); gStyle->SetOptStat(0); gStyle->SetOptTitle(0);
@@ -290,11 +292,11 @@ int main(int argc,char** argv)
   for(const auto& d : data) {
     TString folder=plotDir+"/"+d.name;
     if(makePlots) gSystem->mkdir(folder,true);
+    vector<Panel> radii;
+    for(int q=1; q<=3; ++q) radii.push_back({titles[q],"R [fm]",{}});
     for(int q=0; q<NQUANT; ++q) {
-      vector<Panel> panels;
-      // Separate method panels for fit parameters; derived quantities overlay.
-      int n=(q<4 || q==7) ? 2 : 1;
-      for(int p=0; p<n; ++p) panels.push_back({n==2 ? methodLabels[p] : "",titles[q],{}});
+      vector<Panel> panels={{"",titles[q],{}}};
+      if(q==7) panels={{"D(#rho): N",titles[q],{}},{"FFT C(q): #lambda",titles[q],{}}};
       for(int m=0; m<2; ++m) {
         Series series; series.method=m;
         for(int kt=0; kt<NKT; ++kt) {
@@ -308,13 +310,16 @@ int main(int argc,char** argv)
           csv << ',' << point.sysDown << ',' << point.sysUp << '\n';
         }
         writeSeries(series,Form("%s_%s_kT_%s",quantities[q],methods[m],d.name.Data()),"k_{T} [GeV/c]",titles[q]);
-        panels[n==2 ? m : 0].series.push_back(series);
-        if(q==7) panels[m].label+=m==0 ? ": N" : ": #lambda";
+        auto& panel=(q>=1 && q<=3) ? radii[q-1] : panels[q==7 ? m : 0];
+        panel.series.push_back(series);
       }
-      if(makePlots) drawPanels(panels,Form("kT_%s_%s_comparison_FFT",quantities[q],d.name.Data()),
+      if(makePlots && (q==0 || q>=4)) drawPanels(panels,Form("kT_%s_%s_comparison_FFT",quantities[q],d.name.Data()),
         Form("UrQMD Au+Au, #sqrt{s_{NN}} = %g GeV",d.energy),"k_{T} [GeV/c]",ktbins[0]-.015,ktbins[NKT]+.015,
         false,folder,q>=4 && q<=6,q==7,missingStat);
     }
+    if(makePlots) drawPanels(radii,Form("kT_radii_%s_comparison_FFT",d.name.Data()),
+      Form("UrQMD Au+Au, #sqrt{s_{NN}} = %g GeV",d.energy),"k_{T} [GeV/c]",ktbins[0]-.015,ktbins[NKT]+.015,
+      false,folder,false,false,missingStat);
   }
   for(int kt : ktBins) {
     vector<Panel> radii;
@@ -339,7 +344,7 @@ int main(int argc,char** argv)
   }
   TNamed("comparison_drho_input",drhoName.Data()).Write(); TNamed("comparison_fft_input",fftName.Data()).Write();
   TNamed("comparison_derived_convention","R_RMS=sqrt((Rout^2+Rside^2+Rlong^2)/3), computed from each method's reported radii; ratio=Rout/Rside; difference=Rout^2-Rside^2; no kT averaging").Write();
-  TNamed("comparison_error_convention","Baseline bars and systematic boxes kept separate; derived errors use first-order propagation without radius covariances, swapping asymmetric up/down errors for negative derivatives; missing baseline errors are nan in CSV").Write();
+  TNamed("comparison_error_convention","Baseline bars and systematic bands kept separate; derived errors use first-order propagation without radius covariances, swapping asymmetric up/down errors for negative derivatives; missing baseline errors are nan in CSV").Write();
   TNamed("comparison_normalizations","D(rho) N and FFT lambda have different definitions; shown only in separate method panels").Write();
   TNamed("comparison_baseline_convention","D(rho): existing final-plotter baseline spreads; FFT: residual-rescaled fit errors; these error estimates have different meanings").Write();
   TParameter<int>("comparison_missing_drho_baseline",missingStat).Write();

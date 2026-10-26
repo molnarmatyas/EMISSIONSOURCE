@@ -122,6 +122,10 @@ int main(int argc,char** argv) {
       }
       require(fs::file_size(directory/"figures/final/3p0/mT_alpha_FFT.png")>1000,"Missing final mT plot");
       require(fs::file_size(directory/"figures/final/sNN_R_out_kt0_FFT.pdf")>1000,"Missing energy plot");
+      require(fs::file_size(directory/"figures/final/sNN_R_out_kt4_FFT.pdf")>1000,"Missing second selected energy plot");
+      require(!fs::exists(directory/"figures/final/sNN_R_out_kt1_FFT.pdf") &&
+              !fs::exists(directory/"figures/final/sNN_alpha_kt9_FFT.png"),"Wrote energy figures for unselected kT bins");
+      require(result.Get("alpha_sNN_stat_kt9_FFT"),"Plot selection must retain numerical results for every kT bin");
       require(fs::file_size(directory/"figures/final/3p0/contributions_alpha_FFT.png")>1000,"Missing source-contribution plot");
       require(fs::exists(directory/"figures/final/3p0/comparison_Drho_alpha_FFT.pdf"),"Missing optional D(rho) comparison");
     }

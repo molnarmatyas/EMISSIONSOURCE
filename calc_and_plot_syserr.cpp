@@ -30,8 +30,7 @@ bool mtchoice_syst = false;
 bool use_larger_same_side_shift = false; // if true, use max(|diff1|,|diff2|) when both variations are on the same side of default
 bool comparewithSTAR = true; // set to true to include analytic alpha vs sNN function fitted to STAR data
 
-const int NIKT_SNN_PLOTS = 2;
-int ikt_indices_to_plot[NIKT_SNN_PLOTS] = {0, 4}; // choose which m_T bins are shown on parameter-vs-sNN plots
+// Energy-plot kT selection: ikt_indices_to_plot in the common header.
 
 const char* levy_params[3] = {"alpha","R","N"};
 const char* levy_params_3d[3] = {"R_out","R_side","R_long"};

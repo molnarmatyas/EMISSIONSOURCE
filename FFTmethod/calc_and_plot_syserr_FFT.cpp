@@ -115,7 +115,7 @@ void writeGraph(TGraphAsymmErrors& graph, TString name, int parameter, ofstream&
   text << '\n';
 }
 
-// Statistical bars and systematic boxes. Used for per-energy and overlay plots.
+// Connected curves and systematic bands, as in the D(rho) final plotter.
 void drawPlot(const vector<TGraphAsymmErrors*>& stat, const vector<TGraphAsymmErrors*>& syst,
               const vector<TString>& labels, TString heading, const char* xTitle, const char* yTitle,
               TString filename, bool logx=false, bool drawPoints=true)
@@ -147,17 +147,22 @@ void drawPlot(const vector<TGraphAsymmErrors*>& stat, const vector<TGraphAsymmEr
   for(size_t i=0; i<stat.size(); ++i) {
     if(stat[i]->GetN()==0) continue;
     int color=colors[i%10];
-    syst[i]->SetFillColorAlpha(color,0.18); syst[i]->SetLineColor(color);
-    syst[i]->Draw("2 SAME");
+    syst[i]->SetFillColorAlpha(color,0.25); syst[i]->SetFillStyle(1001); syst[i]->SetLineColor(color);
+    syst[i]->Draw(syst[i]->GetN()>1 ? "3 SAME" : "2 SAME");
+  }
+  for(size_t i=0; i<stat.size(); ++i) {
+    if(stat[i]->GetN()==0) continue;
+    int color=colors[i%10];
     stat[i]->SetMarkerStyle(20+i%10); stat[i]->SetMarkerSize(0.8); stat[i]->SetMarkerColor(color); stat[i]->SetLineColor(color);
-    if(drawPoints) stat[i]->Draw("PZ SAME");
-    legend.AddEntry(drawPoints ? stat[i] : syst[i],labels[i],drawPoints ? "p" : "f");
+    stat[i]->SetLineWidth(2);
+    if(drawPoints) stat[i]->Draw("LPZ SAME");
+    legend.AddEntry(drawPoints ? stat[i] : syst[i],labels[i],drawPoints ? "lp" : "f");
   }
   legend.Draw();
   TLatex text; text.SetNDC(); text.SetTextFont(42); text.SetTextSize(0.032);
   text.DrawLatex(0.14,0.95,heading);
   text.SetTextSize(0.024);
-  text.DrawLatex(0.15,0.85,drawPoints ? "Bars: statistical; boxes: systematic" : "Signed relative systematic shifts");
+  text.DrawLatex(0.15,0.85,drawPoints ? "Bars: statistical; bands: systematic" : "Signed relative systematic shifts");
   canvas.SaveAs(filename+".png"); canvas.SaveAs(filename+".pdf");
 }
 
@@ -297,7 +302,7 @@ int main(int argc, char** argv)
                {&relative[0][p],&relative[1][p],&relative[2][p]},
                {"Analysis q_{LCMS}","Fit range","FFT binning"},heading,"m_{T} [GeV/c^{2}]","Relative systematic shift [%]",
                folder+"/contributions_"+parameters[p]+"_FFT",false,false);
-      // The old D(rho) output stores systematic bands, but no statistical bars.
+      // Older D(rho) outputs store systematic bands, but no statistical bars.
       if(drho && p!=0) {
         auto* old=drho->Get<TGraphAsymmErrors>(Form("%s_syserr_%s",parameters[p],energy.Data()));
         if(old) {
@@ -350,8 +355,9 @@ int main(int argc, char** argv)
       output.cd();
       writeGraph(stat,Form("%s_sNN_stat_kt%d_FFT",parameters[p],kt),p,graphText,true);
       writeGraph(syst,Form("%s_sNN_syserr_kt%d_FFT",parameters[p],kt),p,graphText,true);
-      drawPlot({&stat},{&syst},{"FFT C(q)"},Form("UrQMD Au+Au, %.3f < k_{T} < %.3f GeV/c",ktbins[kt],ktbins[kt+1]),
-               "#sqrt{s_{NN}} [GeV]",titles[p],plotDir+Form("/sNN_%s_kt%d_FFT",parameters[p],kt),true);
+      if(find(begin(ikt_indices_to_plot),end(ikt_indices_to_plot),kt)!=end(ikt_indices_to_plot))
+        drawPlot({&stat},{&syst},{"FFT C(q)"},Form("UrQMD Au+Au, %.3f < k_{T} < %.3f GeV/c",ktbins[kt],ktbins[kt+1]),
+                 "#sqrt{s_{NN}} [GeV]",titles[p],plotDir+Form("/sNN_%s_kt%d_FFT",parameters[p],kt),true);
     }
     for(auto* graph : allStat[p]) delete graph;
     for(auto* graph : allSyst[p]) delete graph;

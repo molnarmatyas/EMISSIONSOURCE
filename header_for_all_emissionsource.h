@@ -32,6 +32,10 @@ const int NKT = 10;
 const double ktbins[NKT+1] = {0.175, 0.225, 0.275, 0.325, 0.375, 0.425, 0.475, 0.525, 0.575, 0.625, 0.675};
 const double kT_center[NKT] = {0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65};
 
+// kT bins shown in energy-dependent figures: D(rho), FFT and method comparison.
+const int NIKT_SNN_PLOTS = 2;
+const int ikt_indices_to_plot[NIKT_SNN_PLOTS] = {0, 4};
+
 // Spherical C(q) fit limits in GeV/c, in the same order as kT_center.
 // Tentative Au+Au starting values; check fit-range stability on the actual samples.
 // These are independent of the analysis qLCMS_cut_values below.

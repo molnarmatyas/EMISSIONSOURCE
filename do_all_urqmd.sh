@@ -5,8 +5,8 @@
 
 # Run ./do_all_urqmd.sh [MAXJOBS]; select stages and method here.
 FFTmethod=true # true: signed pair trees -> FFT -> C(q) fits; false: original D(rho) workflow
-do_analysis=false
 do_conversion=false # whether to convert from .f19 to root tree files
+do_analysis=false
 do_transform=true # FFT only; false reuses C(q) files already in analysed/
 do_fitting=true # fit C(q) in FFT mode, otherwise run the original Levy fits
 FFT_systematics=true # FFT: all three qLCMS cuts, two fit-range and two grid variations
@@ -85,11 +85,11 @@ set -m
 trap 'echo "Script exiting - terminating background jobs..."; jobs -p | xargs -r kill; wait' EXIT SIGINT SIGTERM
 
 # Simple job limiter: keep at most MAXJOBS background processes in this script
-# Usage: ./do_all_urqmd.sh [MAXJOBS]  (optional). Default is 5 to be safe with memory.
+# Usage: ./do_all_urqmd.sh [MAXJOBS]  (optional). Default is 3 to be safe with memory.
 if [ -n "$1" ]; then
   MAXJOBS="$1"
 else
-  MAXJOBS=5
+  MAXJOBS=3
 fi
 echo "MAXJOBS set to $MAXJOBS"
 if ! [[ "$MAXJOBS" =~ ^[1-9][0-9]*$ ]]; then

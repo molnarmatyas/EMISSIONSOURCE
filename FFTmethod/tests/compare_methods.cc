@@ -65,7 +65,7 @@ TGraphAsymmErrors* graph(TFile& file,const char* name) {
   auto* result=file.Get<TGraphAsymmErrors>(name);
   require(result,"Missing graph: "+string(name)); return result;
 }
-void checkPanels(TFile& file,const char* name,int n) {
+void checkPanels(TFile& file,const char* name,int n,int methods=2) {
   auto* canvas=file.Get<TCanvas>(name); require(canvas,"Missing canvas: "+string(name));
   int count=0; double ymin=0.,ymax=0.;
   for(auto* object : *canvas->GetListOfPrimitives()) if(auto* pad=dynamic_cast<TPad*>(object)) {
@@ -73,6 +73,16 @@ void checkPanels(TFile& file,const char* name,int n) {
     require(frame,"Missing panel frame");
     if(count==0) { ymin=frame->GetMinimum(); ymax=frame->GetMaximum(); }
     else { near(frame->GetMinimum(),ymin); near(frame->GetMaximum(),ymax); }
+    int bands=0,curves=0;
+    for(auto* link=pad->GetListOfPrimitives()->FirstLink(); link; link=link->Next()) {
+      auto* graph=dynamic_cast<TGraphAsymmErrors*>(link->GetObject());
+      if(!graph) continue;
+      TString option=link->GetOption(),graphName=graph->GetName();
+      option.ToUpper();
+      if(graphName.EndsWith("_syserr")) { require(option.Contains("3"),"Uncertainties must be connected bands"); ++bands; }
+      if(graphName.EndsWith("_points")) { require(option.Contains("L"),"Parameter points must form a continuous curve"); ++curves; }
+    }
+    require(bands==methods && curves==methods,"Missing method overlay in panel");
     ++count;
   }
   require(count==n,"Wrong number of panels");
@@ -84,7 +94,7 @@ int main(int argc,char** argv) {
   try {
     makeFinal(0); makeFinal(1);
     vector<string> args={"--drho",(directory/"drho.root").string(),"--fft",(directory/"fft.root").string(),
-      "--energies","27,3p0","--kt","0,4","--output",(directory/"results/comparison.root").string(),
+      "--energies","27,3p0","--output",(directory/"results/comparison.root").string(),
       "--plot-dir",(directory/"figures").string()};
     auto oldSize=fs::file_size(directory/"drho.root"),fftSize=fs::file_size(directory/"fft.root");
     run(args);
@@ -108,12 +118,17 @@ int main(int argc,char** argv) {
       near(energy->GetPointX(0),3.); near(energy->GetPointX(1),27.);
       require(out->GetLineStyle()==1 && energy->GetLineStyle()==2,"Methods need different line styles");
       require(ratio->GetFillStyle()==3004 && graph(file,"Rout_over_Rside_FFT_kT_3p0_syserr")->GetFillStyle()==3005,"Methods need different fill patterns");
-      checkPanels(file,"kT_alpha_3p0_comparison_FFT",2);
+      checkPanels(file,"kT_alpha_3p0_comparison_FFT",1);
+      checkPanels(file,"kT_radii_3p0_comparison_FFT",3);
+      require(!file.Get("kT_R_out_3p0_comparison_FFT"),"Kept the separate two-panel radius plots");
       checkPanels(file,"sNN_radii_kt0_comparison_FFT",3);
       checkPanels(file,"sNN_R_RMS_kt0_comparison_FFT",1);
-      checkPanels(file,"sNN_normalization_kt0_comparison_FFT",2);
-      require(!file.Get("sNN_radii_kt1_comparison_FFT"),"Ignored kT selection");
+      checkPanels(file,"sNN_normalization_kt0_comparison_FFT",2,1);
+      checkPanels(file,"sNN_alpha_kt4_comparison_FFT",1);
+      require(!file.Get("sNN_radii_kt1_comparison_FFT") && !file.Get("sNN_radii_kt9_comparison_FFT"),"Energy plots must default to kT bins 0 and 4 only");
       require(fs::file_size(directory/"figures/3p0/kT_alpha_3p0_comparison_FFT.pdf")>1000,"Missing kT PDF");
+      require(fs::file_size(directory/"figures/3p0/kT_radii_3p0_comparison_FFT.pdf")>1000,"Missing three-panel kT radii PDF");
+      require(!fs::exists(directory/"figures/3p0/kT_R_out_3p0_comparison_FFT.pdf"),"Wrote an obsolete radius figure");
       require(fs::file_size(directory/"figures/sNN_radii_kt0_comparison_FFT.png")>1000,"Missing energy PNG");
     }
     require(fs::file_size(directory/"drho.root")==oldSize && fs::file_size(directory/"fft.root")==fftSize,"Changed comparison inputs");
@@ -121,6 +136,13 @@ int main(int argc,char** argv) {
       ifstream csv(directory/"results/comparison_FFT.csv"); string line; int rows=0;
       while(getline(csv,line)) { require(count(line.begin(),line.end(),',')==12,"Malformed CSV"); ++rows; }
       require(rows>200,"Missing CSV data");
+    }
+    auto custom=args;
+    custom.insert(custom.end(),{"--kt","1","--no-plots","--output",(directory/"results/custom.root").string()});
+    run(custom);
+    {
+      TFile file((directory/"results/custom_FFT.root").c_str());
+      require(file.Get("alpha_FFT_sNN_kt1_points") && !file.Get("alpha_FFT_sNN_kt0_points"),"Ignored explicit energy-plot kT override");
     }
     makeFinal(0,false); // Older final-plotter output with systematic errors only.
     args.push_back("--no-plots"); run(args);

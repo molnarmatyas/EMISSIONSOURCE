@@ -65,7 +65,8 @@ No missing variation is silently counted as zero systematic uncertainty.
 
 - `header_for_all_emissionsource.h`: FFT switch, grid size, spatial range and
   per-kT C(q) fit limits (`fftQmaxFit`), fit-range scales and grid variations.
-  Rebuild after editing.
+  `ikt_indices_to_plot` selects kT bins for energy figures in both final plotters
+  and the comparison (currently `{0, 4}`). Rebuild after editing.
 - `pair_source_tree.h`: branch variables and `SetBranchAddress` calls only.
 - `transform_fft.cc`: settings, tree-to-TH3D loop, normalization, FFT, output,
   in that order inside `main`.
@@ -305,8 +306,10 @@ The outputs are separate from the D(rho) results:
   The total is combined in quadrature per kT bin before averaging percentages.
 - `figs/syserr/FFT/<energy>/`: mT plots and signed percentage contributions.
 - `figs/syserr/FFT/`: energy overlays versus mT and fixed-kT plots versus
-  collision energy, all as PNG/PDF. Bars show statistical errors; boxes show
-  systematic errors. The widths of energy-axis boxes are only for display.
+  collision energy for `ikt_indices_to_plot`, all as PNG/PDF. Central values
+  form connected lines; filled bands connect the systematic-error edges, as
+  in the D(rho) plotter. Bars show statistical errors. All kT bins remain in
+  the numerical ROOT/text/CSV outputs.
 
 Each ROOT graph's object name agrees with its file key, and its axes carry
 the quantity and units. The final calculator consumes the already scaled
@@ -375,13 +378,17 @@ FFTmethod/compare_methods.exe \
   --energies 3p0,5p2,27 --kt 0,4
 ```
 
-By default, all energies present in both outputs and all ten kT bins are used.
-The kT plots always include every valid bin; `--kt` selects the energy plots.
+By default, all energies present in both outputs are used. Energy figures use
+`ikt_indices_to_plot` from the common header, currently kT bins 0 and 4 (centers
+0.20 and 0.40 GeV/c), matching the D(rho) final plotter. The kT plots always
+include every valid bin; `--kt` overrides the selection for energy plots.
 The plotter creates its directories automatically and saves PNG/PDF figures in
 `figs/comparison/Drho_FFT/`:
 
-- `<energy>/kT_<parameter>_<energy>_comparison_FFT`: separate D(rho) and FFT
-  panels with a common vertical scale, for alpha and each radius.
+- `<energy>/kT_alpha_<energy>_comparison_FFT`: single panel overlaying the
+  methods' alpha values.
+- `<energy>/kT_radii_<energy>_comparison_FFT`: Rout, Rside and Rlong in three
+  panels with a common vertical scale, overlaying the methods in each panel.
 - `sNN_radii_kt<K>_comparison_FFT`: Rout, Rside and Rlong in three panels
   with a common vertical scale, overlaying the methods.
 - Single panels for alpha versus energy and for the derived quantities versus
@@ -390,12 +397,12 @@ The plotter creates its directories automatically and saves PNG/PDF figures in
   They have different definitions and are not overlaid as a common parameter.
 
 D(rho) uses solid red lines, filled markers and `/` hatching; FFT uses dashed
-blue lines, open markers and `\\` hatching. Lines guide the eye. Boxes show
+blue lines, open markers and `\\` hatching. Lines guide the eye. Connected bands show
 systematic uncertainties and bars show the baseline errors saved by each final
 plotter. D(rho)'s bars are the existing spreads across accepted event-group fits;
 FFT's bars are residual-rescaled fit errors. Their meanings differ.
-Horizontal box widths follow the kT-bin edges in kT plots; in energy plots
-they are chosen only for visibility and do not represent energy uncertainties.
+Bands join the upper and lower systematic errors between adjacent valid points,
+as in the D(rho) plotter. A lone valid point uses an uncertainty box.
 The D(rho) final plotter now also saves these existing baseline graphs as
 `<parameter>_stat_<energy>`. Older ROOT files still work: their baseline bars
 are omitted, flagged on the figures, and recorded as `nan` in the CSV.
@@ -419,7 +426,8 @@ values of Rout²−Rside² are retained. Existing input files are read only.
 The batch script runs the comparison after either method's final plotter when
 `do_comparison=true` (the default). It first checks that both final ROOT files
 exist and are nonempty; otherwise it prints a skip message. The comparison uses
-the script's selected energies and all kT bins. Its log is
+the script's selected energies and the common header's kT selection for energy
+figures. Its log is
 `logfiles/comparison_Drho_FFT.log`. Invalid ROOT files or comparison/build
 failures exit with code 1; incomplete FFT fits still retain exit code 2 when
 the comparison succeeds. FFT processing failures and failures in either final
@@ -441,6 +449,9 @@ do_comparison=true
 This builds only the comparison executable and leaves the analyses and final
 plotters untouched. For a transform-only or baseline-only run, turn comparison
 off too if saved final outputs should not be plotted.
+
+Existing PNG/PDF files from previous layouts are retained; a fresh `--plot-dir`
+shows only the figures produced with the current selection.
 
 Run the numerical and compatibility checks with `make -C FFTmethod check`.
 The test code lives under `tests/`, separately from the analysis workflow.
