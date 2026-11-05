@@ -65,14 +65,17 @@ TGraphAsymmErrors* graph(TFile& file,const char* name) {
   auto* result=file.Get<TGraphAsymmErrors>(name);
   require(result,"Missing graph: "+string(name)); return result;
 }
-void checkPanels(TFile& file,const char* name,int n,int methods=2) {
+void checkPanels(TFile& file,const char* name,int n,int methods=2,const vector<int>& counts={}) {
   auto* canvas=file.Get<TCanvas>(name); require(canvas,"Missing canvas: "+string(name));
-  int count=0; double ymin=0.,ymax=0.;
+  int count=0; double ymin=0.,ymax=0.,previousRight=0.;
   for(auto* object : *canvas->GetListOfPrimitives()) if(auto* pad=dynamic_cast<TPad*>(object)) {
     auto* frame=dynamic_cast<TH1*>(pad->GetPrimitive(Form("frame_%d",count)));
     require(frame,"Missing panel frame");
     if(count==0) { ymin=frame->GetMinimum(); ymax=frame->GetMaximum(); }
     else { near(frame->GetMinimum(),ymin); near(frame->GetMaximum(),ymax); }
+    double left=pad->GetXlowNDC()+pad->GetWNDC()*pad->GetLeftMargin();
+    if(count>0) near(left,previousRight);
+    previousRight=pad->GetXlowNDC()+pad->GetWNDC()*(1.-pad->GetRightMargin());
     int bands=0,curves=0;
     for(auto* link=pad->GetListOfPrimitives()->FirstLink(); link; link=link->Next()) {
       auto* graph=dynamic_cast<TGraphAsymmErrors*>(link->GetObject());
@@ -80,9 +83,14 @@ void checkPanels(TFile& file,const char* name,int n,int methods=2) {
       TString option=link->GetOption(),graphName=graph->GetName();
       option.ToUpper();
       if(graphName.EndsWith("_syserr")) { require(option.Contains("3"),"Uncertainties must be connected bands"); ++bands; }
-      if(graphName.EndsWith("_points")) { require(option.Contains("L"),"Parameter points must form a continuous curve"); ++curves; }
+      if(graphName.EndsWith("_points")) {
+        require(option.Contains("L"),"Parameter points must form a continuous curve");
+        require(option.Contains("X"),"Baseline bars should be hidden by default");
+        ++curves;
+      }
     }
-    require(bands==methods && curves==methods,"Missing method overlay in panel");
+    int expected=counts.empty() ? methods : counts[count];
+    require(bands==expected && curves==expected,"Missing method/kT overlay in panel");
     ++count;
   }
   require(count==n,"Wrong number of panels");
@@ -121,18 +129,21 @@ int main(int argc,char** argv) {
       checkPanels(file,"kT_alpha_3p0_comparison_FFT",1);
       checkPanels(file,"kT_radii_3p0_comparison_FFT",3);
       require(!file.Get("kT_R_out_3p0_comparison_FFT"),"Kept the separate two-panel radius plots");
-      checkPanels(file,"sNN_radii_kt0_comparison_FFT",3);
-      checkPanels(file,"sNN_R_RMS_kt0_comparison_FFT",1);
-      checkPanels(file,"sNN_normalization_kt0_comparison_FFT",1);
+      checkPanels(file,"sNN_radii_comparison_FFT",3,4,{4,4,2});
+      checkPanels(file,"sNN_R_RMS_comparison_FFT",1);
+      checkPanels(file,"sNN_normalization_comparison_FFT",1,4);
       checkPanels(file,"kT_normalization_3p0_comparison_FFT",1);
       require(string(graph(file,"normalization_FFT_kT_3p0_points")->GetYaxis()->GetTitle())=="#lambda^{*}","Normalization axis needs lambda*");
       require(string(graph(file,"normalization_Drho_sNN_kt0_points")->GetYaxis()->GetTitle())=="#lambda^{*}","Energy normalization axis needs lambda*");
-      checkPanels(file,"sNN_alpha_kt4_comparison_FFT",1);
-      require(!file.Get("sNN_radii_kt1_comparison_FFT") && !file.Get("sNN_radii_kt9_comparison_FFT"),"Energy plots must default to kT bins 0 and 4 only");
+      checkPanels(file,"sNN_alpha_comparison_FFT",1,4);
+      require(!file.Get("sNN_radii_kt0_comparison_FFT") && !file.Get("sNN_radii_kt4_comparison_FFT"),"Selected kT bins should share one energy figure");
+      require(!file.Get("alpha_FFT_sNN_kt1_points") && !file.Get("alpha_FFT_sNN_kt9_points"),"Energy graphs must default to kT bins 0 and 4 only");
+      require(file.Get<TParameter<int>>("comparison_show_baseline_errors")->GetVal()==0,"Baseline display switch should default off");
       require(fs::file_size(directory/"figures/3p0/kT_alpha_3p0_comparison_FFT.pdf")>1000,"Missing kT PDF");
       require(fs::file_size(directory/"figures/3p0/kT_radii_3p0_comparison_FFT.pdf")>1000,"Missing three-panel kT radii PDF");
       require(!fs::exists(directory/"figures/3p0/kT_R_out_3p0_comparison_FFT.pdf"),"Wrote an obsolete radius figure");
-      require(fs::file_size(directory/"figures/sNN_radii_kt0_comparison_FFT.png")>1000,"Missing energy PNG");
+      require(fs::file_size(directory/"figures/sNN_radii_comparison_FFT.png")>1000,"Missing combined energy PNG");
+      require(!fs::exists(directory/"figures/sNN_radii_kt0_comparison_FFT.png"),"Wrote a deprecated separate-kT figure");
     }
     require(fs::file_size(directory/"drho.root")==oldSize && fs::file_size(directory/"fft.root")==fftSize,"Changed comparison inputs");
     {

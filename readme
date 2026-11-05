@@ -7,7 +7,9 @@ After simulation data is ready, in order to run the full analysis:
 
 time ./do_all_urqmd.sh 1 &> allurqmd.log &
 
-Also keep in mind that the analysis might consume cca. 20 GB of RAM at its peak even on a single core. Before running the analysis, study carefully the comments in the beginning of the do_all_urqmd.sh script.
+Also keep in mind that the analysis might consume cca. 20 GB of RAM at its peak even on a single core (for 100k events). Before running the analysis, study carefully the comments in the beginning of the do_all_urqmd.sh script.
+
+BEWARE! Even on 3 threads, the full analysis will run for cca. 770 minutes on 100 000 events, the fitting process (measured with the FFT method) 140 minutes.
 
 # The EPOS stuff is already deprecated, if datafiles are available, 
 # necessary directories are created, maybe these could work to get something:

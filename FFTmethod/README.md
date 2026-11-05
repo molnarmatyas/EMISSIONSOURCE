@@ -309,11 +309,23 @@ The outputs are separate from the D(rho) results:
   vertical scale. Alpha, lambda and the contribution plots remain separate.
 - `figs/syserr/FFT/`: `mT_overlay_radii_FFT` combines the three radius directions
   in three panels with a common vertical scale and matching energy colors.
-  Alpha/lambda energy overlays versus mT and fixed-kT plots versus
-  collision energy for `ikt_indices_to_plot`, all as PNG/PDF. Central values
+  `mT_overlay_alpha_FFT` and `mT_overlay_lambda_FFT` show the other parameters.
+  Collision-energy figures combine the selected `ikt_indices_to_plot` curves:
+  `sNN_alpha_FFT`, `sNN_lambda_FFT` and the three-panel `sNN_radii_FFT`.
+  Their legends show compact mT ranges in MeV/c², calculated from the pion mass
+  and the kT-bin edges using `mT = sqrt(kT² + m_pi²)`.
+  No kT bins are averaged together. All figures are PNG/PDF. Central values
   form connected lines; filled bands connect the systematic-error edges, as
-  in the D(rho) plotter. Bars show statistical errors. All kT bins remain in
-  the numerical ROOT/text/CSV outputs.
+  in the D(rho) plotter. All kT bins remain in the numerical ROOT/text/CSV outputs.
+
+The global `showStatErrors` switch near the top of
+`calc_and_plot_syserr_FFT.cpp` controls baseline statistical bars and defaults
+to `false`. Set it to `true` and rebuild to display them. The stored graph
+errors and all numerical tables keep the baseline uncertainties in either case.
+Titles and framed legends sit inside the plotting area, and the three radius
+frames touch at their shared boundaries. Multi-energy legends use more columns
+to leave the curves visible. Explanations of the uncertainty convention are
+kept in this README and the program log rather than printed across each figure.
 
 Each ROOT graph's object name agrees with its file key, and its axes carry
 the quantity and units. The final calculator consumes the already scaled
@@ -393,10 +405,11 @@ The plotter creates its directories automatically and saves PNG/PDF figures in
   methods' alpha values.
 - `<energy>/kT_radii_<energy>_comparison_FFT`: Rout, Rside and Rlong in three
   panels with a common vertical scale, overlaying the methods in each panel.
-- `sNN_radii_kt<K>_comparison_FFT`: Rout, Rside and Rlong in three panels
-  with a common vertical scale, overlaying the methods.
+- `sNN_radii_comparison_FFT`: Rout, Rside and Rlong in three touching panels
+  with a common vertical scale, overlaying both methods and the selected kT bins.
 - Single panels for alpha versus energy and for the derived quantities versus
-  kT and energy: `R_RMS`, `Rout_over_Rside`, `Rout2_minus_Rside2`.
+  kT and energy: `R_RMS`, `Rout_over_Rside`, `Rout2_minus_Rside2`. Energy figures
+  use names such as `sNN_alpha_comparison_FFT` and combine the selected kT curves.
 - Normalizations overlaid on a single panel versus kT and energy, labelled
   `lambda*` (λ*). The original source-fit N and correlation-fit lambda values
   and errors are plotted directly; their saved graph names remain unchanged.
@@ -404,16 +417,25 @@ The plotter creates its directories automatically and saves PNG/PDF figures in
 All normalization-parameter axes use λ*, including the FFT final plots and
 the parameter graphs written by `CqFit`.
 
-D(rho) uses solid red lines, filled markers and `/` hatching; FFT uses dashed
-blue lines, open markers and `\\` hatching. Lines guide the eye. Connected bands show
-systematic uncertainties and bars show the baseline errors saved by each final
-plotter. D(rho)'s bars are the existing spreads across accepted event-group fits;
-FFT's bars are residual-rescaled fit errors. Their meanings differ.
+D(rho) uses solid lines, filled markers and `/` hatching; FFT uses dashed
+lines, open markers and `\\` hatching. In kT figures the methods are red and blue.
+In energy figures color identifies the selected kT group, while marker shape,
+line style and hatching identify the method. With the default two kT bins, four
+curves share each energy panel and the framed legend identifies each one.
+The comparison legend lists the method and mT-bin range, with `mT [MeV/c²]`
+given once in the legend header. The selected bins and numerical coordinates
+still follow the same kT configuration.
+Lines guide the eye. Connected bands show systematic uncertainties. The global
+`showStatErrors=false` switch near the top of `compare_methods.cpp` hides baseline
+bars by default; set it to `true` and rebuild to display them. The graph errors
+and CSV values retain the baseline uncertainties regardless of this switch.
+D(rho)'s baseline errors are the existing spreads across accepted event-group
+fits; FFT's are residual-rescaled fit errors. Their meanings differ.
 Bands join the upper and lower systematic errors between adjacent valid points,
 as in the D(rho) plotter. A lone valid point uses an uncertainty box.
 The D(rho) final plotter now also saves these existing baseline graphs as
 `<parameter>_stat_<energy>`. Older ROOT files still work: their baseline bars
-are omitted, flagged on the figures, and recorded as `nan` in the CSV.
+are unavailable, reported in the log, and recorded as `nan` in the CSV.
 
 The averaged radius is defined consistently here as
 `R_RMS = sqrt((Rout² + Rside² + Rlong²)/3)`, computed from each method's reported
@@ -423,11 +445,14 @@ Derived errors use first-order propagation of the saved marginal errors,
 separately for baseline and systematic uncertainties. Negative derivatives
 swap the asymmetric error directions (for example, increasing Rside decreases
 Rout/Rside). Radius correlations are unavailable in these final graphs and are
-neglected, so the derived uncertainty bands are approximations.
+neglected, so the derived uncertainty bands are approximations. This convention
+is documented here and in the output metadata/log rather than on the figures.
 
 The plotted graphs, canvases, input filenames and conventions are saved in
 `FFTmethod/results/comparison_Drho_FFT.root`, with a tidy CSV beside it.
-Graphs use kT coordinates even though the final plotters save mT; missing bins
+Per-kT energy graph keys such as `alpha_FFT_sNN_kt0_points` are retained even
+though several kT curves now share one canvas. Graphs use kT coordinates even
+though the final plotters save mT; missing bins
 are matched by coordinate and never replaced with zeros. Negative and zero
 values of Rout²−Rside² are retained. Existing input files are read only.
 `--output NAME`, `--plot-dir DIR` and `--no-plots` are also available.

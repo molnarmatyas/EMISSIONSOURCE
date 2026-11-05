@@ -26,6 +26,8 @@ const char* titles[NQUANT]={"#alpha","R_{out} [fm]","R_{side} [fm]","R_{long} [f
                           "R_{RMS} [fm]","R_{out}/R_{side}","R_{out}^{2}-R_{side}^{2} [fm^{2}]","#lambda^{*}"};
 const char* methods[]={"Drho","FFT"};
 const char* methodLabels[]={"D(#rho)","FFT C(q)"};
+// Display only: baseline errors remain in the ROOT graphs and CSV table.
+bool showStatErrors=false;
 
 struct Point {
   bool valid=false, hasStat=false;
@@ -38,6 +40,7 @@ struct EnergyData {
 };
 struct Series {
   int method;
+  int kt=-1, group=0;
   TGraphAsymmErrors points, band;
 };
 struct Panel {
@@ -121,12 +124,14 @@ void append(Series& series, const Point& p, double x, double xlow, double xhigh)
 
 void style(Series& series)
 {
-  int color=series.method==0 ? kRed+1 : kBlue+1;
+  const int ktColors[]={kRed+1,kBlue+1,kGreen+2,kMagenta+1};
+  int color=series.kt<0 ? (series.method==0 ? kRed+1 : kBlue+1) : ktColors[series.group%4];
+  int marker=series.kt<0 ? 20 : (series.group%2==0 ? 20 : 21);
   for(auto* graph : {&series.points,&series.band}) {
     graph->SetLineColor(color); graph->SetMarkerColor(color); graph->SetFillColor(color);
     graph->SetLineWidth(2); graph->SetLineStyle(series.method==0 ? 1 : 2);
     graph->SetFillStyle(series.method==0 ? 3004 : 3005);
-    graph->SetMarkerStyle(series.method==0 ? 20 : 24); graph->SetMarkerSize(.85);
+    graph->SetMarkerStyle(marker+(series.method==0 ? 0 : 4)); graph->SetMarkerSize(1.15);
   }
 }
 
@@ -140,60 +145,80 @@ void writeSeries(Series& series, TString name, const char* xTitle, const char* y
 
 // One common y range is calculated from every panel, including error extents.
 void drawPanels(vector<Panel>& panels, TString name, TString heading, const char* xTitle,
-                double xmin, double xmax, bool energyAxis, TString plotDir,
-                bool derived=false, bool normalization=false, bool missingStat=false)
+                double xmin, double xmax, bool energyAxis, TString plotDir)
 {
   double ymin=1.e30,ymax=-1.e30;
   for(auto& panel : panels) for(auto& s : panel.series) for(int i=0; i<s.points.GetN(); ++i) {
     double y=s.points.GetPointY(i);
-    ymin=min(ymin,y-hypot(s.points.GetErrorYlow(i),s.band.GetErrorYlow(i)));
-    ymax=max(ymax,y+hypot(s.points.GetErrorYhigh(i),s.band.GetErrorYhigh(i)));
+    ymin=min(ymin,y-max(showStatErrors ? s.points.GetErrorYlow(i) : 0.,s.band.GetErrorYlow(i)));
+    ymax=max(ymax,y+max(showStatErrors ? s.points.GetErrorYhigh(i) : 0.,s.band.GetErrorYhigh(i)));
   }
   if(ymin>ymax) return;
-  double dy=max(.05,.18*(ymax-ymin)); ymin-=dy; ymax+=dy;
+  double dy=max(.03,ymax-ymin); ymin-=.08*dy; ymax+=.40*dy;
   int n=panels.size();
-  TCanvas canvas(name,"",n==1 ? 850 : (n==2 ? 1100 : 1400),650);
+  TCanvas canvas(name,"",n==1 ? 900 : 1550,680);
   for(int p=0; p<n; ++p) {
     canvas.cd();
-    auto* pad=new TPad(Form("panel_%d",p),"",double(p)/n,0.,double(p+1)/n,.88);
+    auto* pad=new TPad(Form("panel_%d",p),"",double(p)/n,0.,double(p+1)/n,1.);
     pad->Draw(); pad->cd();
-    pad->SetLeftMargin(p==0 ? .17 : .045); pad->SetRightMargin(.04);
-    pad->SetBottomMargin(.17); pad->SetTopMargin(.17); pad->SetTicks(1,1); pad->SetLogx(energyAxis);
+    pad->SetLeftMargin(p==0 ? .17 : 0.); pad->SetRightMargin(p==n-1 ? .045 : 0.);
+    pad->SetBottomMargin(.16); pad->SetTopMargin(.045); pad->SetTicks(1,1); pad->SetLogx(energyAxis);
     auto* frame=pad->DrawFrame(xmin,ymin,xmax,ymax);
     frame->SetName(Form("frame_%d",p));
     frame->SetTitle(Form(";%s;%s",xTitle,p==0 ? panels[p].yTitle.Data() : ""));
     for(auto* axis : {frame->GetXaxis(),frame->GetYaxis()}) {
       axis->SetTitleFont(43); axis->SetLabelFont(43);
-      axis->SetTitleSize(23); axis->SetLabelSize(n==3 ? 17 : 20); axis->SetTitleOffset(1.4);
+      axis->SetTitleSize(27); axis->SetLabelSize(n==3 ? 20 : 23); axis->SetTitleOffset(1.25);
     }
-    frame->GetYaxis()->SetTitleOffset(n==3 ? 1.65 : 1.4);
+    frame->GetYaxis()->SetTitleOffset(n==3 ? 1.45 : 1.25);
     if(p>0) frame->GetYaxis()->SetLabelSize(0.);
+    if(!energyAxis) frame->GetXaxis()->SetNdivisions(505);
     if(energyAxis) { frame->GetXaxis()->SetMoreLogLabels(); frame->GetXaxis()->SetNoExponent(); }
+    if(energyAxis && p<n-1) {
+      double decade=pow(10.,floor(log10(xmax)));
+      frame->GetXaxis()->ChangeLabelByValue(floor(xmax/decade)*decade,-1,0.);
+    }
     for(auto& series : panels[p].series) if(series.band.GetN()>0)
       series.band.Draw(series.band.GetN()>1 ? "3 SAME" : "2 SAME");
-    for(auto& series : panels[p].series) if(series.points.GetN()>0) series.points.Draw("LPZ SAME");
-    TLatex text; text.SetNDC(); text.SetTextFont(42); text.SetTextSize(.048);
-    text.DrawLatex(p==0 ? .19 : .07,.91,panels[p].label);
-    if(panels[p].series.size()>1) {
-      auto* legend=new TLegend(p==0 ? .56 : .52,.85,.97,.98);
-      legend->SetFillStyle(0); legend->SetBorderSize(0); legend->SetTextSize(.038);
-      for(auto& series : panels[p].series) if(series.points.GetN()>0)
-        legend->AddEntry(&series.band,methodLabels[series.method],"lfp");
+    for(auto& series : panels[p].series) if(series.points.GetN()>0)
+      series.points.Draw(showStatErrors ? "LPZ SAME" : "LPX SAME");
+    double left=pad->GetLeftMargin(),width=1.-left-pad->GetRightMargin();
+    auto x=[&](double value){return left+value*width;};
+    auto y=[&](double value){return pad->GetBottomMargin()+value*(1.-pad->GetBottomMargin()-pad->GetTopMargin());};
+    TLatex text; text.SetNDC(); text.SetTextFont(62); text.SetTextSize(.035);
+    if(p==0) {
+      TString first=heading,second;
+      if(n>1 && heading.Contains(",")) { int split=heading.First(','); first=heading(0,split); second=heading(split+1,heading.Length()); }
+      text.DrawLatex(x(.035),y(.945),first);
+      if(!second.IsNull()) text.DrawLatex(x(.035),y(.885),second);
+    }
+    // The middle radius panel has room for one shared legend.
+    if((n==1 || p==1) && panels[p].series.size()>1) {
+      bool grouped=energyAxis && panels[p].series.front().kt>=0;
+      auto* legend=new TLegend(x(.04),y(grouped ? .75 : .80),x(.97),y(.90));
+      legend->SetFillColor(kWhite); legend->SetFillStyle(1001); legend->SetBorderSize(1);
+      legend->SetLineColor(kGray+1); legend->SetLineWidth(1); legend->SetTextFont(43); legend->SetTextSize(n==1 ? 20 : 17);
+      legend->SetNColumns(2);
+      if(grouped) legend->SetHeader("m_{T} [MeV/c^{2}]");
+      for(auto& series : panels[p].series) if(series.points.GetN()>0) {
+        TString entry=methodLabels[series.method];
+        if(grouped) {
+          double low=1000.*sqrt(ktbins[series.kt]*ktbins[series.kt]+Mass2_pi);
+          double high=1000.*sqrt(ktbins[series.kt+1]*ktbins[series.kt+1]+Mass2_pi);
+          entry=Form("%s, %.0f#minus%.0f",series.method==0 ? "D(#rho)" : "FFT",low,high);
+        }
+        legend->AddEntry(&series.band,entry,"lfp");
+      }
       legend->Draw();
     }
+    TString label=panels[p].label; label.ReplaceAll(" [fm]","");
+    label.ReplaceAll("R_{",""); label.ReplaceAll("}","");
+    if(!label.IsNull()) { text.SetTextSize(.040); text.DrawLatex(x(.75),y(.945),label); }
     bool empty=true;
     for(auto& series : panels[p].series) if(series.points.GetN()>0) empty=false;
-    if(empty) text.DrawLatex(.25,.50,"No valid points");
+    if(empty) text.DrawLatex(x(.25),y(.50),"No valid points");
   }
   canvas.cd();
-  TLatex text; text.SetNDC(); text.SetTextFont(42); text.SetTextSize(.035);
-  text.DrawLatex(.085,.963,heading);
-  text.SetTextSize(.025);
-  text.DrawLatex(.085,.922,"Bands: systematic; bars: baseline errors; lines guide the eye");
-  TString note=normalization ? "D(#rho): source-fit amplitude; FFT: correlation-fit amplitude" : "";
-  if(derived) note="Derived errors: independent-radius approximation";
-  if(missingStat) note+=(note.IsNull() ? "" : "; ")+TString("D(#rho): baseline bars unavailable at some points");
-  if(!note.IsNull()) { text.SetTextSize(.021); text.DrawLatex(.085,.886,note); }
   canvas.Write();
   canvas.SaveAs(plotDir+"/"+name+".png"); canvas.SaveAs(plotDir+"/"+name+".pdf");
 }
@@ -280,7 +305,10 @@ int main(int argc,char** argv)
     data.push_back(d);
   }
   if(common==0) { cerr << "No common valid alpha/radius points found. Check the energy selection and input graphs.\n"; return 1; }
-  if(missingStat) cerr << "Older D(rho) results have no baseline error graphs: showing their systematic bands only. Rerun its final plotter to save baseline bars.\n";
+  if(missingStat) cerr << "Some D(rho) baseline errors are unavailable and recorded as nan in the CSV.\n";
+  cout << "Plot display: connected systematic bands; baseline bars " << (showStatErrors ? "shown" : "hidden")
+       << "; stored graph errors and CSV values are retained.\n"
+       << "Derived uncertainties use independent-radius propagation. Normalization overlays use the original source/correlation fit amplitudes.\n";
   for(TString folder : {TString(gSystem->DirName(outputName)),plotDir})
     if(gSystem->AccessPathName(folder) && gSystem->mkdir(folder,true)!=0) { cerr << "Cannot create " << folder << endl; return 1; }
   gROOT->SetBatch(true); gStyle->SetOptStat(0); gStyle->SetOptTitle(0);
@@ -313,39 +341,39 @@ int main(int argc,char** argv)
         panel.series.push_back(series);
       }
       if(makePlots && (q==0 || q>=4)) drawPanels(panels,Form("kT_%s_%s_comparison_FFT",quantities[q],d.name.Data()),
-        Form("UrQMD Au+Au, #sqrt{s_{NN}} = %g GeV",d.energy),"k_{T} [GeV/c]",ktbins[0]-.015,ktbins[NKT]+.015,
-        false,folder,q>=4 && q<=6,q==7,missingStat);
+        Form("UrQMD Au+Au 0#minus10%%, #sqrt{s_{NN}} = %g GeV",d.energy),"k_{T} [GeV/c]",ktbins[0]-.015,ktbins[NKT]+.015,
+        false,folder);
     }
     if(makePlots) drawPanels(radii,Form("kT_radii_%s_comparison_FFT",d.name.Data()),
-      Form("UrQMD Au+Au, #sqrt{s_{NN}} = %g GeV",d.energy),"k_{T} [GeV/c]",ktbins[0]-.015,ktbins[NKT]+.015,
-      false,folder,false,false,missingStat);
+      Form("UrQMD Au+Au 0#minus10%%, #sqrt{s_{NN}} = %g GeV",d.energy),"k_{T} [GeV/c]",ktbins[0]-.015,ktbins[NKT]+.015,
+      false,folder);
   }
-  for(int kt : ktBins) {
-    vector<Panel> radii;
-    for(int q=1; q<=3; ++q) radii.push_back({titles[q],"R [fm]",{}});
-    for(int q=0; q<NQUANT; ++q) {
-      vector<Panel> single={{"",titles[q],{}}};
+  vector<Panel> radii;
+  for(int q=1; q<=3; ++q) radii.push_back({titles[q],"R [fm]",{}});
+  for(int q=0; q<NQUANT; ++q) {
+    vector<Panel> single={{"",titles[q],{}}};
+    for(size_t group=0; group<ktBins.size(); ++group) {
+      int kt=ktBins[group];
       for(int m=0; m<2; ++m) {
         auto& panel=(q>=1 && q<=3) ? radii[q-1] : single[0];
-        Series series; series.method=m;
+        Series series; series.method=m; series.kt=kt; series.group=group;
         for(const auto& d : data) append(series,d.points[m][q][kt],d.energy,.018*d.energy,.018*d.energy);
         writeSeries(series,Form("%s_%s_sNN_kt%d",quantities[q],methods[m],kt),"#sqrt{s_{NN}} [GeV]",titles[q]);
         panel.series.push_back(series);
       }
-      if(makePlots && (q==0 || q>=4)) drawPanels(single,Form("sNN_%s_kt%d_comparison_FFT",quantities[q],kt),
-        Form("UrQMD Au+Au, %.3f < k_{T} < %.3f GeV/c",ktbins[kt],ktbins[kt+1]),"#sqrt{s_{NN}} [GeV]",
-        data.front().energy/1.15,data.back().energy*1.15,true,plotDir,q>=4 && q<=6,q==7,missingStat);
     }
-    if(makePlots) drawPanels(radii,Form("sNN_radii_kt%d_comparison_FFT",kt),
-      Form("UrQMD Au+Au, %.3f < k_{T} < %.3f GeV/c",ktbins[kt],ktbins[kt+1]),"#sqrt{s_{NN}} [GeV]",
-      data.front().energy/1.15,data.back().energy*1.15,true,plotDir,false,false,missingStat);
+    if(makePlots && (q==0 || q>=4)) drawPanels(single,Form("sNN_%s_comparison_FFT",quantities[q]),
+      "UrQMD Au+Au 0#minus10%","#sqrt{s_{NN}} [GeV]",data.front().energy/1.15,data.back().energy*1.15,true,plotDir);
   }
+  if(makePlots) drawPanels(radii,"sNN_radii_comparison_FFT","UrQMD Au+Au 0#minus10%","#sqrt{s_{NN}} [GeV]",
+    data.front().energy/1.15,data.back().energy*1.15,true,plotDir);
   TNamed("comparison_drho_input",drhoName.Data()).Write(); TNamed("comparison_fft_input",fftName.Data()).Write();
   TNamed("comparison_derived_convention","R_RMS=sqrt((Rout^2+Rside^2+Rlong^2)/3), computed from each method's reported radii; ratio=Rout/Rside; difference=Rout^2-Rside^2; no kT averaging").Write();
   TNamed("comparison_error_convention","Baseline bars and systematic bands kept separate; derived errors use first-order propagation without radius covariances, swapping asymmetric up/down errors for negative derivatives; missing baseline errors are nan in CSV").Write();
   TNamed("comparison_normalizations","Source-fit N and correlation-fit lambda are overlaid as lambda*; input amplitudes and their errors are used directly").Write();
   TNamed("comparison_baseline_convention","D(rho): existing final-plotter baseline spreads; FFT: residual-rescaled fit errors; these error estimates have different meanings").Write();
   TParameter<int>("comparison_missing_drho_baseline",missingStat).Write();
+  TParameter<int>("comparison_show_baseline_errors",showStatErrors).Write();
   output.Close();
   cout << "Compared " << data.size() << " energies; wrote " << outputName << " and " << csvName << endl;
   if(makePlots) cout << "Figures: " << plotDir << endl;

@@ -128,8 +128,11 @@ int main(int argc,char** argv) {
         require(!fs::exists(directory/"figures/final/3p0"/(std::string("mT_")+radius+"_FFT.png")),"Wrote a deprecated separate radius plot");
         require(!fs::exists(directory/"figures/final"/(std::string("mT_overlay_")+radius+"_FFT.pdf")),"Wrote a deprecated separate radius overlay");
       }
-      require(fs::file_size(directory/"figures/final/sNN_R_out_kt0_FFT.pdf")>1000,"Missing energy plot");
-      require(fs::file_size(directory/"figures/final/sNN_R_out_kt4_FFT.pdf")>1000,"Missing second selected energy plot");
+      require(fs::file_size(directory/"figures/final/sNN_radii_FFT.pdf")>1000,"Missing combined radius/kT energy plot");
+      require(fs::file_size(directory/"figures/final/sNN_alpha_FFT.pdf")>1000,"Missing combined alpha energy plot");
+      require(fs::file_size(directory/"figures/final/sNN_lambda_FFT.pdf")>1000,"Missing combined normalization energy plot");
+      require(!fs::exists(directory/"figures/final/sNN_R_out_kt0_FFT.pdf") &&
+              !fs::exists(directory/"figures/final/sNN_R_out_kt4_FFT.pdf"),"Selected kT bins should share one energy figure");
       require(!fs::exists(directory/"figures/final/sNN_R_out_kt1_FFT.pdf") &&
               !fs::exists(directory/"figures/final/sNN_alpha_kt9_FFT.png"),"Wrote energy figures for unselected kT bins");
       require(result.Get("alpha_sNN_stat_kt9_FFT"),"Plot selection must retain numerical results for every kT bin");
